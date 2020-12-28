@@ -1,0 +1,25 @@
+{
+  "features": {
+    "inputs": {
+      "dtype": "int32",
+      "shape": [
+        null
+      ]
+    },
+    "inputs_pretokenized": {
+      "dtype": "string",
+      "shape": []
+    },
+    "targets": {
+      "dtype": "int32",
+      "shape": [
+        null
+      ]
+    },
+    "targets_pretokenized": {
+      "dtype": "string",
+      "shape": []
+    }
+  },
+  "num_shards": 2
+}
