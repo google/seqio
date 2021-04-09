@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,9 +30,9 @@ from absl import logging
 import dataclasses
 import numpy as np
 from packaging import version
-from t5.seqio import utils
-from t5.seqio.feature_converters import FeatureConverter
-from t5.seqio.vocabularies import Vocabulary
+from seqio import utils
+from seqio.feature_converters import FeatureConverter
+from seqio.vocabularies import Vocabulary
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 import typing_extensions

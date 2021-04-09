@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@ from typing import Callable, Sequence
 from unittest import mock
 
 import numpy as np
-from t5.seqio import dataset_providers
-from t5.seqio import evaluation
-from t5.seqio import preprocessors
-from t5.seqio import test_utils
-from t5.seqio import utils
+from seqio import dataset_providers
+from seqio import evaluation
+from seqio import preprocessors
+from seqio import test_utils
+from seqio import utils
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 

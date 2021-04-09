@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@ import inspect
 from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 from absl import logging
-from t5.seqio import dataset_providers
-from t5.seqio import utils
+from seqio import dataset_providers
+from seqio import utils
 import tensorflow as tf
 
 

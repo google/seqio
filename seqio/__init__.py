@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Import data modules."""
+"""Import to top-level API."""
 # pylint:disable=wildcard-import,g-bad-import-order
 
-from t5.seqio.dataset_providers import *
-import t5.seqio.evaluation
-from t5.seqio.evaluation import Evaluator
-import t5.seqio.experimental
-from t5.seqio.feature_converters import *
-import t5.seqio.test_utils
-from t5.seqio.utils import *
-from t5.seqio.vocabularies import *
+from seqio.dataset_providers import *
+from seqio import evaluation
+from seqio import experimental
+from seqio.evaluation import Evaluator
+from seqio.feature_converters import *
+from seqio import preprocessors
+import seqio.test_utils
+from seqio.utils import *
+from seqio.vocabularies import *
 
 # Version number.
-from t5.seqio.version import __version__
+from seqio.version import __version__

@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
 """Tests for seqio.preprocessors."""
 
 from absl.testing import absltest
-from t5.seqio import dataset_providers
-from t5.seqio import experimental
-from t5.seqio import test_utils
-from t5.seqio import utils
-from t5.seqio import vocabularies
+from seqio import dataset_providers
+from seqio import experimental
+from seqio import test_utils
+from seqio import utils
+from seqio import vocabularies
 import tensorflow.compat.v2 as tf
 
 assert_dataset = test_utils.assert_dataset

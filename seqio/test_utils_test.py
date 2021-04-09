@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
 """Tests for asserts."""
 from absl.testing import absltest
 
-from t5.seqio import dataset_providers
-from t5.seqio.test_utils import assert_dataset
-from t5.seqio.test_utils import DataInjector
-from t5.seqio.test_utils import FakeTaskTest
+from seqio import dataset_providers
+from seqio.test_utils import assert_dataset
+from seqio.test_utils import DataInjector
+from seqio.test_utils import FakeTaskTest
 import tensorflow.compat.v2 as tf
 
 tf.compat.v1.enable_eager_execution()

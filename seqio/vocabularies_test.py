@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 from absl.testing import absltest
 import numpy as np
-from t5.seqio import test_utils
-from t5.seqio import vocabularies
+from seqio import test_utils
+from seqio import vocabularies
 import tensorflow.compat.v2 as tf
 
 tf.compat.v1.enable_eager_execution()

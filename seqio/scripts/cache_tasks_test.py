@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ import apache_beam as beam
 from apache_beam.testing.test_pipeline import TestPipeline
 from apache_beam.testing.util import assert_that
 from apache_beam.testing.util import equal_to
-from t5 import seqio
-from t5.seqio.scripts import cache_tasks_main
+import seqio
+from seqio.scripts import cache_tasks_main
 import tensorflow.compat.v2 as tf
 
 tf.compat.v1.enable_eager_execution()

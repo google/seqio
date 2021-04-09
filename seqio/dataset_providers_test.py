@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,11 +20,11 @@ import os
 from typing import Callable, Sequence
 
 from absl.testing import absltest
-from t5.seqio import dataset_providers
-from t5.seqio import feature_converters
-from t5.seqio import preprocessors
-from t5.seqio import test_utils
-from t5.seqio import utils
+from seqio import dataset_providers
+from seqio import feature_converters
+from seqio import preprocessors
+from seqio import test_utils
+from seqio import utils
 import tensorflow.compat.v2 as tf
 
 tf.compat.v1.enable_eager_execution()

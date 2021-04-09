@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,12 +27,12 @@ from absl import flags
 from absl import logging
 from absl.testing import absltest
 import numpy as np
-from t5.seqio import dataset_providers
-from t5.seqio import evaluation
-from t5.seqio import feature_converters
-from t5.seqio import preprocessors
-from t5.seqio import utils as dataset_utils
-from t5.seqio import vocabularies
+from seqio import dataset_providers
+from seqio import evaluation
+from seqio import feature_converters
+from seqio import preprocessors
+from seqio import utils as dataset_utils
+from seqio import vocabularies
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
@@ -809,7 +809,7 @@ class FakeTaskTest(absltest.TestCase):
         files=fake_tfds_paths.get,
         size=lambda x: 30 if x == "train" else 10)
     self._tfds_patcher = mock.patch(
-        "t5.seqio.utils.LazyTfdsLoader",
+        "seqio.utils.LazyTfdsLoader",
         new=mock.Mock(return_value=fake_tfds))
     self._tfds_patcher.start()
 

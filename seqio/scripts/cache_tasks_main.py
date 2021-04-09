@@ -1,4 +1,4 @@
-# Copyright 2021 The T5 Authors.
+# Copyright 2021 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ from absl import logging
 import apache_beam as beam
 import apache_beam.metrics as metrics
 import numpy as np
-from t5 import seqio
+import seqio
 import tensorflow.compat.v2 as tf
 
 
