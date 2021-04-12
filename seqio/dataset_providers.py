@@ -55,6 +55,7 @@ class Feature:
   add_eos: bool = True
   required: bool = True
   dtype: tf.DType = tf.int32
+  rank: int = 1
 
 
 @dataclasses.dataclass(frozen=True)
@@ -826,10 +827,11 @@ class Task(DatasetProviderBase):
             f"Task dataset has incorrect type for feature '{feat}' after "
             f"preprocessing: Got {actual_spec.dtype.name}, expected "
             f"{feat_spec.dtype.name}")
-      if actual_spec.shape.rank != 1:
+      if feat_spec.rank != actual_spec.shape.rank:
         raise ValueError(
             f"Task dataset has incorrect rank for feature '{feat}' after "
-            f"preprocessing: Got {actual_spec.shape.rank}, expected 1")
+            f"preprocessing: Got {actual_spec.shape.rank}, expected "
+            f"{feat_spec.rank}")
 
     return dataset
 

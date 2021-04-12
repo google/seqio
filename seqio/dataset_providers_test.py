@@ -25,6 +25,7 @@ from seqio import feature_converters
 from seqio import preprocessors
 from seqio import test_utils
 from seqio import utils
+from seqio import vocabularies
 import tensorflow.compat.v2 as tf
 
 tf.compat.v1.enable_eager_execution()
@@ -403,6 +404,11 @@ class TasksTest(test_utils.FakeTaskTest):
             dataset_providers.Feature(vocabulary=default_vocab, required=False),
         "targets":
             dataset_providers.Feature(vocabulary=default_vocab, required=True),
+        "inputs_rank2":
+            dataset_providers.Feature(
+                vocabulary=vocabularies.PassThroughVocabulary(5),
+                required=False,
+                rank=2),
     }
 
     def _materialize(output):
@@ -415,7 +421,8 @@ class TasksTest(test_utils.FakeTaskTest):
       )
       list(
           task.get_dataset(
-              {"inputs": 13, "targets": 13}, "train", use_cached=False
+              {"inputs": 13, "targets": 13, "inputs_rank2": 13}, "train",
+              use_cached=False
           ).as_numpy_iterator()
       )
 
@@ -442,6 +449,16 @@ class TasksTest(test_utils.FakeTaskTest):
         "Task dataset has incorrect rank for feature 'targets' after "
         "preprocessing: Got 0, expected 1"):
       _materialize({"targets": 0})
+
+    # Verify rank > 1 works.
+    _materialize({"targets": [0], "inputs_rank2": [[0, 0, 0], [0, 0, 0]]})
+
+    # Wrong rank (1 when 2 is expected).
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        "Task dataset has incorrect rank for feature 'inputs_rank2' after "
+        "preprocessing: Got 1, expected 2"):
+      _materialize({"targets": [0], "inputs_rank2": [0]})
 
   def test_value_errors(self):
     dataset_fn = (
