@@ -68,9 +68,9 @@ def register_dummy_task(
     output_feature_names: Sequence[str] = ("inputs", "targets"),
     preprocessor=preprocessors.append_eos,
     postprocess_fn=None,
-    metrics_fn=None) -> None:
+    metrics_fn=None) -> dataset_providers.Task:
   """Register a dummy task for GetDatasetTest."""
-  dataset_providers.TaskRegistry.add(
+  return dataset_providers.TaskRegistry.add(
       task_name,
       source=dataset_providers.FunctionDataSource(
           dataset_fn=dataset_fn, splits=["train", "validation"]),
@@ -659,6 +659,21 @@ class EvaluationTest(tf.test.TestCase):
     self.assertIsNone(all_metrics.result())
     self.assertEqual({}, all_output_tokens)
     self.assertEqual({}, all_output_scores)
+
+  def test_task_with_no_pretokenized_targets(self):
+    task_name = "no_pretokenized_task"
+    ds = tf.data.Dataset.from_tensors({"targets": [42, 48], "inputs": [56]})
+    dataset_fn = lambda split, shuffle_files: ds
+    task = register_dummy_task(task_name, dataset_fn=dataset_fn,
+                               metrics_fn=[_sum_scores_metric])
+    task.output_features["targets"].vocabulary.decode = mock.Mock(
+        return_value="ex 1")
+    evaluator = Evaluator(
+        mixture_or_task_name=task_name,
+        feature_converter=evaluation.EncDecFeatureConverter(pack=False))
+    self.assertSequenceEqual(evaluator.cached_targets[task_name], ["ex 1"])
+    task.output_features["targets"].vocabulary.decode.assert_called_once_with(
+        [42, 48, 1])
 
   def test_log_eval_results(self):
     summary_dir = self.create_tempdir().full_path

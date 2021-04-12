@@ -160,13 +160,12 @@ def get_targets_and_examples(
           targets_pretokenized = targets_pretokenized.decode("utf-8")
         targets.append(task.postprocess_fn(
             targets_pretokenized, example=ex, is_target=True))
-      # TODO(hwchung): if fjord@ is using targets_pretokenized key for
-      # evaluation, this else statement is no longer necessary. We may add the
-      # detokenization logic here, i.e., detokenize ex["targets"] and
-      # postprocess that instead of "targets_pretokenized".
       else:
-        targets.append(task.postprocess_fn(
-            tf.compat.as_text(ex["targets"]), example=ex, is_target=True))
+        target = task.output_features["targets"].vocabulary.decode(
+            list(ex["targets"]))
+        if isinstance(target, bytes):
+          target = target.decode("utf-8")
+        targets.append(target)
 
     cached_targets[task.name] = targets
     cached_task_datasets[task.name] = ds.apply(
