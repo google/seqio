@@ -162,7 +162,7 @@ def get_targets_and_examples(
             targets_pretokenized, example=ex, is_target=True))
       else:
         target = task.output_features["targets"].vocabulary.decode(
-            list(ex["targets"]))
+            [int(x) for x in ex["targets"]])
         if isinstance(target, bytes):
           target = target.decode("utf-8")
         targets.append(target)
