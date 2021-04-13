@@ -38,6 +38,7 @@ setuptools.setup(
     url='http://github.com/google/seqio',
     license='Apache 2.0',
     packages=setuptools.find_packages(),
+    include_package_data=True,
     scripts=[],
     install_requires=[
         'absl-py',

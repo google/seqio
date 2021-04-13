@@ -1,0 +1,1 @@
+recursive-include seqio/test_data *
