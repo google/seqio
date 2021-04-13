@@ -362,7 +362,7 @@ After that, you can call `get_dataset` to build the `tf.data.Dataset`. For examp
 
 ```py
 dataset = seqio.get_mixture_or_task("mix1").get_dataset(
-    sequence_length={"inputs": 256, targets": 128},
+    sequence_length={"inputs": 256, "targets": 128},
     dataset_split="train",
     shuffle=True,
     num_epochs=1,
