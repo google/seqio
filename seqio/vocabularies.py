@@ -326,7 +326,11 @@ class SentencePieceVocabulary(Vocabulary):
     Returns:
       a tf Scalar with dtype tf.string
     """
-    return self.tf_tokenizer.detokenize(ids)
+    ret = self.tf_tokenizer.detokenize(ids)
+    # Handle detokenization of ids with uneven sequence lengths.
+    if isinstance(ret, tf.RaggedTensor):
+      ret = tf.reshape(ret.to_tensor(), ids.shape[:-1])
+    return ret
 
   def __eq__(self, other):
     if not isinstance(other, SentencePieceVocabulary):
