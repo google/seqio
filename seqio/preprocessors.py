@@ -25,6 +25,31 @@ OutputFeaturesType = Mapping[str, dataset_providers.Feature]
 SequenceLengthType = Mapping[str, int]
 
 
+@utils.map_over_dataset
+def rekey(x, key_map=None):
+  """Replace the feature keys according to the mapping in `key_map`.
+
+  For example, if the dataset returns examples of the format:
+  {'foo': 'something', 'bar': 'something else'}
+  and key_map = {'boo': 'foo', 'spar': 'bar'} then this function will return
+  examples with the format
+  {'boo': 'something', 'spar': 'something else'}
+
+  If a mapping is to an empty key or None, set the new key to an empty string.
+  Args:
+    x: an example to process.
+    key_map: dictionary mapping new keys to original keys
+  Returns:
+    A preprocessed example with the format listed above.
+  """
+  if key_map:
+    return {
+        new_key: x[old_key] if old_key else ''
+        for new_key, old_key in key_map.items()
+    }
+  return x
+
+
 def tokenize(
     dataset: tf.data.Dataset,
     output_features: OutputFeaturesType,

@@ -118,6 +118,28 @@ class PreprocessorsTest(absltest.TestCase):
             'bows': [12, 13],
         })
 
+  def test_rekey(self):
+    og_dataset = tf.data.Dataset.from_tensors({
+        'text': 'That is good.', 'other': 'That is bad.'})
+    dataset = preprocessors.rekey(
+        og_dataset, {'inputs': 'other', 'targets': 'text'})
+    assert_dataset(
+        dataset,
+        {'inputs': 'That is bad.', 'targets': 'That is good.'})
+
+    dataset = preprocessors.rekey(og_dataset, {'targets': 'text'})
+    assert_dataset(dataset, {'targets': 'That is good.'})
+
+    dataset = preprocessors.rekey(og_dataset, {'inputs': 'text'})
+    assert_dataset(dataset, {'inputs': 'That is good.'})
+
+    dataset = preprocessors.rekey(og_dataset)
+    assert_dataset(dataset, {'text': 'That is good.', 'other': 'That is bad.'})
+
+    dataset = preprocessors.rekey(
+        og_dataset, {'inputs': 'text', 'targets': None})
+    assert_dataset(dataset, {'inputs': 'That is good.', 'targets': ''})
+
 
 if __name__ == '__main__':
   absltest.main()
