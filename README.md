@@ -413,11 +413,383 @@ Once your `Task` is registered, you can run [`cache_tasks_main`](scripts/cache_t
 
 Finally, you are ready to load the cached version of your `Task` (or `Mixture`) containing it. You will need to add the path to the directory you passed to `--output_cache_dir` via `seqio.add_global_cache_dirs(["/my/cache/dir"])`. Now when you call `task_or_mixture.get_dataset(..., use_cached=True)`, the data will be loaded from the cache directory instead of the raw data source.
 
-### `FeatureConverter`
+### Feature Converters
 
-Given the `Task`'s preprocessed output features, the `FeatureConverter` determines how they will be seen by the model...
+The role of `Task` is to provide the dataset object with as little
+model-specific features (e.g., generic "inputs" and "targets") while the Feature
+Converters transform the model-agnostic features to model-specific features
+(e.g., "encoder_input_tokens"). We refer to the former as "task features" and
+the latter as "model features".
 
-TODO(hwchung)
+
+Let's use machine translation (English to German) as a running example.
+
+The raw data consists of sentence pairs such as
+
+```
+"That is good\tDas ist gut."
+```
+
+A task registered to `Task` (e.g.,
+[wmt_t2t_ende_v003](t5/data/tasks.py?l=156&rcl=337594707))
+reads these sentence pairs from the data source and applies a series of
+[preprocessors](t5/data/preprocessors.py?rcl=343354647).
+One of the internal representations looks like
+
+```python
+{"inputs": "translate English to German: That is good.",
+ "targets": "Das ist gut."}
+```
+
+The final output from the `Task` is a tokenized version of the parallel
+sentences.  In the following toy example (the token ids do not correspond to the
+above string example), the dataset consists of 2 examples.
+
+```python
+dataset = [{"inputs": [7, 8, 5], "targets": [3, 9]},
+           {"inputs": [8, 4, 9, 3], "targets": [4]}]
+```
+
+The format is in the `tf.data.Dataset` (i.e., each example is a dictionary with
+"inputs" and "targets" fields.
+
+The `FeatureConverter` then takes this as an input and converts to the
+model-specific features. In addition, the feature converter performs padding and
+optionally packing (for model implementations that support it) for efficiency.
+For example, let's assume that we are using the standard Transformer
+architecture with an encoder and a decoder. The output of the feature converter
+is
+
+```python
+converted_dataset = [{
+    "encoder_input_token": [7, 8, 5, 1, 8, 4, 9, 3, 1, 0],
+     "encoder_segment_id": [1, 1, 1, 1, 2, 2, 2, 2, 2, 0],
+       "encoder_position": [0, 1, 2, 3, 0, 1, 2, 3, 4, 0],
+   "decoder_target_token": [3, 9, 1, 4, 1, 0, 0],
+    "decoder_input_token": [0, 3, 9, 0, 4, 0, 0],
+    "decoder_loss_weight": [1, 1, 1, 1, 1, 0, 0],
+       "decoder_position": [0, 1, 2, 0, 1, 0, 0],
+     "decoder_segment_id": [1, 1, 1, 2, 2, 0, 0],
+}]
+```
+
+In this case, two task examples are packed into one. `*_segment_id` and
+`*_position` are the fields used to denote the membership and position of packed
+token in the original sequence. The EOS ids (i.e., 1) are appended. In addition,
+each fields is padded to the specified length.
+
+We will look at the details of this example in Encoder-decoder architecture:
+`seqio.EncDecFeatureConverter` section.
+
+
+#### Feature converters provided out of the box
+
+We provide feature converters for three common architectures: encoder-decoder,
+decoder-only and encoder-only. Here we describe how users can use the feature
+converters for each of these architectures out of the box as a part of the
+SeqIO library.
+
+In the SeqIO library, each architecture has a class defining how the task
+features are converted to model features. Since these feature converters are
+already implemented, it is straightforward to use them by providing the class as a
+`feature_converter_cls` argument of the `seqio.get_dataset` function. The
+following sections will show the example usage of `seqio.get_dataset`.
+
+
+##### Encoder-decoder architecture: `seqio.EncDecFeatureConverter`
+This is the architecture of the original Transformer paper. For the
+English-to-German translation task, the following function call retrieves the
+`tf.data.Dataset` object with the model features.
+
+```python
+dataset: tf.data.Dataset = seqio.get_dataset(
+    mixture_or_task_name="wmt_t2t_ende_v003",
+    task_feature_lengths={"inputs": 32, "targets": 32},
+    dataset_split="train",
+    pack=True,
+    shuffle=True,
+    feature_converter=seqio.EncDecFeatureConverter(pack=True)
+)
+```
+
+The resulting dataset object has the following 7 fields
+
+|Feature name          | Explanation                |
+|----------------------|---------------------------|
+|`encoder_input_token` | Input tokens to the encoder. |
+|`encoder_position`    | Position index in the sequence before packing.|
+|`encoder_segment_id`  | Sequence membership before packing. Two positions with the same positive integer mean that they belong to the same sequence before packing. |
+|`decoder_input_token` | Input tokens to the decoder. |
+|`decoder_target_token`| Output tokens from the decoder. |
+|`decoder_loss_weight` | A weight on each position that can be used as a mask. |
+|`decoder_position`    | Position index in the sequence before packing. |
+|`decoder_segment_id`  | Same as `encoder_segment_id` but for decoder.|
+
+
+##### Decoder-only architecture
+
+This architecture consists of a single autoregressive stack, which we denote as
+a "decoder".
+
+A decoder autoregressively produces an output sequence.
+Therefore, it can be used as a standard language model if the task dataset has
+only "targets" features, i.e., self-supervised. If the task dataset also has an
+"inputs" field, e.g., supervised machine translation, the decoder can still be
+used by concatenating the inputs and targets fields. See [Raffel et al.
+(2020)](https://arxiv.org/abs/1910.10683), Section 3.2.1 for more detailed take
+on this topic.
+
+We support both uses cases and refer to the former as *standard language model*
+and the latter as *prefix language model*. Each of these models is described
+separately below.
+
+Note that we do not provide special features to denote how the dataset should be
+consumed. For example, a Transformer-based fully autoregressive decoder has a
+fully-causal self-attention layer. Since there are many ways of implementing the
+masking pattern for such attention layer and, more importantly, SeqIO is not
+limited to attention-based models, we leave it up to the model implementations
+to apply the masking pattern. There is one exception, and we cover this in
+the Prefix LM section below.
+
+A common use pattern is to pretrain a decoder model with the left-to-right
+language modeling objective (unsupervised) using `seqio.LMFeatureConverter` and
+then fine-tune (supervised) using `seqio.PrefixLMFeatureConverter`.
+
+
+###### Standard LM
+
+For the standard language model, the task dataset only has "targets" field.
+Therefore, the sequence length specification only needs to specify targets.
+
+```python
+dataset: tf.data.Dataset = seqio.get_dataset(
+    mixture_or_task_name="standard_lm",
+    task_feature_lengths={"targets": 32},
+    dataset_split="train",
+    pack=True,
+    shuffle=True,
+    feature_converter=seqio.LMFeatureConverter(pack=True)
+)
+```
+
+Note that "standard_lm" is not a registered task in the T5 codebase. It is the
+left-to-right language modeling task, i.e., predict the next token given the
+previous tokens on some language corpus (e.g.,
+[C4](https://www.tensorflow.org/datasets/catalog/c4).
+
+The output dataset has the following model features.
+
+|Feature name          | Explanation                |
+|----------------------|---------------------------|
+|`decoder_target_token`| Output tokens from the decoder |
+|`decoder_input_token` | Input tokens to the decoder |
+|`decoder_loss_weight` | Binary mask to indicate where the loss should be taken |
+|`decoder_position`    | Position index in the sequence before packing|
+|`decoder_segment_id`  | Sequence membership before packing. Two positions with the same positive integer mean that they belong to the same sequence before packing. |
+
+The `decoder_target_token` is a shifted version of `decoder_input_token` for the
+standard teacher-forced autoregressive training.
+
+
+
+###### Prefix LM: `seqio.PrefixLMFeatureConverter`
+
+If the input dataset has a notion of "inputs" and "targets", we can concatenate
+them so that we can still use a single stack decoder. Therefore, the output only
+contains "targets" just like standard LM case.
+
+We use the same toy example for English-to-German translation task as a running
+example:
+
+```
+{"inputs": "translate English to German: That is good.",
+ "targets": "Das ist gut."}
+```
+
+To be consumed by the decoder-only stack, `seqio.PrefixLMFeatureConverter`
+concatenates them form the new "targets". Consider 2-layer decoder architecture
+whose activations are shown below
+
+```
+
+That  is  good <EOS> Das ist gut <EOS>
+ |    |    |    |    |   |    |   |
+ u1   u2   u3   u4   u5  u6   u7  u8
+ |    |    |    |    |   |    |   |
+ v1   v2   v3   v4   v5  v6   v7  v8
+ |    |    |    |    |   |    |   |
+<BOS> That is  good <EOS> Das ist gut
+
+```
+
+Let's us denote the first layer's activation in the `i`th position as `vi`.
+Similarly, let `ui` denote the activation of the second layer in the `i`th
+position.
+
+
+For attention-based sequence models such as Transformer decoders, the
+self-attention layer is used to encode contextualized representation of the
+sequence. At a given layer, each position's representation is computed as a
+function of the representations of the tokens *before* its position in the
+previous layer.
+
+Referring to the toy example, when computing `u2` with fully-causing masking, we
+do not use `v3`. This results in a representation `u2` of the word "is" that
+does not take into account the word "good", which is unnecessarily limiting.
+
+For Prefix LM, this issue is resolved by having the fully visible masking
+pattern for the inputs portion only. For example, when computing `u2`, `v1`,
+`v2`, `v3`, `v4` and `v5` are all visible and taken into account. For the tokens in
+the "targets" of the `Task` dataset, we use the causal masking. For example,
+when computing `u6`, all `vi` for `i <= 6` are taken into account but not `v7`.
+
+<details>
+  <summary>Why `v5` is included in the inputs attention pattern</summary>
+  In the same translation example, we note that when computing `u2`, the
+  activation corresponding to the position where \<EOS\> token was input (i.e.,
+  `v5`) was visible. This doesn't count as "cheating" because the model doesn't
+  see the next word "Das". This can provide additional context in building the
+  representation for "good". In this case, `u4` has the context that "good" is
+  the last word in the sentence.
+</details>
+
+`seqio.PrefixLMFeatureConverter` provides a feature `decoder_causal_attention`
+to encode this information. For the above example, we have
+
+
+```
+decoder_causal_attention = [1, 1, 1, 1, 1, 0, 0, 0]
+```
+
+indicating that the non-causal attention can be applied to the first five
+positions. Note that this feature seems trivial but for a packed dataset,
+the inputs and targets boundary are more nuanced.
+
+
+A final consideration for the prefix LM is that because we concatenate "inputs"
+and "targets", which tokens are used for the loss computation is a modeling
+decision. For example, we can penalize the models only for the "targets" tokens
+or we may choose to penalize building the representation for "inputs" tokens.
+This is controlled by `loss_on_targets_only` argument (defaults to `True`) to
+`seqio.PrefixLMFeatureConverter` constructor. In the above example, we would get
+
+```
+decoder_loss_weights = [0, 0, 0, 0, 1, 1, 1, 1]
+```
+
+This indicates that the last 4 positions are used for the loss computation.
+
+To get the dataset with prefix LM features, we can use
+
+```python
+dataset: tf.data.Dataset = seqio.get_dataset(
+    mixture_or_task_name="wmt_t2t_ende_v003",
+    task_feature_lengths={"inputs": 32, "targets": 32},
+    dataset_split="train",
+    pack=True,
+    shuffle=True,
+    feature_converter=seqio.PrefixLMFeatureConverter(
+        pack=True,
+        loss_on_targets_only=True)
+)
+```
+
+The resulting features have length 64 because it concatenates inputs and targets
+each with length 32.
+
+The output dataset has the following model features. Note that the only
+additional feature is `decoder_causal_attention`.
+
+|Feature name          | Explanation                |
+|----------------------|---------------------------|
+|`decoder_target_token`| Output tokens from the decoder |
+|`decoder_input_token` | Input tokens to the decoder |
+|`decoder_loss_weight` | Binary mask to indicate where the loss should be taken |
+|`decoder_position`    | Position index in the sequence before packing|
+|`decoder_segment_id`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
+|`decoder_causal_attention`| Binary mask denoting which tokens are in the non-causal masking region.|
+
+
+
+
+###### Encoder-only architecture
+Like decoder-only architecture, this one is a single stack, but not
+autoregressive.
+
+One notable assumption is that the inputs and targets are *aligned*, i.e., they
+have the same sequence length and `i`th position in the targets correspond to
+the output representation of the `i`th token in the inputs.
+
+A common model using encoder-only architecture is
+[BERT](https://arxiv.org/abs/1810.04805). We provide `Encoder` feature converter
+class to support the Masked Language Modeling (MLM) objective from BERT.
+
+We assume that a unique sentinel such as `[MASK]` token is used to mask some
+fraction of the input text and the task is to recover the original text.
+Therefore, the "targets" is naturally defined as the original text whereas
+"inputs" are the masked text.
+
+Encoder-only models are often used for classification tasks. In BERT, a special
+token `[CLS]` is prepended to the input sequence. The last layer's activation
+corresponding to this sentinel token is the contextualized representation of the
+sequence. We assume that such "classification" sentinel is prepended.
+
+Consider the following example for the MLM task. The input dataset has two
+examples, which is packed to one example. We assume that `mask_id = 9` and the
+`[CLS]` token has id of 8.
+
+```
+dataset = [{"inputs": [8, 9, 9, 3, 4], "targets": [8, 7, 4, 3, 4]},
+           {"inputs": [8, 3, 9], "targets": [8, 3, 6]}]
+
+converted_dataset = {
+     "encoder_input_token": [8, 9, 9, 3, 4, 1, 8, 3, 9, 1, 0],
+    "encoder_target_token": [8, 7, 4, 3, 4, 1, 8, 3, 6, 1, 0],
+      "encoder_segment_id": [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 0],
+        "encoder_position": [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 0],
+     "encoder_loss_weight": [0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0],
+}
+```
+
+Note that the packed sequence has `[CLS]` token at the beginning of each
+sequences. Also note that the loss is taken only on the masked position.
+
+To use the pre-defined `EncoderFeatureConverter`, provide `mask_id` as an
+argument.
+
+```python
+dataset: tf.data.Dataset = seqio.get_dataset(
+    mixture_or_task_name="some mlm task",
+    task_feature_lengths={"inputs": 32, "targets": 32},
+    dataset_split="train",
+    pack=True,
+    shuffle=True,
+    feature_converter=seqio.EncoderFeatureConverter(
+        pack=True,
+        mask_id=9)
+)
+```
+
+The resulting dataset object has the following 5 fields
+
+|Feature name          | Explanation                |
+|----------------------|---------------------------|
+|`encoder_input_token` | Input tokens to the encoder |
+|`encoder_position`    | Position index in the sequence before packing|
+|`encoder_segment_id`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
+|`encoder_target_token`| Output tokens from the encoder |
+|`encoder_loss_weight` | Binary mask to indicate where the loss should be taken |
+
+
+###### Custom architectures
+For a model architectures, you would need to create a subclass of
+`FeatureConverter` and override two methods `_convert_features` and
+`get_model_feature_lengths` to define how task features are mapped to the model
+features including the length relationships. The existing feature converters
+(e.g., `seqio.EncDecFeatureConverter`) follows the same pattern. So this can be
+useful starting point.
+
+
 
 ### `Evaluator`
 
