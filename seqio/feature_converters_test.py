@@ -15,16 +15,18 @@
 """Tests for seqio.feature_converters."""
 
 import re
-from typing import Sequence
 from unittest import mock
 from seqio import feature_converters
 from seqio import test_utils
 import tensorflow.compat.v2 as tf
 
+FeatureSpec = feature_converters.FeatureConverter.FeatureSpec
+
 tf.compat.v1.enable_eager_execution()
 
 assert_dataset = test_utils.assert_dataset
 create_default_dataset = test_utils.create_default_dataset
+
 
 class HelperFunctionsTest(tf.test.TestCase):
 
@@ -68,7 +70,7 @@ class HelperFunctionsTest(tf.test.TestCase):
   def test_autoregressive_inputs_packed_non_eos(self):
     # In the correct input format, x[4] should have been 1 (EOS).
     x = tf.constant([3, 8, 1, 9, 6, 5, 4, 1, 0, 0])
-    # sequence_id is correctly formated.
+    # sequence_id is correctly formatted.
     sequence_id = tf.constant([1, 1, 1, 2, 2, 3, 3, 3, 0, 0])
     autoreg_inputs = feature_converters.autoregressive_inputs(
         x, sequence_id=sequence_id)
@@ -139,25 +141,25 @@ class HelperFunctionsTest(tf.test.TestCase):
   def test_check_exact_match_redundant_features(self):
     expected_msg = (
         "The input_dataset contains extra features not specified in the "
-        "task_feature_dtypes: ({'random', 'inputs'}|{'inputs', 'random'})")
+        "task_features: ({'random', 'inputs'}|{'inputs', 'random'})")
     expected_msg = re.compile(expected_msg)
     with self.assertRaisesRegex(ValueError, expected_msg):
       feature_converters._check_exact_match(
           expected_features=["targets"],
           actual_features=["inputs", "targets", "random"],
-          expected_feature_source="task_feature_dtypes",
+          expected_feature_source="task_features",
           actual_feature_source="input_dataset")
 
   def test_check_exact_match_missing_features(self):
     expected_msg = (
         "The input_dataset is missing features specified in the "
-        "task_feature_dtypes: ({'random', 'inputs'}|{'inputs', 'random'})")
+        "task_features: ({'random', 'inputs'}|{'inputs', 'random'})")
     expected_msg = re.compile(expected_msg)
     with self.assertRaisesRegex(ValueError, expected_msg):
       feature_converters._check_exact_match(
           expected_features=["inputs", "targets", "random"],
           actual_features=["targets"],
-          expected_feature_source="task_feature_dtypes",
+          expected_feature_source="task_features",
           actual_feature_source="input_dataset")
 
 
@@ -165,13 +167,13 @@ class FeatureConvertersTest(tf.test.TestCase):
 
   def setUp(self):
     super().setUp()
-    feature_converters.FeatureConverter.TASK_FEATURE_DTYPES = {}
-    feature_converters.FeatureConverter.MODEL_FEATURE_DTYPES = {}
+    feature_converters.FeatureConverter.TASK_FEATURES = {}
+    feature_converters.FeatureConverter.MODEL_FEATURES = {}
     feature_converters.FeatureConverter.PACKING_FEATURE_DTYPES = {}
 
   def tearDown(self):
-    del feature_converters.FeatureConverter.TASK_FEATURE_DTYPES
-    del feature_converters.FeatureConverter.MODEL_FEATURE_DTYPES
+    del feature_converters.FeatureConverter.TASK_FEATURES
+    del feature_converters.FeatureConverter.MODEL_FEATURES
     del feature_converters.FeatureConverter.PACKING_FEATURE_DTYPES
     super().tearDown()
 
@@ -188,8 +190,10 @@ class FeatureConvertersTest(tf.test.TestCase):
       with self.assertRaisesRegex(ValueError, expected_msg):
         converter._validate_dataset(
             ds,
-            expected_features=task_feature_lengths.keys(),
-            expected_dtypes={"inputs": tf.int32, "targets": tf.int32},
+            expected_features={
+                "inputs": FeatureSpec(dtype=tf.int32),
+                "targets": FeatureSpec(dtype=tf.int32)
+            },
             expected_lengths=task_feature_lengths,
             strict=False,
             error_label="initial")
@@ -204,16 +208,18 @@ class FeatureConvertersTest(tf.test.TestCase):
 
     with mock.patch.object(feature_converters.FeatureConverter,
                            "__abstractmethods__", set()):
-      feature_converters.FeatureConverter.TASK_FEATURE_DTYPES = (
-          task_feature_dtypes)
+      feature_converters.FeatureConverter.TASK_FEATURES = {
+          k: FeatureSpec(v) for k, v in task_feature_dtypes.items()}
       converter = feature_converters.FeatureConverter()
       expected_msg = ("Dataset has incorrect type for feature 'inputs' during "
                       "initial validation: Got int32, expected int64")
       with self.assertRaisesRegex(ValueError, expected_msg):
         converter._validate_dataset(
             ds,
-            expected_features=task_feature_lengths.keys(),
-            expected_dtypes={"inputs": tf.int64, "targets": tf.int64},
+            expected_features={
+                "inputs": FeatureSpec(dtype=tf.int64),
+                "targets": FeatureSpec(dtype=tf.int64)
+            },
             expected_lengths=task_feature_lengths,
             strict=False,
             error_label="initial")
@@ -233,12 +239,58 @@ class FeatureConvertersTest(tf.test.TestCase):
       with self.assertRaisesRegex(ValueError, expected_msg):
         converter._validate_dataset(
             ds,
-            expected_features=task_feature_lengths.keys(),
-            expected_dtypes={"inputs": tf.int64, "targets": tf.int64},
+            expected_features={
+                "inputs": FeatureSpec(dtype=tf.int64),
+                "targets": FeatureSpec(dtype=tf.int64)
+            },
             expected_lengths=task_feature_lengths,
             strict=False,
-            expected_rank=1,
             error_label="initial")
+
+  def test_validate_dataset_rank_2(self):
+    x = [{"inputs": [[9, 4, 3, 8, 6]], "targets": [3, 9, 4, 5]}]
+    ds = tf.data.Dataset.from_generator(
+        lambda: x, output_types={"inputs": tf.int64, "targets": tf.int64},
+        output_shapes={"inputs": [None, 1], "targets": [None]})
+    task_feature_lengths = {"inputs": 5, "targets": 4}
+
+    with mock.patch.object(feature_converters.FeatureConverter,
+                           "__abstractmethods__", set()):
+      converter = feature_converters.FeatureConverter()
+      converter._validate_dataset(
+          ds,
+          expected_features={
+              "inputs": FeatureSpec(dtype=tf.int64, rank=2),
+              "targets": FeatureSpec(dtype=tf.int64)
+          },
+          expected_lengths=task_feature_lengths,
+          strict=False,
+          error_label="initial")
+
+  def test_validate_dataset_rank_2_with_pack(self):
+    x = [{"inputs": [[9, 4, 3, 8, 6]], "targets": [3, 9, 4, 5]}]
+    ds = tf.data.Dataset.from_generator(
+        lambda: x, output_types={"inputs": tf.int64, "targets": tf.int64},
+        output_shapes={"inputs": [None, 1], "targets": [None]})
+    task_feature_lengths = {"inputs": 5, "targets": 4}
+
+    with mock.patch.object(feature_converters.FeatureConverter,
+                           "__abstractmethods__", set()),\
+        mock.patch.object(feature_converters.FeatureConverter,
+                          "_convert_features", return_value=ds):
+      converter = feature_converters.FeatureConverter(pack=True)
+      feature_converters.FeatureConverter.TASK_FEATURES = {
+          "inputs": FeatureSpec(tf.int64, rank=2),
+          "targets": FeatureSpec(tf.int64)
+      }
+      feature_converters.FeatureConverter.MODEL_FEATURES = {
+          "inputs": FeatureSpec(tf.int64, rank=2),
+          "targets": FeatureSpec(tf.int64)
+      }
+      expected_msg = ("When packing is enabled, expected ranks must be 1. Got "
+                      "expected rank 2 for feature inputs.")
+      with self.assertRaisesRegex(ValueError, expected_msg):
+        converter(ds, task_feature_lengths)
 
   def test_call_missing_input_lengths(self):
     x = [{"inputs": [9, 4, 3, 8, 6], "targets": [3, 9, 4, 5]}]
@@ -250,12 +302,12 @@ class FeatureConvertersTest(tf.test.TestCase):
     with mock.patch.object(feature_converters.FeatureConverter,
                            "__abstractmethods__", set()):
       converter = feature_converters.FeatureConverter()
-      feature_converters.FeatureConverter.TASK_FEATURE_DTYPES = {
-          "inputs": tf.int64,
-          "targets": tf.int64
+      feature_converters.FeatureConverter.TASK_FEATURES = {
+          "inputs": FeatureSpec(tf.int64),
+          "targets": FeatureSpec(tf.int64)
       }
       expected_msg = ("The task_feature_lengths is missing features specified "
-                      "in the TASK_FEATURE_DTYPES: {'targets'}")
+                      "in the TASK_FEATURES: {'targets'}")
       with self.assertRaisesRegex(ValueError, expected_msg):
         converter(ds, task_feature_lengths)
 
@@ -273,8 +325,7 @@ class FeatureConvertersTest(tf.test.TestCase):
       # _validate_dataset works even if ds has targets and targets_pretokenized
       ds = converter._validate_dataset(
           ds,
-          expected_features=task_feature_lengths.keys(),
-          expected_dtypes={"targets": tf.int64},
+          expected_features={"targets": FeatureSpec(dtype=tf.int64)},
           expected_lengths=task_feature_lengths,
           strict=True,
           error_label="initial")

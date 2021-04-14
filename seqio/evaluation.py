@@ -229,7 +229,7 @@ class Logger(abc.ABC):
 class Evaluator:
   """A class to encapsulate all eval-related information.
 
-  Users should define `predict_fn` and then pass it to `evaulate` method.
+  Users should define `predict_fn` and then pass it to `evaluate` method.
   `predict_fn` should operate with enumerated tf.data.Dataset. See `evaluate`
   method for more detail.
 
