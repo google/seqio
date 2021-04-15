@@ -323,6 +323,7 @@ class Evaluator:
           split=eval_split,
           shuffle=False,
           num_epochs=1,
+          seed=42,
           use_cached=use_cached)
 
     # `task_datasets` have the output features from seqio.Task.get_dataset.
@@ -515,14 +516,22 @@ class Evaluator:
         ]
         inferences["predictions"] = predictions
 
+        if len(targets) != len(predictions):
+          raise ValueError(f"len(targets)({len(targets)}) != "
+                           f"len(predictions)({len(predictions)})")
+
         task_metrics.extend([
             metric_fn(targets, predictions) for metric_fn in
             task.predict_metric_fns
         ])
 
       if task.score_metric_fns:
+        task_scores = scores[task.name]
+        if len(targets) != len(task_scores):
+          raise ValueError(f"len(targets)({len(targets)}) != "
+                           f"len(task_scores)({len(task_scores)})")
         task_metrics.extend([
-            metric_fn(targets, scores[task.name])
+            metric_fn(targets, task_scores)
             for metric_fn in task.score_metric_fns
         ])
         inferences["scores"] = scores

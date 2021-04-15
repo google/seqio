@@ -19,7 +19,7 @@ import concurrent
 import functools
 import json
 import os
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Optional
 from unittest import mock
 
 import numpy as np
@@ -64,7 +64,7 @@ def _sum_scores_metric(targets, scores):
 
 def register_dummy_task(
     task_name: str,
-    dataset_fn: Callable[[str, str], tf.data.Dataset],
+    dataset_fn: Callable[[str, bool, Optional[int]], tf.data.Dataset],
     output_feature_names: Sequence[str] = ("inputs", "targets"),
     preprocessor=preprocessors.append_eos,
     postprocess_fn=None,
@@ -369,7 +369,7 @@ class EvaluationTest(tf.test.TestCase):
     task_name = "short_inputs_targets"
     ds = tf.data.Dataset.from_tensors(
         {"inputs": [7, 8], "targets": [3, 9], "targets_pretokenized": "ex 1"})
-    dataset_fn = lambda split, shuffle_files: ds
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(
         task_name,
         dataset_fn=dataset_fn,
@@ -408,7 +408,7 @@ class EvaluationTest(tf.test.TestCase):
     shapes = {"inputs": [None], "targets": [None], "targets_pretokenized": []}
     ds = tf.data.Dataset.from_generator(
         lambda: x, output_types=dtypes, output_shapes=shapes)
-    dataset_fn = lambda split, shuffle_files: ds
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(
         task_name,
         dataset_fn=dataset_fn,
@@ -431,7 +431,7 @@ class EvaluationTest(tf.test.TestCase):
     task_name = "requires_sequence_length"
     ds = tf.data.Dataset.from_tensors(
         {"inputs": [7, 8], "targets": [3, 9], "targets_pretokenized": "ex 1"})
-    dataset_fn = lambda split, shuffle_files: ds
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
 
     def preprocessor_with_sequence_length(dataset, sequence_length):
       del sequence_length
@@ -461,7 +461,7 @@ class EvaluationTest(tf.test.TestCase):
     task_name = "preprocessor_with_optional_sequence_length"
     ds = tf.data.Dataset.from_tensors(
         {"inputs": [7, 8], "targets": [3, 9], "targets_pretokenized": "ex 1"})
-    dataset_fn = lambda split, shuffle_files: ds
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(
         task_name,
         dataset_fn=dataset_fn,
@@ -495,7 +495,7 @@ class EvaluationTest(tf.test.TestCase):
     shapes = {"inputs": [None], "targets": [None], "targets_pretokenized": []}
     ds = tf.data.Dataset.from_generator(
         lambda: x, output_types=dtypes, output_shapes=shapes)
-    dataset_fn = lambda split, shuffle_files: ds
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(
         task_name,
         dataset_fn=dataset_fn,
@@ -631,7 +631,7 @@ class EvaluationTest(tf.test.TestCase):
     shapes = {"targets_pretokenized": []}
     ds = tf.data.Dataset.from_generator(
         lambda: x, output_types=dtypes, output_shapes=shapes)
-    dataset_fn = lambda split, shuffle_files: ds
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(task_name, dataset_fn=dataset_fn, metrics_fn=[])
     evaluator = Evaluator(mixture_or_task_name=task_name,
                           feature_converter=evaluation.EncDecFeatureConverter())
@@ -648,7 +648,7 @@ class EvaluationTest(tf.test.TestCase):
     shapes = {"targets_pretokenized": []}
     ds = tf.data.Dataset.from_generator(
         lambda: x, output_types=dtypes, output_shapes=shapes)
-    dataset_fn = lambda split, shuffle_files: ds
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(task_name, dataset_fn=dataset_fn, metrics_fn=[])
     evaluator = Evaluator(mixture_or_task_name=task_name,
                           feature_converter=evaluation.EncDecFeatureConverter())
@@ -663,7 +663,7 @@ class EvaluationTest(tf.test.TestCase):
   def test_task_with_no_pretokenized_targets(self):
     task_name = "no_pretokenized_task"
     ds = tf.data.Dataset.from_tensors({"targets": [42, 48], "inputs": [56]})
-    dataset_fn = lambda split, shuffle_files: ds
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
     task = register_dummy_task(task_name, dataset_fn=dataset_fn,
                                metrics_fn=[_sum_scores_metric])
     task.output_features["targets"].vocabulary.decode = mock.Mock(
