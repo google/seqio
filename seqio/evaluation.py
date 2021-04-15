@@ -155,17 +155,13 @@ def get_targets_and_examples(
 
       # Create list of postprocessed targets
       if "targets_pretokenized" in ex:
-        targets_pretokenized = ex["targets_pretokenized"]
-        if isinstance(targets_pretokenized, bytes):
-          targets_pretokenized = targets_pretokenized.decode("utf-8")
-        targets.append(task.postprocess_fn(
-            targets_pretokenized, example=ex, is_target=True))
+        target = ex["targets_pretokenized"]
       else:
         target = task.output_features["targets"].vocabulary.decode(
             [int(x) for x in ex["targets"]])
-        if isinstance(target, bytes):
-          target = target.decode("utf-8")
-        targets.append(target)
+      if isinstance(target, bytes):
+        target = target.decode("utf-8")
+      targets.append(task.postprocess_fn(target, example=ex, is_target=True))
 
     cached_targets[task.name] = targets
     cached_task_datasets[task.name] = ds.apply(

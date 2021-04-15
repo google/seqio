@@ -664,10 +664,13 @@ class EvaluationTest(tf.test.TestCase):
     task_name = "no_pretokenized_task"
     ds = tf.data.Dataset.from_tensors({"targets": [42, 48], "inputs": [56]})
     dataset_fn = lambda split, shuffle_files, seed=None: ds
-    task = register_dummy_task(task_name, dataset_fn=dataset_fn,
-                               metrics_fn=[_sum_scores_metric])
+    task = register_dummy_task(
+        task_name,
+        dataset_fn=dataset_fn,
+        metrics_fn=[_sum_scores_metric],
+        postprocess_fn=lambda d, example, is_target: d + " 1")
     task.output_features["targets"].vocabulary.decode = mock.Mock(
-        return_value="ex 1")
+        return_value="ex")
     evaluator = Evaluator(
         mixture_or_task_name=task_name,
         feature_converter=evaluation.EncDecFeatureConverter(pack=False))
