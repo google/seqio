@@ -490,10 +490,13 @@ class TFExampleDataSource(FileDataSource):
         `num_input_examples` method will return None if not provided.
     """
 
+    def parse_fn(*args):
+      pb = args[-1]  # Some readers have more than 1 arg.
+      return tf.io.parse_single_example(pb, feature_description)
+
     def read_file_fn(filepattern):
       return reader_cls(filepattern).map(
-          lambda pb: tf.io.parse_single_example(pb, feature_description),
-          num_parallel_calls=tf.data.experimental.AUTOTUNE)
+          parse_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     super().__init__(
         read_file_fn=read_file_fn,
