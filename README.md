@@ -248,7 +248,7 @@ A few **important** notes:
 
   If `num_seeds > 1`, the arg will instead be called `seeds` and will contain a sequence of seeds.
 
-In our "wmt_19_ende" task, we also use the predefined preprocessors `seqio.preprocessors.tokenize` and `seqio.preprocessors.append_eos`. The former uses each `Feature.vocabulary` to tokenize it, and the the latter appends `Feature.vocabulary.eos_id` to the feature if the `Feaure.add_eos` is True. See [preprocessors.py](t5/seqio/preprocessors.py) for their implementations and other useful preprocessors.
+In our "wmt_19_ende" task, we also use the predefined preprocessors `seqio.preprocessors.tokenize` and `seqio.preprocessors.append_eos`. The former uses each `Feature.vocabulary` to tokenize it, and the the latter appends `Feature.vocabulary.eos_id` to the feature if the `Feaure.add_eos` is True. See [preprocessors.py](https://github.com/google/seqio/tree/main/seqio/preprocessors.py) for their implementations and other useful preprocessors.
 
 #### Postprocessor
 
