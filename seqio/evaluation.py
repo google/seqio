@@ -139,8 +139,11 @@ def get_targets_and_examples(
   # Pre-load in all of the targets once before entering continuous eval loop
   cached_targets = {}
   cached_task_datasets = {}
+  max_sequence_length = {k: 0 for k in tasks[0].output_features.keys()}
 
-  max_sequence_length = {"inputs": 0, "targets": 0}
+  for task in tasks:
+    assert max_sequence_length.keys() == task.output_features.keys(), (
+        "all tasks must have the same features")
 
   for task in tasks:
     ds = dataset_fn(task).cache()
@@ -148,10 +151,9 @@ def get_targets_and_examples(
     targets = []
 
     for ex in tfds.as_numpy(ds):
-      max_sequence_length["inputs"] = max(
-          max_sequence_length["inputs"], len(ex["inputs"]))
-      max_sequence_length["targets"] = max(
-          max_sequence_length["targets"], len(ex["targets"]))
+      for k in max_sequence_length:
+        sequence_length = len(ex[k])
+        max_sequence_length[k] = max(max_sequence_length[k], sequence_length)
 
       # Create list of postprocessed targets
       if "targets_pretokenized" in ex:
@@ -331,22 +333,34 @@ class Evaluator:
     if sequence_length is None:
       logging.info("Setting sequence lengths to %s", max_lengths)
       sequence_length = max_lengths
-    elif (sequence_length["inputs"] > max_lengths["inputs"] or
-          sequence_length["targets"] > max_lengths["targets"]):
-      logging.warning(
-          "Given sequence lengths are longer than necessary for some "
-          "evaluation inputs or targets, resulting in wasted computation. "
-          "Consider passing `None` for `sequence_length` to have them be "
-          "automatically computed.\n Got: %s,\n Max Lengths: %s",
-          sequence_length, max_lengths)
-    elif not sequence_length_required and (
-        sequence_length["inputs"] == max_lengths["inputs"] or
-        sequence_length["targets"] == max_lengths["targets"]):
-      logging.warning(
-          "Given sequence lengths *may be* insufficient for some evaluation "
-          "inputs or targets. Such sequences will be truncated to fit, "
-          "likely leading to sub-optimal results. Consider passing `None` "
-          "for `sequence_length` to have them be automatically computed.\n")
+    else:
+      log_long_warning = False
+      log_same_warning = False
+
+      assert set(sequence_length.keys()) == set(max_lengths.keys()), (
+          "sequence_length=%s limits must match the detected max_lengths=%s" % (
+              sequence_length.keys(), max_lengths.keys()))
+
+      for k, l in sequence_length.items():
+        if l > max_lengths[k]:
+          log_long_warning = True
+        elif not sequence_length_required and l == max_lengths[k]:
+          log_same_warning = True
+
+      if log_long_warning:
+        logging.warning(
+            "Given sequence lengths are longer than necessary for some "
+            "evaluation inputs or targets, resulting in wasted computation. "
+            "Consider passing `None` for `sequence_length` to have them be "
+            "automatically computed.\n Got: %s,\n Max Lengths: %s",
+            sequence_length, max_lengths)
+      elif log_same_warning:
+        logging.warning(
+            "Given sequence lengths *may be* insufficient for some evaluation "
+            "inputs or targets. Such sequences will be truncated to fit, "
+            "likely leading to sub-optimal results. Consider passing `None` "
+            "for `sequence_length` to have them be automatically computed.\n "
+            " Got: %s,\n Max Lengths: %s", sequence_length, max_lengths)
 
     self._cached_model_datasets = {}
 
