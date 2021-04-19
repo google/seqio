@@ -738,7 +738,7 @@ Consider the following example for the MLM task. The input dataset has two
 examples, which is packed to one example. We assume that `mask_id = 9` and the
 `[CLS]` token has id of 8.
 
-```
+```py
 dataset = [{"inputs": [8, 9, 9, 3, 4], "targets": [8, 7, 4, 3, 4]},
            {"inputs": [8, 3, 9], "targets": [8, 3, 6]}]
 
@@ -757,7 +757,7 @@ sequences. Also note that the loss is taken only on the masked position.
 To use the pre-defined `EncoderFeatureConverter`, provide `mask_id` as an
 argument.
 
-```python
+```py
 dataset: tf.data.Dataset = seqio.get_dataset(
     mixture_or_task_name="some mlm task",
     task_feature_lengths={"inputs": 32, "targets": 32},
@@ -923,7 +923,7 @@ When processing the target, we ignore `output_or_target` (equivalent to `example
 
 The metric function `tqa_metric` is defined as:
 
-```
+```py
 def tqa_metric(
   targets: Sequence[Sequence[str]],
   predictions: Sequence[str]
