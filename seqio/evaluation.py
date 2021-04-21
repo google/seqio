@@ -516,22 +516,26 @@ class Evaluator:
 
       if task.predict_metric_fns:
         task_vocab = task.output_features["targets"].vocabulary
+        task_predicted_tokens = predicted_tokens[task.name]
+
+        if len(targets) != len(task_predicted_tokens):
+          raise ValueError(
+              f"len(targets)({len(targets)}) != "
+              f"len(predictions)({len(task_predicted_tokens)})")
+
         outputs = [
             task_vocab.decode([int(token) for token in tokens])
-            for tokens in predicted_tokens[task.name]
+            for tokens in task_predicted_tokens
         ]
-        predictions = [
+
+        task_predictions = [
             task.postprocess_fn(d, example=ex, is_target=False)
             for d, ex in zip(outputs, tfds.as_numpy(task_dataset))
         ]
-        inferences["predictions"] = predictions
-
-        if len(targets) != len(predictions):
-          raise ValueError(f"len(targets)({len(targets)}) != "
-                           f"len(predictions)({len(predictions)})")
+        inferences["predictions"] = task_predictions
 
         task_metrics.extend([
-            metric_fn(targets, predictions) for metric_fn in
+            metric_fn(targets, task_predictions) for metric_fn in
             task.predict_metric_fns
         ])
 
@@ -544,7 +548,7 @@ class Evaluator:
             metric_fn(targets, task_scores)
             for metric_fn in task.score_metric_fns
         ])
-        inferences["scores"] = scores
+        inferences["scores"] = task_scores
 
       all_metrics[task.name] = {}
       for k, v in itertools.chain(*[m.items() for m in task_metrics]):
