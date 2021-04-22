@@ -599,7 +599,7 @@ class Evaluator:
             logging.warning("`prediction` is not JSON serializable")
 
         if score is not None:
-          json_dict["score"] = score
+          json_dict["score"] = float(score)
         f.write(json.dumps(json_dict) + "\n")
     write_time = time.time() - write_tick
     logging.info("Writing completed in %02f seconds (%02f examples/sec).",
