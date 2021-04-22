@@ -782,12 +782,13 @@ class EvaluationTest(tf.test.TestCase):
 
   def test_write_to_file_prediction_and_scores(self):
     inferences = {"predictions": ["pred0", "pred1"], "scores": [0.2, 0.3]}
+    targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
     output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     with mock.patch.object(Evaluator, "__init__", return_value=None):
       evaluator = Evaluator()
-      evaluator._write_to_file(inferences, task_dataset, output_fname)
+      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
     with open(output_fname) as f:
@@ -796,22 +797,25 @@ class EvaluationTest(tf.test.TestCase):
     expected = [{
         "input": {"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
         "prediction": "pred0",
+        "target": "target0",
         "score": 0.2
     }, {
         "input": {"inputs_pretokenized": "i1", "targets_pretokenized": "t1"},
         "prediction": "pred1",
+        "target": "target1",
         "score": 0.3
     }]
     self.assertEqual(actual, expected)
 
   def test_write_to_file_prediction_only(self):
     inferences = {"predictions": ["pred0", "pred1"]}
+    targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
     output_fname = os.path.join(tmp_dir, "pred.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     with mock.patch.object(Evaluator, "__init__", return_value=None):
       evaluator = Evaluator()
-      evaluator._write_to_file(inferences, task_dataset, output_fname)
+      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
     with open(output_fname) as f:
@@ -820,23 +824,26 @@ class EvaluationTest(tf.test.TestCase):
     expected = [{
         "input": {"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
         "prediction": "pred0",
+        "target": "target0",
     }, {
         "input": {"inputs_pretokenized": "i1", "targets_pretokenized": "t1"},
         "prediction": "pred1",
+        "target": "target1",
     }]
     self.assertEqual(actual, expected)
 
-  def test_write_to_file_non_serializable_prediction(self):
+  def test_write_to_file_prediction_numpy_data(self):
     inferences = {
         "predictions": [np.zeros((2, 2)), np.ones((2, 2))],
         "scores": [0.2, 0.3]
     }
+    targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
     output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     with mock.patch.object(Evaluator, "__init__", return_value=None):
       evaluator = Evaluator()
-      evaluator._write_to_file(inferences, task_dataset, output_fname)
+      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
     with open(output_fname) as f:
@@ -844,10 +851,70 @@ class EvaluationTest(tf.test.TestCase):
 
     expected = [{
         "input": {"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
-        "score": 0.2
+        "prediction": [[0.0, 0.0], [0.0, 0.0]],
+        "score": 0.2,
+        "target": "target0",
     }, {
         "input": {"inputs_pretokenized": "i1", "targets_pretokenized": "t1"},
-        "score": 0.3
+        "prediction": [[1.0, 1.0], [1.0, 1.0]],
+        "score": 0.3,
+        "target": "target1",
+    }]
+    self.assertEqual(actual, expected)
+
+  def test_write_to_file_non_serializable_prediction(self):
+    inferences = {
+        "predictions": [object(), object()],
+        "scores": [0.2, 0.3]
+    }
+    targets = ["target0", "target1"]
+    tmp_dir = self.create_tempdir().full_path
+    output_fname = os.path.join(tmp_dir, "infer.jsonl")
+    task_dataset = self._get_task_dataset_for_write_to_file_tests()
+    with mock.patch.object(Evaluator, "__init__", return_value=None):
+      evaluator = Evaluator()
+      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    # Read the written jsonl file.
+    with open(output_fname) as f:
+      actual = [json.loads(line.strip()) for line in f]
+
+    expected = [{
+        "input": {"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
+        "score": 0.2,
+        "target": "target0",
+    }, {
+        "input": {"inputs_pretokenized": "i1", "targets_pretokenized": "t1"},
+        "score": 0.3,
+        "target": "target1",
+    }]
+    self.assertEqual(actual, expected)
+
+  def test_write_to_file_non_serializable_target(self):
+    inferences = {
+        "predictions": ["pred0", "pred1"],
+        "scores": [0.2, 0.3]
+    }
+    targets = [object(), object()]
+    tmp_dir = self.create_tempdir().full_path
+    output_fname = os.path.join(tmp_dir, "infer.jsonl")
+    task_dataset = self._get_task_dataset_for_write_to_file_tests()
+    with mock.patch.object(Evaluator, "__init__", return_value=None):
+      evaluator = Evaluator()
+      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    # Read the written jsonl file.
+    with open(output_fname) as f:
+      actual = [json.loads(line.strip()) for line in f]
+
+    expected = [{
+        "input": {"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
+        "prediction": "pred0",
+        "score": 0.2,
+    }, {
+        "input": {"inputs_pretokenized": "i1", "targets_pretokenized": "t1"},
+        "prediction": "pred1",
+        "score": 0.3,
     }]
     self.assertEqual(actual, expected)
 

@@ -45,6 +45,23 @@ MetricsAndOutputsType = Tuple[
     AllOutputScoresType]  # output_scores
 
 
+class _TensorAndNumpyEncoder(json.JSONEncoder):
+  """JSON Encoder to use when encoding dicts with tensors and numpy arrays."""
+
+  def default(self, obj):
+    if isinstance(obj, tf.Tensor):
+      obj = obj.numpy()
+
+    if isinstance(obj, np.ndarray):
+      return obj.tolist()  # Convert arrays to lists of py-native types.
+    elif np.issubdtype(type(obj), np.number):
+      return obj.item()  # Convert most primitive np types to py-native types.
+    elif isinstance(obj, bytes):
+      return obj.decode("utf-8")
+
+    return json.JSONEncoder.default(self, obj)
+
+
 @dataclasses.dataclass
 class Metric:
   """A base method for the dataclasses that represent tensorboard values.
@@ -565,42 +582,43 @@ class Evaluator:
         self.logger(metrics, step, task_name=task.name)  # pylint: disable=not-callable
         output_fname = os.path.join(self.logger.summary_dir,
                                     f"{task.name}-{step}.jsonl")
-        self._write_to_file(inferences, task_dataset, output_fname)
+        self._write_to_file(inferences, targets, task_dataset, output_fname)
 
     return all_metrics
 
   def _write_to_file(self,
                      inferences: Mapping[str, Sequence[Any]],
+                     targets: Sequence[Any],
                      task_dataset: tf.data.Dataset,
                      output_fname: str) -> None:
     """Writes inputs, targets, predictions and scores to a file."""
     write_tick = time.time()
     logging.info("Writing evaluation results to %s", output_fname)
     with tf.io.gfile.GFile(output_fname, "w") as f:
-      for inp, prediction, score in itertools.zip_longest(
-          task_dataset, inferences.get("predictions", []),
+      for inp, prediction, target, score in itertools.zip_longest(
+          task_dataset, inferences.get("predictions", []), targets,
           inferences.get("scores", [])):
-        input_dict = {}
-        for k, v in inp.items():
-          if k.endswith("_pretokenized"):
-            if isinstance(v.numpy(), bytes):
-              input_dict[k] = v.numpy().decode("utf-8")
-            else:
-              # Convert to Python list for json serialization.
-              input_dict[k] = v.numpy().tolist()
-        json_dict = {"input": input_dict}
+        json_dict = {"input": inp}
 
         # Only write `prediction` if it is JSON serializable.
         if prediction is not None:
           try:
-            json.dumps(prediction)
+            json.dumps(prediction, cls=_TensorAndNumpyEncoder)
             json_dict["prediction"] = prediction
           except TypeError:
-            logging.warning("`prediction` is not JSON serializable")
+            logging.warning("`prediction` is not JSON serializable",
+                            exc_info=True)
+
+        # Only write `target` if it is JSON serializable.
+        try:
+          json.dumps(target, cls=_TensorAndNumpyEncoder)
+          json_dict["target"] = target
+        except TypeError:
+          logging.warning("`target` is not JSON serializable", exc_info=True)
 
         if score is not None:
           json_dict["score"] = score
-        f.write(json.dumps(json_dict) + "\n")
+        f.write(json.dumps(json_dict, cls=_TensorAndNumpyEncoder) + "\n")
     write_time = time.time() - write_tick
     logging.info("Writing completed in %02f seconds (%02f examples/sec).",
                  write_time,
