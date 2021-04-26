@@ -130,6 +130,13 @@ def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
     if not task.metric_fns:
       logging.info("Task %s has no metric_fns; skipping eval.", task.name)
       continue
+    metric_types = []
+    if task.predict_metric_fns:
+      metric_types.append("predict")
+    if task.score_metric_fns:
+      metric_types.append("score")
+    logging.info("Adding task '%s' with %s metric_fn(s).", task.name,
+                 " and ".join(metric_types))
     valid_tasks.append(task)
 
   return valid_tasks
