@@ -481,8 +481,8 @@ class DataInjector():
 
   def __enter__(self):
 
-    def ds_fn(split, shuffle_files):
-      del shuffle_files
+    def ds_fn(split, shuffle_files, seed=None):
+      del shuffle_files, seed
       data = self.per_split_data[split]
       ds = tf.data.Dataset.from_tensors(data)
       return ds
