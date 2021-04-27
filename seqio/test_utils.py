@@ -607,10 +607,6 @@ def test_postprocessing(
   output of the `evaluate()` call. (Note that, due to the fact that `evaluate`
   uses the task data, this test will also actuate the task preprocessing code.)
 
-  Usually, this function will be invoked `metrics, _, _ = test_postprocessing()`
-  since the second and third returned data should be the same as the passed
-  predict_output and score_output.
-
   Args:
     task_name: A SeqIO task name.
     raw_data: A string-keyed dict of string-keyed dicts. The top-level dict
@@ -657,10 +653,14 @@ def test_postprocessing(
     evaluator = evaluation.Evaluator(
         task_name, feature_converter=feature_encoder)
 
-    return evaluator.evaluate(
+    print(evaluator.eval_tasks)
+    metrics, _, _ = evaluator.evaluate(
         compute_metrics=True,
         predict_fn=PredictCallable(),
-        score_fn=ScoreCallable())[0].result()[task_name]
+        score_fn=ScoreCallable())
+
+    print(metrics.result())
+    return metrics.result()[task_name]
 
 
 class MockVocabulary(object):
@@ -669,7 +669,6 @@ class MockVocabulary(object):
   def __init__(self, encode_dict, vocab_size=None):
     self._encode_dict = encode_dict
     self._vocab_size = vocab_size
-
   def encode(self, s):
     return self._encode_dict[s]
 
