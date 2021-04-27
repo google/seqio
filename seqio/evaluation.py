@@ -15,6 +15,7 @@
 """Utilities for the class-based evaluation."""
 
 import abc
+import base64
 import concurrent
 import inspect
 import itertools
@@ -57,7 +58,12 @@ class _TensorAndNumpyEncoder(json.JSONEncoder):
     elif np.issubdtype(type(obj), np.number):
       return obj.item()  # Convert most primitive np types to py-native types.
     elif isinstance(obj, bytes):
-      return obj.decode("utf-8")
+      # JSON doesn't support bytes. First, try to decode using utf-8 in case
+      # it's text. Otherwise, just base64 encode the bytes.
+      try:
+        return obj.decode("utf-8")
+      except UnicodeDecodeError:
+        return base64.b64encode(obj)
 
     return json.JSONEncoder.default(self, obj)
 
