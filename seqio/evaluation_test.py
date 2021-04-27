@@ -786,7 +786,9 @@ class EvaluationTest(tf.test.TestCase):
     tmp_dir = self.create_tempdir().full_path
     output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    with mock.patch.object(Evaluator, "__init__", return_value=None):
+    def mock_init(self):
+      self._write_n_results = None
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
@@ -807,13 +809,39 @@ class EvaluationTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
+  def test_write_to_file_n_prediction_and_scores(self):
+    inferences = {"predictions": ["pred0", "pred1"], "scores": [0.2, 0.3]}
+    targets = ["target0", "target1"]
+    tmp_dir = self.create_tempdir().full_path
+    output_fname = os.path.join(tmp_dir, "infer.jsonl")
+    task_dataset = self._get_task_dataset_for_write_to_file_tests()
+    def mock_init(self):
+      self._write_n_results = 1
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
+      evaluator = Evaluator()
+      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    # Read the written jsonl file.
+    with open(output_fname) as f:
+      actual = [json.loads(line.strip()) for line in f]
+
+    expected = [{
+        "input": {"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
+        "prediction": "pred0",
+        "target": "target0",
+        "score": 0.2
+    }]
+    self.assertEqual(actual, expected)
+
   def test_write_to_file_prediction_only(self):
     inferences = {"predictions": ["pred0", "pred1"]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
     output_fname = os.path.join(tmp_dir, "pred.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    with mock.patch.object(Evaluator, "__init__", return_value=None):
+    def mock_init(self):
+      self._write_n_results = None
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
@@ -841,7 +869,9 @@ class EvaluationTest(tf.test.TestCase):
     tmp_dir = self.create_tempdir().full_path
     output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    with mock.patch.object(Evaluator, "__init__", return_value=None):
+    def mock_init(self):
+      self._write_n_results = None
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
@@ -871,7 +901,9 @@ class EvaluationTest(tf.test.TestCase):
     tmp_dir = self.create_tempdir().full_path
     output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    with mock.patch.object(Evaluator, "__init__", return_value=None):
+    def mock_init(self):
+      self._write_n_results = None
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
@@ -899,7 +931,9 @@ class EvaluationTest(tf.test.TestCase):
     tmp_dir = self.create_tempdir().full_path
     output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    with mock.patch.object(Evaluator, "__init__", return_value=None):
+    def mock_init(self):
+      self._write_n_results = None
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
@@ -926,7 +960,9 @@ class EvaluationTest(tf.test.TestCase):
     tmp_dir = self.create_tempdir().full_path
     output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    with mock.patch.object(Evaluator, "__init__", return_value=None):
+    def mock_init(self):
+      self._write_n_results = None
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 

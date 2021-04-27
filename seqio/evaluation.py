@@ -291,8 +291,9 @@ class Evaluator:
                feature_converter: FeatureConverter,
                eval_split: str = "validation",
                use_cached: bool = False,
-               sequence_length: Mapping[str, int] = None,
-               logger: Optional[Logger] = None):
+               sequence_length: Optional[Mapping[str, int]] = None,
+               logger: Optional[Logger] = None,
+               write_n_results: Optional[int] = None):
     """Evaluator constructor.
 
     Args:
@@ -309,6 +310,8 @@ class Evaluator:
         unspecified and the maximum length for each feature will be used. These
         lengths are computed while caching the datasets.
       logger: a subclass of `Logger`.
+      write_n_results: an int, number of scores/predictions to be written to
+        file. if None, scores and predictions from all examples are written.
 
     Raises:
       ValueError if `sequence_length` is None but a preprocessor depends on its
@@ -322,6 +325,8 @@ class Evaluator:
     self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
         max_workers=1)
     self._metrics_future = None
+
+    self._write_n_results = write_n_results
 
     if not self._eval_tasks:
       logging.warning(
@@ -605,12 +610,19 @@ class Evaluator:
                      task_dataset: tf.data.Dataset,
                      output_fname: str) -> None:
     """Writes inputs, targets, predictions and scores to a file."""
+    if self._write_n_results == 0:
+      return
     write_tick = time.time()
     logging.info("Writing evaluation results to %s", output_fname)
     with tf.io.gfile.GFile(output_fname, "w") as f:
-      for inp, prediction, target, score in itertools.zip_longest(
+      examples_with_scores = itertools.zip_longest(
           task_dataset, inferences.get("predictions", []), targets,
-          inferences.get("scores", [])):
+          inferences.get("scores", []))
+      if self._write_n_results:
+        examples_with_scores = itertools.islice(
+            examples_with_scores, 0, self._write_n_results)
+
+      for inp, prediction, target, score in examples_with_scores:
         json_dict = {"input": inp}
 
         # Only write `prediction` if it is JSON serializable.
