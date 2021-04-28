@@ -574,7 +574,8 @@ def map_seed_manager(initial_seed=None):
   _NEXT_MAP_SEED = old_map_seed
 
 
-def map_over_dataset(fn=None, *, num_seeds=None):
+def map_over_dataset(fn=None, *, num_seeds=None,
+                     num_parallel_calls=tf.data.experimental.AUTOTUNE):
   """Decorator to map decorated function over dataset.
 
   Many preprocessors map a function over a dataset. This decorator helps reduce
@@ -593,6 +594,7 @@ def map_over_dataset(fn=None, *, num_seeds=None):
     fn: map function
     num_seeds: optional number of random seeds (pairs of int32) to pass to the
       mapping function.
+    num_parallel_calls: num_parallel_calls value to pass to Dataset.map
 
   Returns:
     Function which takes dataset as first argument.
@@ -603,7 +605,7 @@ def map_over_dataset(fn=None, *, num_seeds=None):
     def wrapped_fn(ds, *args, **kargs):
       return ds.map(
           lambda arg: fn(arg, *args, **kargs),
-          num_parallel_calls=tf.data.experimental.AUTOTUNE)
+          num_parallel_calls=num_parallel_calls)
 
     return wrapped_fn
 
@@ -626,7 +628,7 @@ def map_over_dataset(fn=None, *, num_seeds=None):
       else:
         map_fn = lambda x, s: fn(x, seeds=s, *args, **kwargs)
       return tf.data.Dataset.zip((ds, seed_datasets)).map(
-          map_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+          map_fn, num_parallel_calls=num_parallel_calls)
 
     return wrapped_fn
 
