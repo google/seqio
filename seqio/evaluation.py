@@ -55,7 +55,8 @@ class _TensorAndNumpyEncoder(json.JSONEncoder):
 
     if isinstance(obj, np.ndarray):
       return obj.tolist()  # Convert arrays to lists of py-native types.
-    elif np.issubdtype(type(obj), np.number):
+    elif (np.issubdtype(type(obj), np.number) or
+          np.issubdtype(type(obj), np.bool_)):
       return obj.item()  # Convert most primitive np types to py-native types.
     elif isinstance(obj, bytes):
       # JSON doesn't support bytes. First, try to decode using utf-8 in case
