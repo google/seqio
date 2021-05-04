@@ -51,9 +51,15 @@ class _TensorAndNumpyEncoder(json.JSONEncoder):
 
   def default(self, obj):
     if isinstance(obj, tf.Tensor):
+      if obj.dtype == tf.bfloat16:
+        # bfloat16 not supported, convert to float32.
+        obj = tf.cast(obj, tf.float32)
       obj = obj.numpy()
 
     if isinstance(obj, np.ndarray):
+      if str(obj.dtype) == "bfloat16":
+        # bfloat16 not supported, convert to float32.
+        obj = obj.astype(np.float32)
       return obj.tolist()  # Convert arrays to lists of py-native types.
     elif (np.issubdtype(type(obj), np.number) or
           np.issubdtype(type(obj), np.bool_)):
@@ -643,7 +649,9 @@ class Evaluator:
           logging.warning("`target` is not JSON serializable", exc_info=True)
 
         if score is not None:
+          # Convert bfloat16 scores to float32 for json serializability.
           json_dict["score"] = score
+
         f.write(json.dumps(json_dict, cls=_TensorAndNumpyEncoder) + "\n")
     write_time = time.time() - write_tick
     logging.info("Writing completed in %02f seconds (%02f examples/sec).",
