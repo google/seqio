@@ -89,7 +89,8 @@ import tensorflow.compat.v2 as tf
 
 
 def _check_lengths(ds: tf.data.Dataset, expected_lengths: Mapping[str, int],
-                   strict: bool, error_label: str) -> tf.data.Dataset:
+                   sequence_axis_mapping: Mapping[str, int], strict: bool,
+                   error_label: str) -> tf.data.Dataset:
   """Check the length of each feature in `ds` against `expected_lengths`.
 
   There are two checking criteria controlled by `strict` arg.
@@ -106,6 +107,8 @@ def _check_lengths(ds: tf.data.Dataset, expected_lengths: Mapping[str, int],
   Args:
     ds: a tf.data.Dataset to be checked.
     expected_lengths: a mapping from a feature name to an expected length.
+    sequence_axis_mapping: a mapping from feature name to its sequence
+        dimension.
     strict: if true, the length of each feature should exactly match the
       expected length whereas false condition allows the length to be less
       than or equal to the expected length.
@@ -133,7 +136,8 @@ def _check_lengths(ds: tf.data.Dataset, expected_lengths: Mapping[str, int],
           tf.debugging.assert_less_equal, message=error_message)
 
     expected_length = tf.constant(expected_lengths[feat], dtype=tf.int64)
-    actual_length = tf.shape(v, out_type=tf.int64)[0]
+    sequence_axis = sequence_axis_mapping[feat]
+    actual_length = tf.shape(v, out_type=tf.int64)[sequence_axis]
     assertion_op(actual_length, expected_length)
     return v
 
@@ -293,6 +297,7 @@ class FeatureConverter(abc.ABC):
     """Rank and dtype specifications for features."""
     dtype: tf.dtypes.DType
     rank: int = 1
+    sequence_dim: int = 0
 
   TASK_FEATURES: Mapping[str, "FeatureConverter.FeatureSpec"]
   MODEL_FEATURES: Mapping[str, "FeatureConverter.FeatureSpec"]
@@ -368,7 +373,11 @@ class FeatureConverter(abc.ABC):
             f"{error_label} validation: "
             f"Got {actual_rank}, expected {expected_features[feat].rank}")
 
-    ds = _check_lengths(ds, expected_lengths, strict, error_label)
+    sequence_axis_mapping = {
+        feat: expected_features[feat].sequence_dim for feat in expected_features
+    }
+    ds = _check_lengths(ds, expected_lengths, sequence_axis_mapping, strict,
+                        error_label)
     return ds
 
   def __call__(self, ds: tf.data.Dataset,

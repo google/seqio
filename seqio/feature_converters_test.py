@@ -91,40 +91,60 @@ class HelperFunctionsTest(tf.test.TestCase):
     x = [{"inputs": [9, 4, 3, 8, 1], "targets": [3, 9, 4, 5]}]
     ds = create_default_dataset(x)
     task_feature_lengths = {"inputs": 5, "targets": 4}
+    sequence_axis_mapping = {"inputs": 0, "targets": 0}
     ds = feature_converters._check_lengths(
-        ds, task_feature_lengths, strict=True, error_label="initial")
+        ds,
+        task_feature_lengths,
+        sequence_axis_mapping,
+        strict=True,
+        error_label="initial")
     list(ds.as_numpy_iterator())
 
   def test_check_lengths_strict_exception(self):
     x = [{"inputs": [9, 4, 3, 8, 1], "targets": [3, 9, 4, 5]}]
     ds = create_default_dataset(x)
     task_feature_lengths = {"inputs": 7, "targets": 4}
+    sequence_axis_mapping = {"inputs": 0, "targets": 0}
     expected_msg = (
         r".*Feature \\'inputs\\' has length not equal to the expected length of"
         r" 7 during initial validation.*")
     with self.assertRaisesRegex(tf.errors.InvalidArgumentError, expected_msg):
       ds = feature_converters._check_lengths(
-          ds, task_feature_lengths, strict=True, error_label="initial")
+          ds,
+          task_feature_lengths,
+          sequence_axis_mapping,
+          strict=True,
+          error_label="initial")
       list(ds.as_numpy_iterator())
 
   def test_check_lengths_not_strict_no_exception(self):
     x = [{"inputs": [9, 4, 3, 8, 1], "targets": [3, 9, 4, 5]}]
     ds = create_default_dataset(x)
     task_feature_lengths = {"inputs": 7, "targets": 4}
+    sequence_axis_mapping = {"inputs": 0, "targets": 0}
     ds = feature_converters._check_lengths(
-        ds, task_feature_lengths, strict=False, error_label="initial")
+        ds,
+        task_feature_lengths,
+        sequence_axis_mapping,
+        strict=False,
+        error_label="initial")
     list(ds.as_numpy_iterator())
 
   def test_check_lengths_not_strict_exception(self):
     x = [{"inputs": [9, 4, 3, 8, 1], "targets": [3, 9, 4, 5]}]
     ds = create_default_dataset(x)
     task_feature_lengths = {"inputs": 4, "targets": 4}
+    sequence_axis_mapping = {"inputs": 0, "targets": 0}
     expected_msg = (
         r".*Feature \\'inputs\\' has length not less than or equal to the "
         r"expected length of 4 during initial validation.*")
     with self.assertRaisesRegex(tf.errors.InvalidArgumentError, expected_msg):
       ds = feature_converters._check_lengths(
-          ds, task_feature_lengths, strict=False, error_label="initial")
+          ds,
+          task_feature_lengths,
+          sequence_axis_mapping,
+          strict=False,
+          error_label="initial")
       list(ds.as_numpy_iterator())
 
   def test_check_lengths_extra_features(self):
@@ -134,8 +154,32 @@ class HelperFunctionsTest(tf.test.TestCase):
     ds = tf.data.Dataset.from_generator(
         lambda: x, output_types=output_types, output_shapes=output_shapes)
     task_feature_lengths = {"targets": 4}
+    sequence_axis_mapping = {"targets": 0}
     ds = feature_converters._check_lengths(
-        ds, task_feature_lengths, strict=True, error_label="initial")
+        ds,
+        task_feature_lengths,
+        sequence_axis_mapping,
+        strict=True,
+        error_label="initial")
+    list(ds.as_numpy_iterator())
+
+  def test_check_lengths_seq_axis_1(self):
+    x = [{
+        "targets": [[1, 2, 3], [4, 5, 6]],
+        "targets_pretokenized": "some text"
+    }]
+    output_types = {"targets": tf.int64, "targets_pretokenized": tf.string}
+    output_shapes = {"targets": [2, 3], "targets_pretokenized": []}
+    ds = tf.data.Dataset.from_generator(
+        lambda: x, output_types=output_types, output_shapes=output_shapes)
+    task_feature_lengths = {"targets": 3}
+    sequence_axis_mapping = {"targets": 1}
+    ds = feature_converters._check_lengths(
+        ds,
+        task_feature_lengths,
+        sequence_axis_mapping,
+        strict=True,
+        error_label="initial")
     list(ds.as_numpy_iterator())
 
   def test_check_exact_match_redundant_features(self):
