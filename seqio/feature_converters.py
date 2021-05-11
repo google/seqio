@@ -477,10 +477,11 @@ class FeatureConverter(abc.ABC):
     if self.pack:
       for k, v in expected_features.items():
         # Packing requires rank 1.
-        if v.rank != 1:
+        if v.rank != 1 and not self._use_custom_packing_ops:
           raise ValueError(
-              f"When packing is enabled, expected ranks must be 1. Got "
-              f"expected rank {v.rank} for feature {k}.")
+              f"When packing is enabled, expected ranks must be 1 or "
+              f"use_custom_packing_ops must be set. Got expected rank {v.rank} "
+              f"for feature {k}.")
       for k, v in self.PACKING_FEATURE_DTYPES.items():
         expected_features[k] = FeatureConverter.FeatureSpec(rank=1, dtype=v)
 
