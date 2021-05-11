@@ -268,6 +268,7 @@ class UtilsTest(parameterized.TestCase):
     assert_dataset(
         packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
 
+
   @parameterized.parameters(*_PACK_PARAMETERS)
   def test_trim_and_pack_dataset_no_eos(self, use_custom_ops):
     x = [{"inputs": [7, 8, 5], "targets": [3, 9]},

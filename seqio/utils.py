@@ -317,9 +317,12 @@ def trim_and_pack_dataset(
       raise ValueError(
           f"Feature '{k}' not found in dataset. Available keys are "
           f"{list(element_spec.keys())}")
-    if not element_spec[k].shape.is_compatible_with(tf.TensorShape([None])):
+    if (not element_spec[k].shape.is_compatible_with(tf.TensorShape([None])) and
+        not use_custom_ops):
       raise ValueError(
-          f"Features to be packed must be one-dimensional. '{k}' is not.'")
+          f"Features to be packed must be one-dimensional. '{k}' is not.' "
+          "Consider setting use_custom_ops if you have higher-rank features.")
+
   # Warn if there are any additional keys that will be removed.
   additional_keys = set(element_spec) - set(feature_lengths)
   if additional_keys:
@@ -328,16 +331,18 @@ def trim_and_pack_dataset(
         additional_keys)
 
   ds = dataset.map(
-      lambda x: {k: x[k][:l] for k, l in feature_lengths.items()},
+      lambda x: {k: x[k][:l, ...] for k, l in feature_lengths.items()},
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
   # Setting batch_size=length ensures that the concatenated sequences (if they
   # have length >=1) are sufficient to fill at least one packed example.
   batch_size = max(feature_lengths.values())
-  ds = ds.padded_batch(
-      batch_size, padded_shapes={k: [-1] for k in feature_lengths})
+  padded_shapes = {k: [-1] for k in feature_lengths}
+  for k in feature_lengths:
+    padded_shapes[k].extend(dataset.element_spec[k].shape[1:])
+  ds = ds.padded_batch(batch_size, padded_shapes=padded_shapes)
 
-  if use_custom_ops and len(feature_lengths) <= 2:
+  if use_custom_ops:
     ds = _pack_with_custom_ops(ds, feature_lengths)
   else:
     ds = _pack_with_tf_ops(ds, feature_lengths)
@@ -345,7 +350,9 @@ def trim_and_pack_dataset(
   # Set the Tensor shapes correctly since they get lost in the process.
   def _set_shape(x):
     for k, v in x.items():
-      v.set_shape([feature_lengths[_strip_packed_feature_key(k)]])
+      new_shape = [feature_lengths[_strip_packed_feature_key(k)]]
+      new_shape.extend(v.get_shape()[1:])
+      v.set_shape(new_shape)
     return x
   return ds.map(_set_shape, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
@@ -476,16 +483,47 @@ def _pack_with_custom_ops(
   # TODO(adarob): Move ops into this library and fix int64 issue.
   from tensor2tensor.data_generators.ops import pack_sequences_ops  # pylint: disable=g-import-not-at-top
   keys = list(feature_lengths)
+  use_generic_custom_ops = False
   if len(keys) == 1:
     k1, = keys
     k2 = k1
   elif len(keys) == 2:
     k1, k2 = keys
   else:
-    raise ValueError(f"Packing op requires 1 or 2 keys. Got {len(keys)}")
+    use_generic_custom_ops = True
+    logging.info("`pack_sequences_2` cannot pack more than 2 features. "
+                 "Using `pack_sequences_k` instead.")
+
+  element_spec = dataset.element_spec
+  for k in feature_lengths:
+    if not element_spec[k].dtype.is_integer:
+      use_generic_custom_ops = True
+      logging.info("`pack_sequences_2` cannot pack non-integer feature '%s'. "
+                   "Using `pack_sequences_k` instead.", k)
+    if not element_spec[k].shape.is_compatible_with(
+        tf.TensorShape([None, None])):
+      use_generic_custom_ops = True
+      logging.info("`pack_sequences_2` cannot pack higher rank feature '%s'. "
+                   "Using `pack_sequences_k` instead.", k)
 
   def custom_pack_batch(x):
     """Map-function."""
+    if use_generic_custom_ops:
+      xs = []
+      max_lengths = []
+      for k in sorted(feature_lengths.keys()):
+        xs.append(x[k])
+        max_lengths.append(feature_lengths[k])
+      (packed, segment_ids, positions) = pack_sequences_ops.pack_sequences_k(
+          inputs=xs, max_lengths=max_lengths)
+      y = {}
+      for i, k in enumerate(sorted(feature_lengths.keys())):
+        y[k] = packed[i]
+        y[f"{k}_segment_ids"] = segment_ids[i]
+        y[f"{k}_positions"] = positions[i]
+      return y
+    logging.info("Features are compatible with `pack_sequences_2`. "
+                 "Not using `pack_sequences_k`.")
     (k1_packed, k1_segment_ids, k1_positions,
      k2_packed, k2_segment_ids, k2_positions) = (
          pack_sequences_ops.pack_sequences2(
