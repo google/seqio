@@ -9,7 +9,7 @@ numpy iterator and hence it is fully compatible with other frameworks such as
 [PyTorch](https://pytorch.org/).
 
 Currently, SeqIO assumes that the dataset is a sequence, i.e., each feature is
-one-dimensional array. Modalities such as text of audio are naturally supported.
+one-dimensional array. Modalities such as text or audio are naturally supported.
 Images are supported as long as they are represented as sequences (e.g.,
 [Image GPT](http://proceedings.mlr.press/v119/chen20s.html)). We will release this constraint
 in the future in order to support higher dimensional data.
