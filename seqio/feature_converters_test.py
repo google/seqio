@@ -331,8 +331,9 @@ class FeatureConvertersTest(tf.test.TestCase):
           "inputs": FeatureSpec(tf.int64, rank=2),
           "targets": FeatureSpec(tf.int64)
       }
-      expected_msg = ("When packing is enabled, expected ranks must be 1. Got "
-                      "expected rank 2 for feature inputs.")
+      expected_msg = ("When packing is enabled, expected ranks must be 1 or "
+                      "use_custom_packing_ops must be set. Got expected rank 2 "
+                      "for feature inputs.")
       with self.assertRaisesRegex(ValueError, expected_msg):
         converter(ds, task_feature_lengths)
 
