@@ -126,9 +126,8 @@ def add_fully_cached_mixture(
       "Registering fully cached Mixture '%s' with sequence lengths %s.",
       new_name, sequence_length)
   return MixtureRegistry.add(
-      new_name,
-      [(new_t.name, mixture._task_to_rate[old_t.name])  # pylint:disable=protected-access
-       for old_t, new_t in zip(mixture.tasks, new_tasks)])
+      new_name, [(new_t.name, mixture.get_rate(old_t))
+                 for old_t, new_t in zip(mixture.tasks, new_tasks)])
 
 
 class FewshotDataSource(dataset_providers.DataSource):
@@ -320,4 +319,3 @@ def fewshot_preprocessor(
     # Unbatch if not a scalar. This is useful for fewshot eval.
     ds = ds.unbatch()
   return ds
-
