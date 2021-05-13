@@ -64,6 +64,8 @@ class _TensorAndNumpyEncoder(json.JSONEncoder):
     elif (np.issubdtype(type(obj), np.number) or
           np.issubdtype(type(obj), np.bool_)):
       return obj.item()  # Convert most primitive np types to py-native types.
+    elif hasattr(obj, "dtype") and obj.dtype == tf.bfloat16.as_numpy_dtype:
+      return float(obj)
     elif isinstance(obj, bytes):
       # JSON doesn't support bytes. First, try to decode using utf-8 in case
       # it's text. Otherwise, just base64 encode the bytes.
@@ -157,7 +159,8 @@ def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
 
 def get_targets_and_examples(
     tasks: Sequence[Task],
-    dataset_fn: Callable[[Task], tf.data.Dataset]
+    dataset_fn: Callable[[Task], tf.data.Dataset],
+    sequence_dims: Mapping[str, int],
 ) -> Tuple[
     Mapping[str, Any],
     Mapping[str, tf.data.Dataset],
@@ -167,6 +170,7 @@ def get_targets_and_examples(
   Args:
     tasks: tasks objects to get targets and examples for.
     dataset_fn: function, returns the dataset from the task object.
+    sequence_dims: dict of feature names to their sequence dimension.
   Returns:
     cached_targets: unpreprocessed targets for each task
     cached_task_datasets: cached datasets for each task, with cardinality set
@@ -189,7 +193,8 @@ def get_targets_and_examples(
 
     for ex in tfds.as_numpy(ds):
       for k in max_sequence_length:
-        sequence_length = len(ex[k])
+        sequence_dim = sequence_dims.get(k, 0)
+        sequence_length = ex[k].shape[sequence_dim]
         max_sequence_length[k] = max(max_sequence_length[k], sequence_length)
 
       # Create list of postprocessed targets
@@ -369,8 +374,14 @@ class Evaluator:
     # `task_datasets` have the output features from seqio.Task.get_dataset.
     # These features will be converted to "model features" by the feature
     # converter before being cached.
+    sequence_dims = {
+        k: v.sequence_dim for k, v in feature_converter.TASK_FEATURES.items()
+    }
     cached_targets, cached_task_datasets, max_lengths = (
-        get_targets_and_examples(tasks=self._eval_tasks, dataset_fn=dataset_fn))
+        get_targets_and_examples(
+            tasks=self._eval_tasks,
+            dataset_fn=dataset_fn,
+            sequence_dims=sequence_dims))
 
     if sequence_length is None:
       logging.info("Setting sequence lengths to %s", max_lengths)
@@ -649,7 +660,6 @@ class Evaluator:
           logging.warning("`target` is not JSON serializable", exc_info=True)
 
         if score is not None:
-          # Convert bfloat16 scores to float32 for json serializability.
           json_dict["score"] = score
 
         f.write(json.dumps(json_dict, cls=_TensorAndNumpyEncoder) + "\n")
