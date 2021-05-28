@@ -632,8 +632,8 @@ def test_postprocessing(
   class PredictCallable(evaluation.PredictFnCallable):
 
     def __call__(self,
-                 dataset: tf.data.Dataset = None,
-                 model_feature_lengths: Mapping[str, int] = None):
+                 dataset: Optional[tf.data.Dataset] = None,
+                 model_feature_lengths: Optional[Mapping[str, int]] = None):
       if predict_output is None:
         return []
       task = dataset_providers.get_mixture_or_task(task_name)
@@ -646,8 +646,8 @@ def test_postprocessing(
 
     def __call__(
         self,
-        dataset: tf.data.Dataset = None,
-        model_feature_lengths: Mapping[str, int] = None,
+        dataset: Optional[tf.data.Dataset] = None,
+        model_feature_lengths: Optional[Mapping[str, int]] = None,
     ):
       if score_output is None:
         return []

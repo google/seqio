@@ -1109,7 +1109,8 @@ class Mixture(DatasetProviderBase):
                             Sequence[Tuple[str, Union[int, float,
                                                       Callable[[Task],
                                                                float]]]]],
-               default_rate: Union[float, Callable[[Task], float]] = None):
+               default_rate: Optional[Union[float, Callable[[Task],
+                                                            float]]] = None):
     """Mixture constructor.
 
     A mixture specifies a set of tasks with associated mixing rates.
@@ -1428,18 +1429,16 @@ def get_subtasks(task_or_mixture):
     return task_or_mixture.tasks
 
 
-def get_dataset(
-    mixture_or_task_name: str,
-    task_feature_lengths: Mapping[str, int],
-    feature_converter: FeatureConverter,
-    dataset_split: str = "train",
-    use_cached: bool = False,
-    shuffle: bool = False,
-    num_epochs: Optional[int] = 1,
-    shard_info: ShardInfo = None,
-    verbose: bool = True,
-    seed: Optional[int] = None
-) -> tf.data.Dataset:
+def get_dataset(mixture_or_task_name: str,
+                task_feature_lengths: Mapping[str, int],
+                feature_converter: FeatureConverter,
+                dataset_split: str = "train",
+                use_cached: bool = False,
+                shuffle: bool = False,
+                num_epochs: Optional[int] = 1,
+                shard_info: Optional[ShardInfo] = None,
+                verbose: bool = True,
+                seed: Optional[int] = None) -> tf.data.Dataset:
   """Get processed dataset with the model features.
 
   In order to use options specific to a feature converter, e.g., packing,
