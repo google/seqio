@@ -845,7 +845,8 @@ class Task(DatasetProviderBase):
     ) -> tf.data.Dataset:
     """Trim output features to sequence length."""
     def _trim(k: str, v: tf.Tensor) -> tf.Tensor:
-      if k not in self.output_features or not sequence_length:
+      if (k not in self.output_features or not sequence_length or
+          k not in sequence_length or sequence_length[k] is None):
         return v
       return v[:sequence_length[k]]
 

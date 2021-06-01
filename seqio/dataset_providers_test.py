@@ -20,6 +20,7 @@ import os
 from typing import Callable, Sequence
 
 from absl.testing import absltest
+from absl.testing import parameterized
 from seqio import dataset_providers
 from seqio import feature_converters
 from seqio import preprocessors
@@ -825,7 +826,7 @@ class MixturesTest(test_utils.FakeTaskTest):
                      [1.5, 0.5, 1])
 
 
-class GetDatasetTest(tf.test.TestCase):
+class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_get_dataset_enc_dec_unpacked(self):
     mixture_or_task_name = "enc_dec_unpacked"
@@ -861,6 +862,78 @@ class GetDatasetTest(tf.test.TestCase):
         "decoder_input_tokens": [0, 6, 5, 1, 0],
         "decoder_loss_weights": [1, 1, 1, 0, 0],
     }]
+    expected_dtypes = {feat: tf.int32 for feat in expected[0].keys()}
+    assert_dataset(output_ds, expected, expected_dtypes=expected_dtypes)
+
+  @parameterized.parameters(
+      dict(
+          task_name="enc_dec_partial_trim_both",
+          task_feature_lengths={
+              "inputs": 7,
+              "targets": 2
+          },
+          expect_trim_inputs=True,
+          expect_trim_targets=True),
+      dict(
+          task_name="enc_dec_partial_trim_targets",
+          task_feature_lengths={
+              "inputs": None,
+              "targets": 2
+          },
+          expect_trim_inputs=False,
+          expect_trim_targets=True),
+      dict(
+          task_name="enc_dec_partial_trim_inputs",
+          task_feature_lengths={
+              "inputs": 7,
+              "targets": None
+          },
+          expect_trim_inputs=True,
+          expect_trim_targets=False),
+      dict(
+          task_name="enc_dec_partial_trim_neither",
+          task_feature_lengths={
+              "inputs": None,
+              "targets": None
+          },
+          expect_trim_inputs=False,
+          expect_trim_targets=False),
+      dict(
+          task_name="enc_dec_partial_trim_nothing",
+          task_feature_lengths=None,
+          expect_trim_inputs=False,
+          expect_trim_targets=False))
+  def test_partial_sequence_length(self, task_name, task_feature_lengths,
+                                   expect_trim_inputs, expect_trim_targets):
+    x = [{"inputs": [7, 8, 5, 6, 9, 4, 3], "targets": [3, 9]},
+         {"inputs": [8, 4], "targets": [4]},
+         {"inputs": [5, 6, 7], "targets": [6, 5]}]
+    ds = create_default_dataset(x)
+    dataset_fn = lambda split, shuffle_files: ds
+    register_dummy_task(task_name, dataset_fn=dataset_fn)
+    # Unlike the other tests, don't use a feature converter. Instead, test the
+    # task.get_dataset method directly, which is similar to how evaluation.py
+    # infers feature lengths w/trimming.
+    task = dataset_providers.get_mixture_or_task(task_name)
+    output_ds = task.get_dataset(
+        sequence_length=task_feature_lengths,
+        shuffle=False)
+
+    expected = [{
+        "inputs": [7, 8, 5, 6, 9, 4, 3, 1],
+        "targets": [3, 9, 1],
+    }, {
+        "inputs": [8, 4, 1],
+        "targets": [4, 1],
+    }, {
+        "inputs": [5, 6, 7, 1],
+        "targets": [6, 5, 1],
+    }]
+    if expect_trim_inputs:
+      expected[0]["inputs"] = [7, 8, 5, 6, 9, 4, 1]
+    if expect_trim_targets:
+      expected[0]["targets"] = [3, 1]
+      expected[2]["targets"] = [6, 1]
     expected_dtypes = {feat: tf.int32 for feat in expected[0].keys()}
     assert_dataset(output_ds, expected, expected_dtypes=expected_dtypes)
 

@@ -178,7 +178,8 @@ def append_eos_after_trim(
     if key not in output_features or not output_features[key].add_eos:
       return value
     eos_id = output_features[key].vocabulary.eos_id
-    if sequence_length is not None:
+    if (sequence_length is not None and
+        sequence_length.get(key, None) is not None):
       max_length = sequence_length[key]
       return tf.concat([value[:max_length-1], [eos_id]], axis=0)
     else:

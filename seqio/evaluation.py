@@ -390,12 +390,17 @@ class Evaluator:
       log_long_warning = False
       log_same_warning = False
 
+      sequence_length = {
+          k: sequence_length.get(k, max_lengths[k]) for k in max_lengths}
+
       assert set(sequence_length.keys()) == set(max_lengths.keys()), (
           "sequence_length=%s limits must match the detected max_lengths=%s" % (
               sequence_length.keys(), max_lengths.keys()))
 
       for k, l in sequence_length.items():
-        if l > max_lengths[k]:
+        if l is None:
+          continue
+        elif l > max_lengths[k]:
           log_long_warning = True
         elif not sequence_length_required and l == max_lengths[k]:
           log_same_warning = True

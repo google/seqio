@@ -106,6 +106,20 @@ class PreprocessorsTest(absltest.TestCase):
             'bows': [12, 13],
         })
 
+    # Trim to sequence lengths (but with targets=None).
+    sequence_length['targets'] = None
+    assert_dataset(
+        preprocessors.append_eos_after_trim(
+            og_dataset,
+            output_features=output_features,
+            sequence_length=sequence_length),
+        {
+            'inputs': [1, 2, 3],
+            'targets': [4, 5, 6, 7, 1],
+            'arrows': [8, 9, 10, 11, 1],
+            'bows': [12, 13],
+        })
+
     # Don't trim to sequence lengths.
     assert_dataset(
         preprocessors.append_eos_after_trim(

@@ -502,6 +502,47 @@ class EvaluationTest(tf.test.TestCase):
         {"inputs": 6, "targets": 4},
         evaluator.model_feature_lengths)
 
+  def test_partial_sequence_length(self):
+    task_name = "partial_sequence_length"
+    x = [{
+        "inputs": [7, 8],
+        "targets": [3, 9],
+        "targets_pretokenized": "ex 1"
+    }, {
+        "inputs": [8, 4, 5, 6],
+        "targets": [4],
+        "targets_pretokenized": "ex 2"
+    }]
+    dtypes = {
+        "inputs": tf.int32,
+        "targets": tf.int32,
+        "targets_pretokenized": tf.string
+    }
+    shapes = {"inputs": [None], "targets": [None], "targets_pretokenized": []}
+    ds = tf.data.Dataset.from_generator(
+        lambda: x, output_types=dtypes, output_shapes=shapes)
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
+    register_dummy_task(
+        task_name,
+        dataset_fn=dataset_fn,
+        metrics_fn=[_sequence_accuracy_metric])
+
+    feature_converter = mock.Mock(
+        get_model_feature_lengths=lambda x: {k: v + 1 for k, v in x.items()},
+        TASK_FEATURES={},
+        pack=False)
+    evaluator = Evaluator(
+        mixture_or_task_name=task_name,
+        feature_converter=feature_converter,
+        eval_split="validation",
+        # Set the sequence_length for inputs only, to truncate them.
+        sequence_length={"inputs": 2})
+    # EOS tokens are added, which increases the lengths by 1.
+    feature_converter.assert_called_with(mock.ANY, {"inputs": 2, "targets": 3})
+    self.assertDictEqual(
+        {"inputs": 3, "targets": 4},
+        evaluator.model_feature_lengths)
+
   def test_requires_sequence_length(self):
     task_name = "requires_sequence_length"
     ds = tf.data.Dataset.from_tensors(
