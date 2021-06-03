@@ -84,7 +84,7 @@ seqio.TaskRegistry.add(
            add_eos=True, dtype=tf.int32
         ),
     },
-    metric_fns=[metrics.bleu])
+    metric_fns=[bleu])
 ```
 
 We typically add the `Task` to the global registry when we define it (as shown
