@@ -228,7 +228,7 @@ class FeatureConvertersTest(tf.test.TestCase):
 
     with mock.patch.object(feature_converters.FeatureConverter,
                            "__abstractmethods__", set()):
-      converter = feature_converters.FeatureConverter()
+      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
       expected_msg = ("Dataset is missing an expected feature during "
                       "initial validation: 'inputs'")
       with self.assertRaisesRegex(ValueError, expected_msg):
@@ -254,7 +254,7 @@ class FeatureConvertersTest(tf.test.TestCase):
                            "__abstractmethods__", set()):
       feature_converters.FeatureConverter.TASK_FEATURES = {
           k: FeatureSpec(v) for k, v in task_feature_dtypes.items()}
-      converter = feature_converters.FeatureConverter()
+      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
       expected_msg = ("Dataset has incorrect type for feature 'inputs' during "
                       "initial validation: Got int32, expected int64")
       with self.assertRaisesRegex(ValueError, expected_msg):
@@ -277,7 +277,7 @@ class FeatureConvertersTest(tf.test.TestCase):
 
     with mock.patch.object(feature_converters.FeatureConverter,
                            "__abstractmethods__", set()):
-      converter = feature_converters.FeatureConverter()
+      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
       expected_msg = ("Dataset has incorrect rank for feature 'inputs' during "
                       "initial validation: Got 2, expected 1")
       with self.assertRaisesRegex(ValueError, expected_msg):
@@ -300,7 +300,7 @@ class FeatureConvertersTest(tf.test.TestCase):
 
     with mock.patch.object(feature_converters.FeatureConverter,
                            "__abstractmethods__", set()):
-      converter = feature_converters.FeatureConverter()
+      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
       converter._validate_dataset(
           ds,
           expected_features={
@@ -322,7 +322,7 @@ class FeatureConvertersTest(tf.test.TestCase):
                            "__abstractmethods__", set()),\
         mock.patch.object(feature_converters.FeatureConverter,
                           "_convert_features", return_value=ds):
-      converter = feature_converters.FeatureConverter(pack=True)
+      converter = feature_converters.FeatureConverter(pack=True)  # pytype: disable=not-instantiable
       feature_converters.FeatureConverter.TASK_FEATURES = {
           "inputs": FeatureSpec(tf.int64, rank=2),
           "targets": FeatureSpec(tf.int64)
@@ -346,7 +346,7 @@ class FeatureConvertersTest(tf.test.TestCase):
 
     with mock.patch.object(feature_converters.FeatureConverter,
                            "__abstractmethods__", set()):
-      converter = feature_converters.FeatureConverter()
+      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
       feature_converters.FeatureConverter.TASK_FEATURES = {
           "inputs": FeatureSpec(tf.int64),
           "targets": FeatureSpec(tf.int64)
@@ -366,7 +366,7 @@ class FeatureConvertersTest(tf.test.TestCase):
     task_feature_lengths = {"targets": 4}
     with mock.patch.object(feature_converters.FeatureConverter,
                            "__abstractmethods__", set()):
-      converter = feature_converters.FeatureConverter()
+      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
       # _validate_dataset works even if ds has targets and targets_pretokenized
       ds = converter._validate_dataset(
           ds,

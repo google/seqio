@@ -17,11 +17,12 @@
 
 import functools
 import os
-from typing import Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from absl.testing import absltest
 from absl.testing import parameterized
 from seqio import dataset_providers
+from seqio import evaluation
 from seqio import feature_converters
 from seqio import preprocessors
 from seqio import test_utils
@@ -164,6 +165,27 @@ class TasksTest(test_utils.FakeTaskTest):
     self.assertEmpty(valid_task_2.score_metric_fns)
     self.assertSameElements(
         [ok_default_metric_fn], valid_task_2.predict_metric_fns)
+
+    def predict_metric_fn_with_types(
+        targets: Sequence[Mapping[str,
+                                  Any]], predictions: Sequence[Mapping[str,
+                                                                       Any]]
+    ) -> Mapping[str, evaluation.Metric]:
+      return {}
+
+    valid_task_with_types = TaskRegistry.add(
+        "valid_metrics_with_types",
+        source=self.function_source,
+        output_features={
+            "inputs":
+                dataset_providers.Feature(test_utils.sentencepiece_vocab()),
+            "targets":
+                dataset_providers.Feature(test_utils.sentencepiece_vocab())
+        },
+        metric_fns=[predict_metric_fn_with_types])
+
+    self.assertSameElements([predict_metric_fn_with_types],
+                            valid_task_with_types.metric_fns)
 
     # pylint:enable=unused-argument
 

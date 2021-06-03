@@ -17,7 +17,7 @@
 
 import abc
 import hashlib
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional, Sequence, Union
 from absl import logging
 
 import tensorflow.compat.v2 as tf
@@ -82,7 +82,7 @@ class Vocabulary(metaclass=abc.ABCMeta):
   def _encode(self, s: str) -> Sequence[int]:
     raise NotImplementedError
 
-  def encode(self, s: str) -> Sequence[int]:
+  def encode(self, s: Union[Sequence[int], str]) -> Sequence[int]:
     """Tokenizes string to an int sequence, without adding EOS."""
     return self._encode(s)
 

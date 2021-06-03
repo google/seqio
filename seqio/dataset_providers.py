@@ -642,7 +642,9 @@ class CacheDatasetPlaceholder(object):
 # ================================ Tasks =======================================
 
 
-MetricFnCallable = Callable[..., Mapping[str, float]]
+# Return type should be Mapping[str, Union[evaluation.Metric, float]] but to
+# avoid circular package dependencies, we wildcard to `Any`.
+MetricFnCallable = Callable[..., Mapping[str, Any]]
 
 
 class Task(DatasetProviderBase):
@@ -1089,7 +1091,7 @@ class TaskRegistry(DatasetProviderRegistry):
       output_features: Mapping[str, Feature],
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
-      metric_fns: Optional[Sequence[Callable[..., Mapping[str, float]]]] = None,
+      metric_fns: Optional[Sequence[MetricFnCallable]] = None,
       **kwargs) -> Task:
     """See `Task` constructor for docstring."""
     return super().add(name, Task, name, source, output_features, preprocessors,

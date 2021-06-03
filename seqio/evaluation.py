@@ -22,7 +22,7 @@ import itertools
 import json
 import os
 import time
-from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Union
 
 from absl import logging
 import dataclasses
@@ -219,7 +219,7 @@ class PredictFnCallable(typing_extensions.Protocol):
   def __call__(
       self,
       dataset: tf.data.Dataset,
-      model_feature_lengths: Mapping[str, int]
+      model_feature_lengths: Optional[Mapping[str, int]]
   ) -> Sequence[Tuple[int, Sequence[int]]]:
     ...
 
@@ -229,7 +229,7 @@ class ScoreFnCallable(typing_extensions.Protocol):
   def __call__(
       self,
       dataset: tf.data.Dataset,
-      model_feature_lengths: Mapping[str, int]
+      model_feature_lengths: Optional[Mapping[str, int]]
   ) -> Sequence[Tuple[int, float]]:
     ...
 
@@ -256,7 +256,7 @@ class Logger(abc.ABC):
 
   @abc.abstractmethod
   def __call__(self,
-               task_metrics: Mapping[str, Scalar],
+               task_metrics: Mapping[str, Union[Metric, float]],
                step: int,
                task_name: str) -> None:
     """Logs the metric for each task."""
