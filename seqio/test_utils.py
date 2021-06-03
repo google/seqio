@@ -378,7 +378,7 @@ def _assert_compare_to_fake_dataset(
 
 
 def create_default_dataset(
-    x: Sequence[Mapping[str, int]],
+    x: Sequence[Mapping[str, Sequence[int]]],
     feature_names: Sequence[str] = ("inputs", "targets"),
     output_types: Optional[Mapping[str, tf.dtypes.DType]] = None,
     output_shapes: Optional[Mapping[str,
@@ -663,12 +663,15 @@ def test_postprocessing(
         score_fn=ScoreCallable())[0].result()[task_name]
 
 
-class MockVocabulary(object):
+class MockVocabulary(vocabularies.Vocabulary):
   """Mocks a vocabulary object for testing."""
 
   def __init__(self, encode_dict, vocab_size=None):
     self._encode_dict = encode_dict
     self._vocab_size = vocab_size
+
+  def unk_id(self) -> Optional[int]:
+    raise NotImplementedError
 
   def encode(self, s):
     return self._encode_dict[s]
@@ -681,6 +684,21 @@ class MockVocabulary(object):
       else:
         pass
     return res
+
+  def _encode(self, s: str) -> Sequence[int]:
+    raise NotImplementedError
+
+  def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
+    raise NotImplementedError
+
+  def _decode(self, ids):
+    raise NotImplementedError
+
+  def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
+    raise NotImplementedError
+
+  def _base_vocab_size(self) -> int:
+    raise NotImplementedError
 
   @property
   def vocab_size(self):

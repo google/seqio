@@ -19,7 +19,7 @@ import concurrent
 import functools
 import json
 import os
-from typing import Callable, Sequence, Optional
+from typing import Callable, Sequence, Mapping, Optional, Tuple
 from unittest import mock
 
 import numpy as np
@@ -278,14 +278,25 @@ class EvaluationTest(tf.test.TestCase):
           max_workers=1)
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
+
       # A dummy score function that always returns the same output.
-      predict_fn = (
-          lambda x: [(0, [5, 6]), (1, [7]), (2, [7])] if task.predict_metric_fns
-          else self.uncalled_fn)
-      score_fn = (
-          lambda x: [(1, 1), (0, 2), (2, 3)] if task.score_metric_fns
-          else self.uncalled_fn)
+      def predict_fn(
+          ds: tf.data.Dataset,
+          model_feature_lengths: Optional[Mapping[str, int]] = None
+      ) -> Sequence[Tuple[int, Sequence[int]]]:
+        del ds, model_feature_lengths
+        return ([(0, [5, 6]), (1, [7]),
+                 (2, [7])] if task.predict_metric_fns else self.uncalled_fn)
+
+      def score_fn(
+          ds: tf.data.Dataset,
+          model_feature_lengths: Optional[Mapping[str, int]] = None
+      ) -> Sequence[Tuple[int, float]]:
+        del ds, model_feature_lengths
+        return ([(1, 1), (0, 2),
+                 (2, 3)] if task.score_metric_fns else self.uncalled_fn)
+
       all_metrics, _, _ = evaluator.evaluate(
           compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn)
       return all_metrics.result()
@@ -330,12 +341,20 @@ class EvaluationTest(tf.test.TestCase):
           max_workers=1)
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
+
       # A dummy prediction function that always returns the same output.
       # The first example is correct but the second is not.
-      predict_fn = lambda x: [(0, [5, 6]), (1, [6, 8])]
+      def predict_fn(
+          ds: tf.data.Dataset,
+          model_feature_lengths: Optional[Mapping[str, int]] = None
+      ) -> Sequence[Tuple[int, Sequence[int]]]:
+        del ds, model_feature_lengths
+        return [(0, [5, 6]), (1, [6, 8])]
+
       all_metrics, _, _ = evaluator.evaluate(
-          compute_metrics=True, predict_fn=predict_fn,
+          compute_metrics=True,
+          predict_fn=predict_fn,
           score_fn=self.uncalled_fn)
       # expected = {"accuracy": 2.0 / 3 * 100}
       expected = {"sequence_accuracy": 50}
@@ -362,12 +381,20 @@ class EvaluationTest(tf.test.TestCase):
           max_workers=1)
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
+
       # The output tokens will be docoded to ["e5", "e6", "e7"] and
       # postprocessed to [0, 1, 2].
-      predict_fn = lambda x: [(0, [5]), (1, [6]), (2, [7])]
+      def predict_fn(
+          ds: tf.data.Dataset,
+          model_feature_lengths: Optional[Mapping[str, int]] = None
+      ) -> Sequence[Tuple[int, Sequence[int]]]:
+        del ds, model_feature_lengths
+        return [(0, [5]), (1, [6]), (2, [7])]
+
       all_metrics, _, _ = evaluator.evaluate(
-          compute_metrics=True, predict_fn=predict_fn,
+          compute_metrics=True,
+          predict_fn=predict_fn,
           score_fn=self.uncalled_fn)
       expected = {"accuracy": 100}
       self.assertDictClose(expected, all_metrics.result()[task.name])
@@ -414,17 +441,26 @@ class EvaluationTest(tf.test.TestCase):
           max_workers=1)
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      def predict_fn(ds):
+
+      def predict_fn(
+          ds: tf.data.Dataset,
+          model_feature_lengths: Optional[Mapping[str, int]] = None
+      ) -> Optional[Sequence[Tuple[int, Sequence[int]]]]:
+        del model_feature_lengths
         if ds == mock_ds1:
           return [(0, [5, 6]), (1, [7])]
         elif ds == mock_ds2:
           return [(0, [5]), (1, [6]), (2, [7])]
 
-      def score_fn(ds):
+      def score_fn(
+          ds: tf.data.Dataset,
+          model_feature_lengths: Optional[Mapping[str, int]] = None
+      ) -> Sequence[Tuple[int, float]]:
+        del model_feature_lengths
         self.assertEqual(ds, mock_ds1)
         return [(0, 1), (1, 2)]
 
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
       all_metrics, _, _ = evaluator.evaluate(
           compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn)
       expected = {
@@ -432,7 +468,9 @@ class EvaluationTest(tf.test.TestCase):
               "sequence_accuracy": 50.0,
               "total_score": 651
           },
-          task2.name: {"accuracy": 100}
+          task2.name: {
+              "accuracy": 100
+          }
       }
       all_metrics = all_metrics.result()
       self.assertDictClose(expected[task1.name], all_metrics[task1.name])
@@ -679,7 +717,7 @@ class EvaluationTest(tf.test.TestCase):
           max_workers=1)
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
       predict_fn = mock.Mock(return_value=[(0, 1)])
       evaluator.evaluate(
           compute_metrics=False, predict_fn=predict_fn,
@@ -706,15 +744,20 @@ class EvaluationTest(tf.test.TestCase):
           max_workers=1)
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
 
       # Dummy predict_fn where only the order is mixed.
-      def mixing_order_predict_fn(ds: tf.data.Dataset) -> Sequence[bytes]:
+      def mixing_order_predict_fn(
+          ds: tf.data.Dataset,
+          model_feature_lengths: Optional[Mapping[str, int]] = None
+      ) -> Sequence[Tuple[int, Sequence[int]]]:
+        del model_feature_lengths
         exs = list(tfds.as_numpy(ds))
         return [exs[2], exs[0], exs[1]]
 
       all_metrics, all_outputs, _ = evaluator.evaluate(
-          compute_metrics=True, predict_fn=mixing_order_predict_fn,
+          compute_metrics=True,
+          predict_fn=mixing_order_predict_fn,
           score_fn=self.uncalled_fn)
       expected_metric = {"sequence_accuracy": 100}
       expected_outputs = [np.array([5]), np.array([6]), np.array([7])]
@@ -808,7 +851,7 @@ class EvaluationTest(tf.test.TestCase):
           max_workers=1)
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
 
     task_metrics = {
         "rouge1": evaluation.Scalar(50),
@@ -843,7 +886,7 @@ class EvaluationTest(tf.test.TestCase):
       self._logger = evaluation.TensorboardLogging(summary_dir)
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
 
     task_metrics = {
         "rouge1": 50.0,  # Test with float
@@ -878,7 +921,7 @@ class EvaluationTest(tf.test.TestCase):
       self._logger = evaluation.TensorboardLogging(summary_dir)
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
 
     task_metrics = {"wrong_type": "string_value"}
     with self.assertRaisesWithLiteralMatch(
@@ -886,7 +929,7 @@ class EvaluationTest(tf.test.TestCase):
         "Value for metric 'wrong_type' should be of type 'Scalar', 'int', or "
         "'float', got 'str'."):
       evaluator.logger(
-          task_metrics=task_metrics, step=1, task_name="wrong_value_type")
+          task_metrics=task_metrics, step=1, task_name="wrong_value_type")  # pytype: disable=wrong-arg-types
 
   def _get_task_dataset_for_write_to_file_tests(self):
     x = [{"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
@@ -909,7 +952,7 @@ class EvaluationTest(tf.test.TestCase):
     def mock_init(self):
       self._write_n_results = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
@@ -938,7 +981,7 @@ class EvaluationTest(tf.test.TestCase):
     def mock_init(self):
       self._write_n_results = 1
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
@@ -962,7 +1005,7 @@ class EvaluationTest(tf.test.TestCase):
     def mock_init(self):
       self._write_n_results = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
@@ -992,7 +1035,7 @@ class EvaluationTest(tf.test.TestCase):
     def mock_init(self):
       self._write_n_results = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
@@ -1024,7 +1067,7 @@ class EvaluationTest(tf.test.TestCase):
     def mock_init(self):
       self._write_n_results = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
@@ -1054,7 +1097,7 @@ class EvaluationTest(tf.test.TestCase):
     def mock_init(self):
       self._write_n_results = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
@@ -1083,7 +1126,7 @@ class EvaluationTest(tf.test.TestCase):
     def mock_init(self):
       self._write_n_results = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
 
     # Read the written jsonl file.
