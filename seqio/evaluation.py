@@ -17,6 +17,7 @@
 import abc
 import base64
 import concurrent
+import functools
 import inspect
 import itertools
 import json
@@ -354,8 +355,12 @@ class Evaluator:
         if ("sequence_length" in prep_params and
             prep_params["sequence_length"].default == inspect.Parameter.empty):
           if sequence_length is None:
+            if isinstance(prep, functools.partial):
+              prep_name = prep.func.__name__
+            else:
+              prep_name = prep.__name__
             raise ValueError(
-                f"Preprocessor '{prep.__name__}' in task '{task.name}' has a "
+                f"Preprocessor '{prep_name}' in task '{task.name}' has a "
                 "`sequence_length` argument, making it incompatible with "
                 "automatic sequence length detection. Pass a valid "
                 "`sequence_length` to `Evaluator` and try again.")
