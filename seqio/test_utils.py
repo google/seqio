@@ -21,7 +21,7 @@ import functools
 import os
 import shutil
 import sys
-from typing import Any, Mapping, Optional, Sequence, Union, Tuple
+from typing import Any, Iterator, Mapping, Optional, Sequence, Union, Tuple
 
 from absl import flags
 from absl import logging
@@ -559,7 +559,7 @@ def test_task(
     is the result of running the tasks' preprocessing code on `raw_data` and
     `metrics` is a mapping from task name to computed metrics.
   """
-  output = test_preprocessing(task_name, raw_data)
+  output = test_preprocessing_single(task_name, raw_data)
 
   eval_output = test_postprocessing(
       task_name,
@@ -570,8 +570,41 @@ def test_task(
 
 
 def test_preprocessing(
-    task_name: str, raw_data: Mapping[str, Any]) -> Mapping[str, Any]:
-  """Test the preprocessing functionality of a given task.
+    task_name: str, raw_data: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
+  """Test task preprocessing, returning iterator of the generated dataset.
+
+  This function injects `raw_data` into `task` and runs the preprocessing
+  routines from `task`, returning the output of
+  `task.get_dataset().as_numpy_iterator()`.
+
+  Args:
+    task_name: A SeqIO task name.
+    raw_data: A string-keyed dict of string-keyed dicts. The top-level dict
+      should be keyed by dataset splits, and the second-level dict should hold
+      the dataset data.
+
+  Returns:
+    Iterator with the result of running the tasks' preprocessing code on
+    `raw_data`.
+  """
+  if len(raw_data) > 1:
+    raise ValueError("test_preprocessing supports a single split in raw_data.")
+
+  with DataInjector(task_name, raw_data):
+    split = list(raw_data.keys())[0]
+    task = dataset_providers.get_mixture_or_task(task_name)
+    iterator = task.get_dataset(
+        sequence_length=None, split=split, shuffle=False).as_numpy_iterator()
+    return iterator
+
+
+def test_preprocessing_single(task_name: str,
+                              raw_data: Mapping[str, Any]) -> Mapping[str, Any]:
+  """Test task preprocessing, where a single item is expected to be generated.
+
+  This is similar to test_preprocessing, but returns a single generated item.
+  This also asserts that no more than a single item is generated during
+  preprocessing.
 
   This function injects `raw_data` into `task` and runs the preprocessing
   routines from `task`, returning the output of
@@ -586,9 +619,13 @@ def test_preprocessing(
   Returns:
     The result of running the tasks' preprocessing code on `raw_data`.
   """
-  with DataInjector(task_name, raw_data):
-    task = dataset_providers.get_mixture_or_task(task_name)
-    return next(task.get_dataset(sequence_length=None).as_numpy_iterator())
+  iterator = test_preprocessing(task_name, raw_data)
+  item = next(iterator)
+  # Verify that we've reached the end of the generator.
+  _pyunit_proxy.assertIsNone(
+      next(iterator, None),
+      msg="Expected dataset with a single item, but more were generated.")
+  return item
 
 
 def test_postprocessing(
