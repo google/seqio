@@ -251,5 +251,39 @@ class ByteVocabularyTest(absltest.TestCase):
     vocab2 = vocabularies.ByteVocabulary(10)
     self.assertNotEqual(vocab1, vocab2)
 
+
+class FullCodepointVocabularyTest(absltest.TestCase):
+
+  TEST_STRING = "this is a test"
+  TEST_CODEPOINT_IDS = (116, 104, 105, 115, 32, 105, 115, 32, 97, 32, 116, 101,
+                        115, 116)
+
+  def test_vocab(self):
+    vocab = vocabularies.FullCodepointVocabulary()
+    self.assertEqual(vocab.vocab_size, vocab.LARGEST_CODEPOINT)
+    self.assertEqual(vocab.pad_id, vocab.PAD_ID)
+    self.assertEqual(vocab.eos_id, vocab.EOS_ID)
+    self.assertIsNone(vocab.unk_id)
+
+  def test_encode_tf(self):
+    vocab = vocabularies.FullCodepointVocabulary()
+    self.assertEqual(self.TEST_CODEPOINT_IDS,
+                     tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
+
+  def test_decode_tf(self):
+    vocab = vocabularies.FullCodepointVocabulary()
+    self.assertSequenceEqual(self.TEST_STRING,
+                             _decode_tf(vocab, self.TEST_CODEPOINT_IDS))
+
+  def test_encode(self):
+    vocab = vocabularies.FullCodepointVocabulary()
+    self.assertSequenceEqual(self.TEST_CODEPOINT_IDS,
+                             vocab.encode(self.TEST_STRING))
+
+  def test_decode(self):
+    vocab = vocabularies.FullCodepointVocabulary()
+    self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_CODEPOINT_IDS))
+
+
 if __name__ == "__main__":
   absltest.main()

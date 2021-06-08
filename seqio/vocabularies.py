@@ -461,3 +461,62 @@ class ByteVocabulary(Vocabulary):
   def __eq__(self, other):
     their_extra_ids = other.extra_ids
     return self.extra_ids == their_extra_ids
+
+
+class FullCodepointVocabulary(Vocabulary):
+  """Encodes and decodes text as codepoint sequences.
+
+  This "vocabulary" is lexicon-free (i.e. it is static), and is an exhaustive
+  representation of all codepoints. This is well-suited to encoders (especially
+  with a hash-based embedding strategy) or a decoder that does not softmax over
+  the whole vocabulary.
+
+  A Unicode codepoint is effectively a single character. Unicode provides a
+  well-defined mapping from the set of codepoint integers onto the set of all
+  Unicode characters.
+  """
+  # While this should generally match `sys.maxunicode`, we want to provide this
+  # as a constant to avoid architecture/system-dependent array overruns. If
+  # downstream preprocessors choose to use `vocab_size-1` as a sentinel ID,
+  # then this will still map such characters onto the Unicode private range on
+  # planes 15-16. See:
+  # https://en.wikipedia.org/wiki/Unicode#Code_planes_and_blocks.
+  LARGEST_CODEPOINT = 0x10ffff  # Decimal: 1,114,111
+  # Padding is always index zero. This means that the NULL character is
+  # technically not embeddable. This seems fine according to all reasonable
+  # interpretations of the NULL character as a past-end-of-string marker.
+  PAD_ID = 0
+  # Special symbols are represented using codepoints values that are valid,
+  # but designated as "Private Use", meaning that they will never by assigned
+  # characters by the Unicode Consortium, and are thus safe for use here.
+  EOS_ID = 0xE005
+
+  @property
+  def eos_id(self) -> int:
+    return self.EOS_ID
+
+  @property
+  def pad_id(self) -> int:
+    return self.PAD_ID
+
+  @property
+  def unk_id(self) -> Optional[int]:
+    # Because `FullCodepointVocabulary` exhaustively embeds all codepoints
+    # possible in Unicode, unknown characters are not possible.
+    return None
+
+  @property
+  def _base_vocab_size(self) -> int:
+    return self.LARGEST_CODEPOINT
+
+  def _encode(self, s: str) -> Sequence[int]:
+    return [ord(i) for i in s]
+
+  def _decode(self, ids: Sequence[int]) -> str:
+    return "".join(chr(i) for i in ids)
+
+  def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
+    return tf.strings.unicode_decode(s, input_encoding="UTF-8")
+
+  def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
+    return tf.strings.unicode_encode(ids, output_encoding="UTF-8")
