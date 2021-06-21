@@ -752,6 +752,12 @@ def sentencepiece_vocab(extra_ids=0):
       extra_ids=extra_ids)
 
 
+def bertwordpiece_vocab(start_of_sequence_id=101):
+  return vocabularies.BertWordPieceVocabulary(
+      os.path.join(TEST_DATA_DIR, "bertwordpiece", "vocab.txt"),
+      start_of_sequence_id=start_of_sequence_id)
+
+
 def clear_tasks():
   TaskRegistry._REGISTRY = {}  # pylint:disable=protected-access
 

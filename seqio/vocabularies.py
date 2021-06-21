@@ -18,8 +18,8 @@
 import abc
 import hashlib
 from typing import Iterable, Optional, Sequence, Union
-from absl import logging
 
+from absl import logging
 import tensorflow.compat.v2 as tf
 import tensorflow_text as tf_text
 
@@ -520,3 +520,190 @@ class FullCodepointVocabulary(Vocabulary):
 
   def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
     return tf.strings.unicode_encode(ids, output_encoding="UTF-8")
+
+
+class BertWordPieceVocabulary(Vocabulary):
+  """Wrapper for Bert wordpiece encoder.
+
+  This "vocabulary" wraps the tensorflow_text's BertTokenizer, which applies an
+  end-to-end, text string to wordpiece tokenization.
+  """
+
+  def __init__(self,
+               vocab_lookup_table: str,
+               suffix_indicator: str = "##",
+               max_bytes_per_word: int = 100,
+               max_chars_per_token: Optional[int] = None,
+               token_out_type: tf.dtypes.DType = tf.dtypes.int64,
+               unknown_token: str = "[UNK]",
+               split_unknown_characters: bool = False,
+               lower_case: bool = False,
+               keep_whitespace: bool = False,
+               normalization_form: Optional[str] = None,
+               preserve_unused_token: bool = False,
+               pad_id: int = 0,
+               start_of_sequence_id: int = 101,
+               end_of_sequence_id: int = 102):
+    r"""Create a Bert WordPieceVocabulary.
+
+    Args:
+      vocab_lookup_table: A lookup table implementing the LookupInterface
+        containing the vocabulary of subwords or a string which is the file path
+        to the vocab.txt file.
+      suffix_indicator: (optional) The characters prepended to a wordpiece to
+        indicate that it is a suffix to another subword. Default is '##'.
+      max_bytes_per_word: (optional) Max size of input token. Default is 100.
+      max_chars_per_token: (optional) Max size of subwords, excluding suffix
+        indicator. If known, providing this improves the efficiency of decoding
+        long words.
+      token_out_type: (optional) The type of the token to return. This can be
+        `tf.int64` IDs, or `tf.string` subwords. The default is `tf.int64`.
+      unknown_token: (optional) The value to use when an unknown token is found.
+        Default is "[UNK]". If this is set to a string, and `token_out_type` is
+        `tf.int64`, the `vocab_lookup_table` is used to convert the
+        `unknown_token` to an integer. If this is set to `None`,
+        out-of-vocabulary tokens are left as is.
+      split_unknown_characters: (optional) Whether to split out single unknown
+        characters as subtokens. If False (default), words containing unknown
+        characters will be treated as single unknown tokens.
+      lower_case: bool - If true, a preprocessing step is added to lowercase the
+        text, apply NFD normalization, and strip accents characters.
+      keep_whitespace: bool - If true, preserves whitespace characters instead
+        of stripping them away.
+      normalization_form: If set to a valid value and lower_case=False, the
+        input text will be normalized to `normalization_form`. See
+        normalize_utf8() op for a list of valid values.
+      preserve_unused_token: If true, text in the regex format
+        `\\[unused\\d+\\]` will be treated as a token and thus remain preserved
+        as is to be looked up in the vocabulary.
+      pad_id: ID for the `[PAD]` token.
+      start_of_sequence_id: ID for the `[CLS]` token.
+      end_of_sequence_id: ID for the `[SEP]` token.
+    """
+    self._vocab_lookup_table = vocab_lookup_table
+    self._suffix_indicator = suffix_indicator
+    self._max_bytes_per_word = max_bytes_per_word
+    self._max_chars_per_token = max_chars_per_token
+    self._token_out_type = token_out_type
+    self._unknown_token = unknown_token
+    self._split_unknown_characters = split_unknown_characters
+    self._lower_case = lower_case
+    self._keep_whitespace = keep_whitespace
+    self._normalization_form = normalization_form
+    self._preserve_unused_token = preserve_unused_token
+    self._tokenizer = tf_text.BertTokenizer(
+        vocab_lookup_table=vocab_lookup_table,
+        suffix_indicator=suffix_indicator,
+        max_bytes_per_word=max_bytes_per_word,
+        max_chars_per_token=max_chars_per_token,
+        token_out_type=token_out_type,
+        unknown_token=unknown_token,
+        split_unknown_characters=split_unknown_characters,
+        lower_case=lower_case,
+        keep_whitespace=keep_whitespace,
+        normalization_form=normalization_form,
+        preserve_unused_token=preserve_unused_token,
+    )
+    self._vocab = self._tokenizer._wordpiece_tokenizer._vocab_lookup_table
+    self._pad_id = pad_id
+    self._unk_id = self._vocab.lookup(tf.constant(unknown_token)).numpy()
+    self._sos_id = start_of_sequence_id
+    self._eos_id = end_of_sequence_id
+    with tf.io.gfile.GFile(vocab_lookup_table, "rb") as f:
+      self._wp_model = f.read()
+    # We won't pass in extra_ids for Bert vocabulary.
+    super().__init__()
+
+  @property
+  def sos_id(self) -> Optional[int]:
+    return self._sos_id
+
+  @property
+  def eos_id(self) -> Optional[int]:
+    return self._eos_id
+
+  @property
+  def unk_id(self) -> Optional[int]:
+    return self._unk_id
+
+  @property
+  def pad_id(self) -> Optional[int]:
+    return self._pad_id
+
+  @property
+  def _base_vocab_size(self):
+    """Returns the vocabulary size."""
+    return self._vocab.size().numpy()
+
+  @property
+  def tokenizer(self):
+    """Returns the Python tokenizer."""
+    return self._tokenizer
+
+  @property
+  def tf_tokenizer(self):
+    """Instantiate and return a TF tokenizer."""
+    return self._tokenizer
+
+  @property
+  def vocab_size(self):
+    return self._base_vocab_size
+
+  def _encode(self, s):
+    """Encode a python string as a list of integers.
+
+    Args:
+      s: a string
+    Returns:
+      a list of integers (not terminated by EOS)
+    """
+    return self._encode_tf(s).numpy()
+
+  def _decode(self, ids):
+    """Decode a list of integers to a python string.
+
+    Args:
+      ids: a list of integers (not terminated by EOS)
+    Returns:
+      a string
+    """
+    ids = tf.constant(ids)
+    str_text = self._decode_tf(ids)
+    return str_text.numpy().decode("UTF-8")
+
+  def _encode_tf(self, s):
+    """Encode a tf.Scalar string to a tf.Tensor.
+
+    This will be necessary for on-the-fly tokenization.
+
+    Args:
+      s: a tf.Scalar with dtype tf.string
+    Returns:
+      a 1d tf.Tensor with dtype tf.int32
+    """
+    tokens = self.tokenizer.tokenize(s)
+    # Convert tf.RaggedTensor to tf.Tensor
+    return tf.squeeze(tokens.to_tensor())
+
+  def _decode_tf(self, ids):
+    """Decode in TensorFlow.
+
+    Args:
+      ids: a 1d tf.Tensor with dtype tf.int32
+    Returns:
+      a tf Scalar with dtype tf.string
+    """
+    # Convert tf.Tensor to tf.RaggedTensor
+    ids = tf.RaggedTensor.from_tensor(tf.expand_dims(ids, axis=1))
+    tokens = self.tf_tokenizer.detokenize(ids)
+    # Flatten tf.RaggedTensor and convert tokens into a string
+    return tf.strings.join(tokens.flat_values, " ")
+
+  def __eq__(self, other):
+    try:
+      their_md5 = hashlib.md5(other._wp_model).hexdigest()
+      their_sos_id = other._sos_id
+    except AttributeError:
+      return False
+    our_md5 = hashlib.md5(self._wp_model).hexdigest()
+    return our_md5 == their_md5 and self._sos_id == their_sos_id

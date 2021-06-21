@@ -285,5 +285,43 @@ class FullCodepointVocabularyTest(absltest.TestCase):
     self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_CODEPOINT_IDS))
 
 
+class BertWordpieceVocabularyTest(absltest.TestCase):
+
+  TEST_STRING = "this is a test"
+  TEST_TOKENS = (106, 105, 104, 107)
+
+  def test_vocab(self):
+
+    vocab = test_utils.bertwordpiece_vocab()
+    self.assertEqual(109, vocab.vocab_size)
+
+    self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_TOKENS))
+    self.assertEqual(self.TEST_STRING, _decode_tf(vocab, self.TEST_TOKENS))
+
+    self.assertSequenceEqual(self.TEST_TOKENS,
+                             tuple(vocab.encode(self.TEST_STRING)))
+    self.assertSequenceEqual(self.TEST_TOKENS,
+                             tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
+
+  def test_special_ids(self):
+    # Set preserve_unused_token to True so that detokenization remains the
+    # special ids.
+    vocab = test_utils.bertwordpiece_vocab()
+    test_string = "[CLS] [MASK] [UNK] [SEP]"
+    test_tokens = (101, 103, 100, 102)
+    self.assertEqual(test_string, vocab.decode(test_tokens))
+    self.assertEqual(test_string, _decode_tf(vocab, test_tokens))
+
+  def test_equal(self):
+    vocab1 = test_utils.bertwordpiece_vocab()
+    vocab2 = test_utils.bertwordpiece_vocab()
+    self.assertEqual(vocab1, vocab2)
+
+  def test_not_equal(self):
+    vocab1 = test_utils.bertwordpiece_vocab()
+    vocab2 = test_utils.bertwordpiece_vocab(start_of_sequence_id=100)
+    self.assertNotEqual(vocab1, vocab2)
+
+
 if __name__ == "__main__":
   absltest.main()
