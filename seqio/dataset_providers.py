@@ -671,7 +671,7 @@ class Task(DatasetProviderBase):
         will not be passed to the model.
       preprocessors: list(callable), an optional list of functions that receive
         a tf.data.Dataset and return a tf.data.Dataset. These will be executed
-        sequentually and the final dataset must include features matching
+        sequentially and the final dataset must include features matching
         `output_features`.
       postprocess_fn: callable, an optional function that receives decoded model
         outputs and converts them to a form that is ready for evaluation using
