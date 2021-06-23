@@ -543,6 +543,19 @@ class Evaluator:
                                         step)
         logging.info("Time computing metrics: %f", time.time() - tick)
         return metrics
+
+      def wrap_graph(fn):
+        graph = tf.compat.v1.get_default_graph()
+
+        def wrapped_fn():
+          with graph.as_default():
+            return fn()
+
+        return wrapped_fn
+
+      if not tf.executing_eagerly():
+        compute_metrics_fn = wrap_graph(compute_metrics_fn)
+
       self._metrics_future = self._metrics_executor.submit(compute_metrics_fn)
       all_metrics = self._metrics_future
     else:
