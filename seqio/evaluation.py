@@ -534,14 +534,14 @@ class Evaluator:
         # that may have occurred.
         tick = time.time()
         self._metrics_future.result()
-        logging.info("Time waiting for previous metrics run: %f",
+        logging.info("Time waiting for previous metrics run: %f secs.",
                      time.time() - tick)
 
       def compute_metrics_fn():
         tick = time.time()
         metrics = self._compute_metrics(all_output_tokens, all_output_scores,
                                         step)
-        logging.info("Time computing metrics: %f", time.time() - tick)
+        logging.info("Time computing metrics: %f secs.", time.time() - tick)
         return metrics
 
       def wrap_graph(fn):
