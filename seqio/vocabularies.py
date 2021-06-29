@@ -325,14 +325,15 @@ class SentencePieceVocabulary(Vocabulary):
     return self.tf_tokenizer.detokenize(ids)
 
   def __eq__(self, other):
+    if not isinstance(other, SentencePieceVocabulary):
+      return False
     try:
       their_md5 = hashlib.md5(other.sp_model).hexdigest()
-      their_extra_ids = other.extra_ids
     # If other has no sp_model/extra_ids attribute, we can't test for equality
     except AttributeError:
       return False
     our_md5 = hashlib.md5(self.sp_model).hexdigest()
-    return our_md5 == their_md5 and self.extra_ids == their_extra_ids
+    return our_md5 == their_md5
 
 
 class ByteVocabulary(Vocabulary):
@@ -459,8 +460,11 @@ class ByteVocabulary(Vocabulary):
     return tf.py_function(func=self.decode, inp=[ids], Tout=tf.string)
 
   def __eq__(self, other):
-    their_extra_ids = other.extra_ids
-    return self.extra_ids == their_extra_ids
+    if not isinstance(other, ByteVocabulary):
+      return False
+    return (self.extra_ids == other.extra_ids and
+            self.eos_id == other.eos_id and
+            self.unk_id == other.unk_id)
 
 
 class FullCodepointVocabulary(Vocabulary):
