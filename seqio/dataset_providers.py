@@ -929,14 +929,18 @@ class Task(DatasetProviderBase):
   def _trim_output_features(
       self,
       dataset: tf.data.Dataset,
-      sequence_length: Optional[Mapping[str, int]]
-    ) -> tf.data.Dataset:
+      sequence_length: Optional[Mapping[str, Union[int, Sequence[int]]]]
+  ) -> tf.data.Dataset:
     """Trim output features to sequence length."""
     def _trim(k: str, v: tf.Tensor) -> tf.Tensor:
       if (k not in self.output_features or not sequence_length or
           k not in sequence_length or sequence_length[k] is None):
         return v
-      return v[:sequence_length[k]]
+      lengths = sequence_length[k]
+      if isinstance(lengths, int):
+        lengths = [lengths]
+      slices = tuple((slice(0, limit) for limit in lengths))
+      return v[slices]
 
     return dataset.map(
         lambda ex: {k: _trim(k, v) for k, v in ex.items()},
