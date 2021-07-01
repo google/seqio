@@ -261,8 +261,8 @@ class FullCodepointVocabularyTest(absltest.TestCase):
   def test_vocab(self):
     vocab = vocabularies.FullCodepointVocabulary()
     self.assertEqual(vocab.vocab_size, vocab.LARGEST_CODEPOINT)
-    self.assertEqual(vocab.pad_id, vocab.PAD_ID)
-    self.assertEqual(vocab.eos_id, vocab.EOS_ID)
+    self.assertEqual(vocab.pad_id, vocab.PAD_CODEPOINT)
+    self.assertEqual(vocab.eos_id, vocab.EOS_CODEPOINT)
     self.assertIsNone(vocab.unk_id)
 
   def test_encode_tf(self):
@@ -283,6 +283,81 @@ class FullCodepointVocabularyTest(absltest.TestCase):
   def test_decode(self):
     vocab = vocabularies.FullCodepointVocabulary()
     self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_CODEPOINT_IDS))
+
+
+class PartialCodepointVocabularyTest(absltest.TestCase):
+
+  TEST_STRING = "this is a test"
+  TEST_CODEPOINT_IDS = (3, 4, 5, 6, 9, 5, 6, 9, 7, 9, 3, 8, 6, 3)
+
+  UNK_TEST_STRING = "This is a test!"
+  UNK_TEST_CODEPOINT_IDS = (2, 4, 5, 6, 9, 5, 6, 9, 7, 9, 3, 8, 6, 3, 2)
+  UNK_ID = vocabularies.PartialCodepointVocabulary.UNK_CODEPOINT
+  UNK_TEST_STRING_ENCODED = chr(UNK_ID) + "his is a test" + chr(UNK_ID)
+
+  EOS_TEST_STRING = "this is a test" + chr(
+      vocabularies.PartialCodepointVocabulary.EOS_CODEPOINT)
+  EOS_TEST_CODEPOINT_IDS = (3, 4, 5, 6, 9, 5, 6, 9, 7, 9, 3, 8, 6, 3, 1)
+
+  def setUp(self):
+    super().setUp()
+    self.char_points = [ord(i) for i in "thisae "]
+    data = "\n".join(str(i) for i in self.char_points)
+    self.char_points_file = self.create_tempfile(content=data)
+
+  def test_vocab(self):
+    vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
+        self.char_points_file.full_path)
+    self.assertEqual(vocab.vocab_size, vocab.vocab_size)
+    self.assertEqual(vocab.pad_id, vocab.PAD_ID)
+    self.assertEqual(vocab.eos_id, vocab.EOS_ID)
+    self.assertEqual(vocab.unk_id, vocab.UNK_ID)
+
+  def test_vocab_constructor(self):
+    vocab = vocabularies.PartialCodepointVocabulary(self.char_points)
+    self.assertEqual(vocab.vocab_size, vocab.vocab_size)
+    self.assertEqual(vocab.pad_id, vocab.PAD_ID)
+    self.assertEqual(vocab.eos_id, vocab.EOS_ID)
+    self.assertEqual(vocab.unk_id, vocab.UNK_ID)
+
+  def test_encode_tf(self):
+    vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
+        self.char_points_file.full_path)
+    self.assertEqual(self.TEST_CODEPOINT_IDS,
+                     tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
+    self.assertSequenceEqual(self.UNK_TEST_CODEPOINT_IDS,
+                             vocab.encode(self.UNK_TEST_STRING))
+    self.assertSequenceEqual(self.EOS_TEST_CODEPOINT_IDS,
+                             vocab.encode(self.EOS_TEST_STRING))
+
+  def test_decode_tf(self):
+    vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
+        self.char_points_file.full_path)
+    self.assertSequenceEqual(self.TEST_STRING,
+                             _decode_tf(vocab, self.TEST_CODEPOINT_IDS))
+    self.assertEqual(self.UNK_TEST_STRING_ENCODED,
+                     vocab.decode(self.UNK_TEST_CODEPOINT_IDS))
+    self.assertEqual(self.EOS_TEST_STRING,
+                     vocab.decode(self.EOS_TEST_CODEPOINT_IDS))
+
+  def test_encode(self):
+    vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
+        self.char_points_file.full_path)
+    self.assertSequenceEqual(self.TEST_CODEPOINT_IDS,
+                             vocab.encode(self.TEST_STRING))
+    self.assertSequenceEqual(self.UNK_TEST_CODEPOINT_IDS,
+                             vocab.encode(self.UNK_TEST_STRING))
+    self.assertSequenceEqual(self.EOS_TEST_CODEPOINT_IDS,
+                             vocab.encode(self.EOS_TEST_STRING))
+
+  def test_decode(self):
+    vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
+        self.char_points_file.full_path)
+    self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_CODEPOINT_IDS))
+    self.assertEqual(self.UNK_TEST_STRING_ENCODED,
+                     vocab.decode(self.UNK_TEST_CODEPOINT_IDS))
+    self.assertEqual(self.EOS_TEST_STRING,
+                     vocab.decode(self.EOS_TEST_CODEPOINT_IDS))
 
 
 class BertWordpieceVocabularyTest(absltest.TestCase):

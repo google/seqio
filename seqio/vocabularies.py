@@ -17,8 +17,7 @@
 
 import abc
 import hashlib
-from typing import Iterable, Optional, Sequence, Union
-
+from typing import Any, Dict, Iterable, Optional, Sequence, Union
 from absl import logging
 import tensorflow.compat.v2 as tf
 import tensorflow_text as tf_text
@@ -489,19 +488,19 @@ class FullCodepointVocabulary(Vocabulary):
   # Padding is always index zero. This means that the NULL character is
   # technically not embeddable. This seems fine according to all reasonable
   # interpretations of the NULL character as a past-end-of-string marker.
-  PAD_ID = 0
+  PAD_CODEPOINT = 0
   # Special symbols are represented using codepoints values that are valid,
   # but designated as "Private Use", meaning that they will never by assigned
   # characters by the Unicode Consortium, and are thus safe for use here.
-  EOS_ID = 0xE005
+  EOS_CODEPOINT = 0xE005
 
   @property
   def eos_id(self) -> int:
-    return self.EOS_ID
+    return self.EOS_CODEPOINT
 
   @property
   def pad_id(self) -> int:
-    return self.PAD_ID
+    return self.PAD_CODEPOINT
 
   @property
   def unk_id(self) -> Optional[int]:
@@ -524,6 +523,112 @@ class FullCodepointVocabulary(Vocabulary):
 
   def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
     return tf.strings.unicode_encode(ids, output_encoding="UTF-8")
+
+
+class PartialCodepointVocabulary(Vocabulary):
+  """Encodes and decodes text as a fixed set of codepoints.
+
+  A Unicode codepoint is effectively a single character. Unicode provides a
+  well-defined mapping from the set of codepoint integers onto the set of all
+  Unicode characters.
+
+  Unlike `FullCodepointVocabulary`, this uses only a subset of codepoints which
+  are read in from a provided file. The format of the file is as decimal
+  integers, where each integer is the codepoint integer as defined by Unicode.
+  These can be obtained in Python 3 by converting a single character `str` to
+  an `int` using `codepoint = ord(char)`.
+
+  This sort of vocabulary is especially useful for decoder vocabularies where
+  one might want to control the size of the output softmax and for encoders
+  that do not use a hash embedding strategy.
+  """
+
+  # Padding is always index zero. This means that the NULL character is
+  # technically not embeddable. This seems fine according to all reasonable
+  # interpretations of the NULL character as a past-end-of-string marker.
+  PAD_CODEPOINT = FullCodepointVocabulary.PAD_CODEPOINT
+  # Special symbols are represented using codepoints values that are valid,
+  # but designated as "Private Use", meaning that they will never by assigned
+  # characters by the Unicode Consortium, and are thus safe for use here.
+  EOS_CODEPOINT = FullCodepointVocabulary.EOS_CODEPOINT
+  UNK_CODEPOINT = 0xE004
+
+  PAD_ID = 0
+  EOS_ID = 1
+  UNK_ID = 2
+
+  def __init__(self, codepoints: Sequence[int], extra_ids: int = 0):
+    """Format of vocab file assumes one codepoint per line."""
+    self._codepoint_to_id = {
+        self.PAD_CODEPOINT: self.PAD_ID,
+        self.EOS_CODEPOINT: self.EOS_ID,
+        self.UNK_CODEPOINT: self.UNK_ID,
+    }
+    for codepoint in codepoints:
+      if codepoint not in self._codepoint_to_id:
+        self._codepoint_to_id[codepoint] = len(self._codepoint_to_id)
+    self._id_to_codepoint = {v: k for k, v in self._codepoint_to_id.items()}
+
+    self._codepoint_to_id_tf = PartialCodepointVocabulary.convert_dict_to_tf(
+        self._codepoint_to_id, default_value=self.UNK_ID)
+    self._id_to_codepoint_tf = PartialCodepointVocabulary.convert_dict_to_tf(
+        self._id_to_codepoint, default_value=self.unk_id)
+    super().__init__(extra_ids=extra_ids)
+
+  @classmethod
+  def create_from_file(cls, vocab_file: str, extra_ids: int = 0):
+    codepoint_list = []
+    with tf.io.gfile.GFile(vocab_file, "r") as f:
+      for line in f:
+        codepoint_list.append(int(line.strip()))
+    return cls(codepoint_list, extra_ids)
+
+  @property
+  def eos_id(self) -> int:
+    return self.EOS_ID
+
+  @property
+  def pad_id(self) -> int:
+    return self.PAD_ID
+
+  @property
+  def unk_id(self) -> int:
+    return self.UNK_ID
+
+  @property
+  def _base_vocab_size(self) -> int:
+    return len(self._codepoint_to_id)
+
+  @staticmethod
+  def convert_dict_to_tf(
+      d: Dict[Any, Any],
+      default_value: Optional[Any] = None) -> tf.lookup.StaticHashTable:
+    keys_tensor = tf.constant(list(d))
+    vals_tensor = tf.constant(list(d.values()))
+    return tf.lookup.StaticHashTable(
+        tf.lookup.KeyValueTensorInitializer(keys_tensor, vals_tensor),
+        default_value=default_value)
+
+  def _encode(self, s: str) -> Sequence[int]:
+    output_ids = []
+    for c in s:
+      codepoint_id = ord(c)
+      output_ids.append(self._codepoint_to_id.get(codepoint_id, self.unk_id))
+    return output_ids
+
+  def _decode(self, ids: Sequence[int]) -> str:
+    output_str = ""
+    for codepoint_id in ids:
+      output_str += chr(self._id_to_codepoint.get(codepoint_id, self.unk_id))
+    return output_str
+
+  def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
+    return self._codepoint_to_id_tf[tf.strings.unicode_decode(
+        s, input_encoding="UTF-8")]
+
+  def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
+    return tf.strings.unicode_encode(
+        self._id_to_codepoint_tf[ids], output_encoding="UTF-8")
 
 
 class BertWordPieceVocabulary(Vocabulary):
