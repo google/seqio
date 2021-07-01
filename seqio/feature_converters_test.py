@@ -709,6 +709,44 @@ class PrefixLMFeatureConverter(tf.test.TestCase):
     for feat, tensor in actual.items():
       self.assertAllEqual(expected[feat], self.evaluate(tensor))
 
+  def test_prefix_lm_max_length_unpacked(self):
+    x = [{"inputs": [9, 4, 1], "targets": [3, 1]}]
+    ds = create_default_dataset(x)
+
+    task_feature_lengths = {"inputs": 6, "targets": 6}
+    converter = feature_converters.PrefixLMFeatureConverter(
+        pack=False, output_length_criterion="max")
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "decoder_target_tokens": [9, 4, 1, 3, 1, 0],
+        # The last EOS token is kept if unpacked.
+        "decoder_input_tokens": [0, 9, 4, 1, 3, 1],
+        "decoder_loss_weights": [0, 0, 0, 1, 1, 0],
+        "decoder_causal_attention": [1, 1, 1, 1, 0, 0]
+    }
+    assert_dataset(converted_ds, expected)
+
+  def test_prefix_lm_max_length_packed(self):
+    x = [{"inputs": [7, 8, 1], "targets": [3, 9, 1]},
+         {"inputs": [8, 4, 9, 1], "targets": [4, 1]}]
+    ds = create_default_dataset(x)
+
+    task_feature_lengths = {"inputs": 13, "targets": 13}
+    converter = feature_converters.PrefixLMFeatureConverter(
+        pack=True, output_length_criterion="max")
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "decoder_target_tokens": [7, 8, 1, 3, 9, 1, 8, 4, 9, 1, 4, 1, 0],
+        "decoder_input_tokens": [0, 7, 8, 1, 3, 9, 0, 8, 4, 9, 1, 4, 0],
+        "decoder_loss_weights": [0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0],
+        "decoder_positions": [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0],
+        "decoder_segment_ids": [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 0],
+        "decoder_causal_attention": [1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0]
+    }
+    assert_dataset(converted_ds, expected)
+
 
 class EncoderFeatureConverterTest(FeatureConvertersTest):
 

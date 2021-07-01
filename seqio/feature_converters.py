@@ -789,7 +789,7 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
   zeros out "inputs" portion as well as the padding tokens while having 1's on
   the targets token.
 
-  Example: a packed dataset
+  Example 1: a packed dataset
   ```
   ds = [{"inputs": [7, 8, 5, 1], "targets": [3, 9, 1]},
         {"inputs": [8, 4, 9, 3, 1], "targets": [4, 1]}]
@@ -806,9 +806,25 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
   }
   ```
 
+  Example 2: `output_length_criterion = "max"`
+  ```
+  There are cases when the the sum of inputs and targets lengths is known
+  apriori but not the breakdown. For example, Raffel et al. (2020) had a "Prefix
+  LM" self-supervision objective (as opposed to an architecture) where a given
+  text input is randomly split into inputs and targets. As a concrete example,
+  suppose the desired maximum length of an example text before split is 128. The
+  random split means that the inputs and targets can take an integer value in
+  [1, 127]. Then `task_fature_lengths = {'inputs': 128, 'targets': 128}` has to
+  be used to avoid potential truncation even though the concatenated output is
+  always known to be at most 128. By setting `output_length_criterion = "max"`,
+  the final output takes the maximum of inputs and targets. For this example, it
+  is 128.
+
   Attributes:
     loss_on_targets_only: whether to compute loss on tokens which belonged to
       "targets" before concatenation.
+    output_length_criterion: the criterion to determine the output length of the
+      concatenated feature.
   """
   TASK_FEATURES = {
       "inputs": FeatureConverter.FeatureSpec(dtype=tf.int32),
@@ -827,8 +843,14 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
 
   def __init__(self,
                loss_on_targets_only: bool = True,
+               output_length_criterion: str = "sum",
                **kwargs) -> None:
     self._loss_on_targets_only = loss_on_targets_only
+    if output_length_criterion not in ["sum", "max"]:
+      raise ValueError(
+          "`output_length_criterion` should be either 'sum' or 'max'."
+          " Got {output_length_criterion}.")
+    self._output_length_criterion = output_length_criterion
     super().__init__(**kwargs)
 
   def _convert_example(
@@ -962,26 +984,32 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
     ds = ds.map(
         concat_and_add_masks, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-    concat_length = sum(task_feature_lengths.values())
-    concat_task_feature_lengths = {
-        "targets": concat_length,
-        "inputs_width": concat_length,
-        "inputs_width_add_pos": concat_length
+    output_length = self._get_output_length(task_feature_lengths)
+    output_task_feature_lengths = {
+        "targets": output_length,
+        "inputs_width": output_length,
+        "inputs_width_add_pos": output_length
     }
 
-    ds = self._pack_or_pad(ds, concat_task_feature_lengths)
+    ds = self._pack_or_pad(ds, output_task_feature_lengths)
     return ds.map(
         self._convert_example, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
   def get_model_feature_lengths(
       self, task_feature_lengths: Mapping[str, int]) -> Mapping[str, int]:
     """Define the length relationship between task and model features."""
-    decoder_length = sum(task_feature_lengths.values())
-    concat_length = {"targets": decoder_length}
-    lm_model_feature_lengths = super().get_model_feature_lengths(concat_length)
+    output_length = self._get_output_length(task_feature_lengths)
+    lm_model_feature_lengths = super().get_model_feature_lengths(
+        {"targets": output_length})
     model_feature_lengths = dict(lm_model_feature_lengths)
-    model_feature_lengths["decoder_causal_attention"] = decoder_length
+    model_feature_lengths["decoder_causal_attention"] = output_length
     return model_feature_lengths
+
+  def _get_output_length(self, task_feature_lengths: Mapping[str, int]) -> int:
+    if self._output_length_criterion == "sum":
+      return sum(task_feature_lengths.values())
+    else:
+      return max(task_feature_lengths.values())
 
   @property
   def loss_on_targets_only(self) -> bool:
