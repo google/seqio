@@ -98,7 +98,7 @@ We'll now break down each part of the task definition.
 #### Data Source
 
 Data sources are the first step in your pipeline, providing a way to load raw
-data in many format as a `tf.data.Dataset`.
+data in many formats as a `tf.data.Dataset`.
 All data sources are subclasses of the `DataSource` base class and are defined in
 [dataset_providers](https://github.com/google/seqio/tree/main/seqio/dataset_providers.py),
 
