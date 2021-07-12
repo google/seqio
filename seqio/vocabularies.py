@@ -334,6 +334,10 @@ class SentencePieceVocabulary(Vocabulary):
     our_md5 = hashlib.md5(self.sp_model).hexdigest()
     return our_md5 == their_md5
 
+  def __str__(self) -> str:
+    return (f"SentencePieceVocabulary(file={self._sentencepiece_model_file}, "
+            f"extra_ids={self.extra_ids})")
+
 
 class ByteVocabulary(Vocabulary):
   """Byte level vocabulary.
