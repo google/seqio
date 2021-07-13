@@ -12,22 +12,62 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Math for deterministically combining sequences (i.e. ML training datasets).
+"""Lazylist library - virtual sequence manipulation for ML training datasets.
 
-TODO(noam): update this docstring.
+A Lazylist is an ultra-light immutable, possibly-infinite, virtual
+sequence. Instead of storing its elements, a Lazylist knows:
 
-This standalone library defines functions for deterministically combining
-(e.g. interleaving, shuffling, repeating, etc.) sequences of opaque objects.
-Some features of these combination functions:
+ - its length (or a function for computing it)
+ - a function from index to element
 
- - provide efficient random access
- - deterministic (but some are pseudorandom)
- - treat elements as opaque, so no filtering/mapping, etc.
+Elementary Lazylists are defined from scratch, e.g.
 
-The intended use of this library is for constructing deterministic training
-sequences for machine learning.  Since the combination functions allow arbitrary
-visitation orders, either the combination will happen offline, or the underlying
-datasets must support efficient random access.
+  ll = lazylist.Range(5)
+  ll.length -> 5
+  ll[2] -> 2
+  list(ll) -> [0, 1, 2, 3, 4]
+
+  ll = lazylist.Reference(source='foo', length=3)
+  ll.length -> 3
+  ll[0] -> ('foo', 0)
+  list(ll) -> [('foo', 0), ('foo', 1), ('foo', 2)]
+
+Some Lazylists are defined in terms of other lazylists, e.g.
+
+  # repeat infinitely
+  ll = lazylist.Repeat(lazylist.Range(10))
+  ll.length -> math.inf
+  ll[10000000000000000000000002] -> 2
+
+  # concatenate two Lazylists
+  ll = lazylist.Concat([lazylist.Reference('foo', 3),
+                        lazylist.Reference('bar', 2)])
+  ll.length -> 5
+  list(ll) -> [('foo', 0), ('foo', 1), ('foo', 2), ('bar', 0), ('bar, 1)]
+
+  # pseudorandom shuffle a Lazylist
+  ll = lazylist.Shuffle(lazylist.Range(10))
+  list(ll) -> [0, 7, 8, 4, 6, 1, 9, 3, 2, 5]
+
+The intended use of this library is for defining deterministic
+training sequences for machine learning.  Since data is generally
+stored on disk, arbitrary visitation orders can be defined,
+performance will depend on either efficient random access to the
+training examples, or offline caching.
+
+A Lazylist also as a `children` attribute containing the list of other
+Lazylists used to define it. The is useful for inspecting Lazylist
+objects. For example, a mixed dataset might be defined by
+interleaving/shuffing several `lazylist.Refernce` lists pointing
+to different source datasets. Rather than keeping a separate list of
+source datasets, the Lazylist corresponding to the mixed dataset can
+be inspected by the `all_sources()` function defined below.
+
+  ll = lazylist.Shuffle(lazylist.Concat(
+    [lazylist.Reference('foo', 3), lazylist.Reference('bar', 2)]))
+  list(ll) -> [('foo', 0), ('bar', 0), ('foo', 2), ('bar', 1), ('foo', 1)]
+  ll[3] -> ('bar', 1)
+  lazylist.all_sources(ll) -> ['foo', 'bar']
 
 The user may implement additional subclasses of Lazylist, in order to
 experiment with different training regimens.
@@ -38,8 +78,6 @@ way. You can play with it from the command line:
 python3 -i lazylist.py
 list(Import(range(10)).Shuffle())
 -> [0, 7, 8, 4, 6, 1, 9, 3, 2, 5]
-list(Import(range(10)).Shuffle().Repeat()[10 ** 100:10 ** 100 + 2])
--> [0, 7]
 
 """
 
@@ -185,6 +223,8 @@ def interleave_kth_element(proportions: Sequence[int],
 class Lazylist(object):
   """Superclass for Lazylist objects.
 
+  See file docstring above.
+
   A Lazylist is a lightweight object representing an immutable,
   possibly-infinite seqeunce of elements, and providing efficient random access.
 
@@ -197,23 +237,6 @@ class Lazylist(object):
     ll[i]       -> i-th Element
 
   Note: len(ll) produces an error for infinite sequences.
-
-  There are two built-in ways of creating a basic Lazylist: Import and
-  Reference. `Import` wraps an external sequence directly, as one might
-  expect. `Reference(source)` is a sequence of (source, index) pairs, where
-  `source` can be any python object.
-
-    Import(range(10))[4] -> 4
-    Reference('foo', 10)[4] -> ('foo', 4)
-
-  The other subclasses construct a Lazylist out of other
-  Lazylists, e.g. `Repeat`, which repeats a sequence forever.
-
-    Repeat(Import(range(10))).length -> math.inf
-    Repeat(Import(range(10)))[1234567889123456789] -> 9
-
-  Users should feel free to create custom subclasses, in order to implement new
-  combination functions.
 
   Internal interface:
 
@@ -276,9 +299,9 @@ class Lazylist(object):
       return self._getitem(idx)
     elif isinstance(idx, slice):
       if idx.step is not None:
-        raise ValueError("stride not supported")
-      # convenience constructor for Range() class
-      return Range(self,
+        raise NotImplementedError("stride not yet implemented")
+      # convenience constructor for Slice() class
+      return Slice(self,
                    0 if idx.start is None else idx.start,
                    idx.stop)
     else:
@@ -447,6 +470,23 @@ def all_sources(ll: Lazylist) -> List[Any]:
   return ret
 
 
+class Range(Lazylist):
+  """The sequence of nonnegative integers [0, length).
+
+  `length` can be a nonnegative integer or math.inf.
+  """
+
+  def __init__(self, length: Union[int, float]):
+    super().__init__([])
+    self._cached_length = length
+
+  def _getitem(self, idx) -> object:
+    return idx
+
+  def __repr__(self) -> str:
+    return "lazylist.Range(length=%s)" % self._cached_length
+
+
 class Concat(Lazylist):
   """Concatenate multiple Lazylists into one.
 
@@ -494,14 +534,14 @@ class Repeat(Lazylist):
     return "lazylist.Repeat(child=%s)" % repr(self.child)
 
 
-class Range(Lazylist):
+class Slice(Lazylist):
   """A range of elements from the child Lazylist."""
 
   def __init__(self,
                child: Lazylist,
                start: int,
                stop: Optional[int]):
-    """Create a Range.
+    """Create a Slice.
 
     Args:
       child: a Lazylist
@@ -525,7 +565,7 @@ class Range(Lazylist):
     return self.child[idx + self.start]
 
   def __repr__(self) -> str:
-    return "lazylist.Range(child=%s, start=%s, stop=%s)" % (
+    return "lazylist.Slice(child=%s, start=%s, stop=%s)" % (
         repr(self.child),
         repr(self.start),
         repr(self.stop))

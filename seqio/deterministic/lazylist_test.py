@@ -92,7 +92,12 @@ class LazylistTest(absltest.TestCase):
     self.assertEqual(s[12345678901234567], ("ten", 7))
 
   def test_range(self):
-    """Tests Range."""
+    """Tests Slice."""
+    s = lazylist.Range(10)
+    self.assertEqual(list(s), list(range(10)))
+
+  def test_slice(self):
+    """Tests Slice."""
     s = lazylist.Reference("ten", 10)[3:8]
     self.assertEqual(s.length, 5)
     self.assertEqual(lazylist.all_sources(s), ["ten"])
