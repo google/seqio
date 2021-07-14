@@ -23,15 +23,15 @@ from seqio.deterministic import lazylist
 class LazylistTest(absltest.TestCase):
 
   def test_fingerprint(self):
-    self.assertEqual(lazylist.fingerprint("foo"),
+    self.assertEqual(lazylist._fingerprint("foo"),
                      116648619004475542419127283777354274714)
 
   def test_pseudorandom_permutation(self):
     self.assertEqual(
-        lazylist.pseudorandom_permutation(1000, 123, "foo"), 614)
+        lazylist._pseudorandom_permutation(1000, 123, "foo"), 614)
 
     for n in range(100):
-      permuted = [lazylist.pseudorandom_permutation(n, i, [n, "foo"])
+      permuted = [lazylist._pseudorandom_permutation(n, i, [n, "foo"])
                   for i in range(n)]
       self.assertCountEqual(list(range(n)), permuted)
 
@@ -40,16 +40,16 @@ class LazylistTest(absltest.TestCase):
     proportions = [10, 5, 1]
     expected_counts = [63, 31, 6]
     k = 100
-    counts = lazylist.interleave_counts_in_first_k(proportions, k)
+    counts = lazylist._interleave_counts_in_first_k(proportions, k)
     self.assertEqual(counts, expected_counts)
 
   def test_kth_element(self):
     """Tests interleave_counts_in_first_k function."""
     proportions = [10, 5, 1]
     num_values = 100
-    counts = lazylist.interleave_counts_in_first_k(
+    counts = lazylist._interleave_counts_in_first_k(
         proportions, num_values)
-    actual_values = [lazylist.interleave_kth_element(proportions, k)
+    actual_values = [lazylist._interleave_kth_element(proportions, k)
                      for k in range(100)]
     expected_values = []
     for component_num, count in enumerate(counts):

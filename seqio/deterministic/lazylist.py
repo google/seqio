@@ -86,7 +86,7 @@ import math
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 
-def fingerprint(*args) -> int:
+def _fingerprint(*args) -> int:
   """A 128-bit fingerprint based on md5.
 
   For data shuffling - not for cryptography.
@@ -99,9 +99,9 @@ def fingerprint(*args) -> int:
   return int.from_bytes(hashlib.md5(str(args).encode()).digest(), "little")
 
 
-def pseudorandom_permutation(n: int,
-                             i: int,
-                             seed: object) -> int:
+def _pseudorandom_permutation(n: int,
+                              i: int,
+                              seed: object) -> int:
   """Computes the position of `i` after a pseudorandom permutation on `[0, n)`.
 
   Based on Feistel ciphers.
@@ -136,14 +136,14 @@ def pseudorandom_permutation(n: int,
     # Feistel ciper on 2k bits - i.e. a permutation of [0, 4 ** k)
     a, b = i // (2 ** k), i % (2 ** k)
     for r in range(3):
-      a, b = b, a ^ (fingerprint(b, r, seed) % (2 ** k))
+      a, b = b, a ^ (_fingerprint(b, r, seed) % (2 ** k))
     i = a * (2 ** k) + b
     if i < n:
       return int(i)
 
 
-def interleave_counts_in_first_k(proportions: Sequence[int],
-                                 k: int) -> List[int]:
+def _interleave_counts_in_first_k(proportions: Sequence[int],
+                                  k: int) -> List[int]:
   """Formula for interleaving infinite sequences with given proportions.
 
   We are interleaving n infinite sequences (components) into one combined
@@ -163,9 +163,9 @@ def interleave_counts_in_first_k(proportions: Sequence[int],
     mix(P, k+1, i) == m+1  AND
     mix(P, k, i) == m
 
-  interleave_counts_in_first_k() computes the "mix" function described above.
+  _interleave_counts_in_first_k() computes the "mix" function described above.
 
-  interleave_kth_element() maps from the index in the combined sequence to
+  _interleave_kth_element() maps from the index in the combined sequence to
     identity of the component sequence and index in the component sequence.
 
   Args:
@@ -194,14 +194,14 @@ def interleave_counts_in_first_k(proportions: Sequence[int],
   return ret
 
 
-def interleave_kth_element(proportions: Sequence[int],
-                           k: int) -> Tuple[int, int]:
+def _interleave_kth_element(proportions: Sequence[int],
+                            k: int) -> Tuple[int, int]:
   """Formula for interleaving infinite sequences with given proportions.
 
   We are interleaving n infinite sequences (components) into one combined
   sequence.
 
-  See the description in interleave_counts_in_first_k() above.
+  See the description in _interleave_counts_in_first_k() above.
 
   Args:
     proportions: a list/tuple of n integers (mixing proportions)
@@ -211,8 +211,8 @@ def interleave_kth_element(proportions: Sequence[int],
     which_component: an integer in [0, n), representing the component index
     which_example: the index in the component sequence
   """
-  new_counts = interleave_counts_in_first_k(proportions, k + 1)
-  old_counts = interleave_counts_in_first_k(proportions, k)
+  new_counts = _interleave_counts_in_first_k(proportions, k + 1)
+  old_counts = _interleave_counts_in_first_k(proportions, k)
   for which_component, (old_count,
                         new_count) in enumerate(zip(old_counts, new_counts)):
     if new_count > old_count:
@@ -593,7 +593,7 @@ class IID(Lazylist):
     self.seed = seed
 
   def _getitem(self, idx: int) -> object:
-    return self.child[fingerprint(idx, self.seed) % self.child.length]
+    return self.child[_fingerprint(idx, self.seed) % self.child.length]
 
   def __repr__(self) -> str:
     return "lazylist.IID(child=%s, length=%s, seed=%s)" % (
@@ -623,7 +623,7 @@ class Shuffle(Lazylist):
     return self.child.length
 
   def _getitem(self, idx: int) -> object:
-    return self.child[pseudorandom_permutation(self.length, idx, self.seed)]
+    return self.child[_pseudorandom_permutation(self.length, idx, self.seed)]
 
   def __repr__(self) -> str:
     return "lazylist.Shuffle(child=%s, seed=%s)" % (
@@ -661,7 +661,7 @@ class RepeatShuffle(Lazylist):
     if epoch_num == 0 and not self.shuffle_first_epoch:
       return self.child[idx_in_epoch]
     seed = (self.seed, epoch_num)
-    return self.child[pseudorandom_permutation(
+    return self.child[_pseudorandom_permutation(
         self.child.length, idx_in_epoch, seed)]
 
   def __repr__(self) -> str:
@@ -694,7 +694,7 @@ class Interleave(Lazylist):
           "children and proportions must be lists of the same length.")
 
   def _getitem(self, idx: int) -> object:
-    child_num, idx_in_child = interleave_kth_element(self.proportions, idx)
+    child_num, idx_in_child = _interleave_kth_element(self.proportions, idx)
     return self.children[child_num][idx_in_child]
 
   def __repr__(self) -> str:
@@ -716,7 +716,7 @@ class InterleaveOnce(Lazylist):
 
   def _getitem(self, idx: int) -> object:
     proportions = [c.length for c in self.children]
-    child_num, idx_in_child = interleave_kth_element(proportions, idx)
+    child_num, idx_in_child = _interleave_kth_element(proportions, idx)
     return self.children[child_num][idx_in_child]
 
   def __repr__(self) -> str:
