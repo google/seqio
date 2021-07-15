@@ -133,7 +133,9 @@ class LazylistTest(absltest.TestCase):
     """Tests Interleave."""
     ten = lazylist.Reference("ten", 10)
     five = lazylist.Reference("five", 5)
-    s = lazylist.Interleave([ten.Repeat(), five.Repeat()], [10, 5])
+    s = lazylist.Interleave([(ten.Repeat(), 10),
+                             (five.Repeat(), 5)],
+                            length=math.inf)
     self.assertEqual(s[15 * 10 ** 100 + 8], ("five", 2))
 
   def test_interleave_once(self):
