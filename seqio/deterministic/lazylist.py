@@ -676,31 +676,26 @@ class Interleave(Lazylist):
   """Interleave (mix) sequences according to given proportions."""
 
   def __init__(self,
-               children: List[Lazylist],
-               proportions: List[int],
+               children_and_proportions: Sequence[Tuple[Lazylist, int]],
                length: Union[int, float] = math.inf):
     """Create a Interleave.
 
     Args:
-      children: a list of Lazylist
-      proportions: mixing rates (same length as children)
+      children_and_proportions: Lazylists to be interleaved with corresponding
+        mixing rates.
       length: an integer or math.inf
     """
-    super().__init__(children)
-    self.proportions = proportions
-    self._cached_length = math.inf
-    if len(children) != len(proportions):
-      raise ValueError(
-          "children and proportions must be lists of the same length.")
+    super().__init__([c for c, _ in children_and_proportions])
+    self.proportions = [p for _, p in children_and_proportions]
+    self._cached_length = length
 
   def _getitem(self, idx: int) -> object:
     child_num, idx_in_child = _interleave_kth_element(self.proportions, idx)
     return self.children[child_num][idx_in_child]
 
   def __repr__(self) -> str:
-    return "lazylist.Interleave(children=%s, proportions=%s, length=%s)" % (
-        repr(self.children),
-        repr(self.proportions),
+    return "lazylist.Interleave(children_and_proprtions=%s, length=%s)" % (
+        repr(list(zip(self.children, self.proportions))),
         repr(self._cached_length),
     )
 
