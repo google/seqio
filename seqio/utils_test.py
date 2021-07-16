@@ -319,6 +319,50 @@ class UtilsTest(parameterized.TestCase):
     assert_dataset(
         packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
 
+  @parameterized.parameters(
+      dict(
+          formatters={
+              "inp": {
+                  "inputs_pretokenized": lambda x: f"PREPEND ME! {x}"
+              },
+              "predictions": lambda x: "REDACTED"
+          },
+          json_dict={
+              "inp": {
+                  "inputs_pretokenized": "here are the inputs",
+                  "targets_pretokenized": "here are the targets"
+              },
+              "predictions": "here are the predictions"
+          },
+          expect={
+              "inp": {
+                  "inputs_pretokenized": "PREPEND ME! here are the inputs",
+                  "targets_pretokenized": "here are the targets",
+              },
+              "predictions": "REDACTED"
+          },
+      ),
+      dict(
+          formatters=None,
+          json_dict={
+              "inp": {
+                  "inputs_pretokenized": "here are the inputs",
+                  "targets_pretokenized": "here are the targets"
+              },
+              "predictions": "here are the predictions"
+          },
+          expect={
+              "inp": {
+                  "inputs_pretokenized": "here are the inputs",
+                  "targets_pretokenized": "here are the targets",
+              },
+              "predictions": "here are the predictions"
+          },
+      ))
+  def test_apply_formatters(self, formatters, json_dict, expect):
+    actual = utils.apply_formatters(formatters, json_dict)
+    self.assertEqual(actual, expect)
+
 
 class MixtureRateTest(test_utils.FakeTaskTest):
 

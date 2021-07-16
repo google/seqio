@@ -951,6 +951,7 @@ class EvaluationTest(tf.test.TestCase):
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     def mock_init(self):
       self._write_n_results = None
+      self._json_formatters = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
@@ -980,6 +981,7 @@ class EvaluationTest(tf.test.TestCase):
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     def mock_init(self):
       self._write_n_results = 1
+      self._json_formatters = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
@@ -1004,6 +1006,7 @@ class EvaluationTest(tf.test.TestCase):
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     def mock_init(self):
       self._write_n_results = None
+      self._json_formatters = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
@@ -1034,6 +1037,7 @@ class EvaluationTest(tf.test.TestCase):
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     def mock_init(self):
       self._write_n_results = None
+      self._json_formatters = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
@@ -1066,6 +1070,7 @@ class EvaluationTest(tf.test.TestCase):
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     def mock_init(self):
       self._write_n_results = None
+      self._json_formatters = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
@@ -1096,6 +1101,7 @@ class EvaluationTest(tf.test.TestCase):
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     def mock_init(self):
       self._write_n_results = None
+      self._json_formatters = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
@@ -1125,6 +1131,7 @@ class EvaluationTest(tf.test.TestCase):
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
     def mock_init(self):
       self._write_n_results = None
+      self._json_formatters = None
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
       evaluator._write_to_file(inferences, targets, task_dataset, output_fname)

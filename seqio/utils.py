@@ -18,7 +18,7 @@
 import contextlib
 import functools
 import os
-from typing import Mapping, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from absl import logging
 import numpy as np
@@ -674,3 +674,29 @@ def map_over_dataset(fn=None, *, num_seeds=None,
     return map_with_seeds
   else:
     return map_without_seeds(fn)
+
+
+def apply_formatters(formatters: Mapping[str, Any],
+                     json_dict: Dict[str, Any]) -> Mapping[str, Any]:
+  """Applies the provided formatters to the `json_dict`.
+
+  The `formatters` should have the same recursive key structure as the
+  `json_dict`, with leaves having type Callable[[RawType], FormattedType].
+
+  Args:
+    formatters: nested dictionary of keys to formatter functions
+    json_dict: nested dictionary of keys to JSON values
+
+  Returns:
+    json_dict
+  """
+  if not formatters:
+    return json_dict
+  for k, v in formatters.items():
+    if k not in json_dict:
+      raise ValueError(f'formatter key "{k}" could not be found in {json_dict}')
+    if isinstance(v, dict):
+      json_dict[k] = apply_formatters(v, json_dict[k])
+    else:
+      json_dict[k] = v(json_dict[k])
+  return json_dict

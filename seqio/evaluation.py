@@ -30,6 +30,7 @@ import dataclasses
 import numpy as np
 from seqio import dataset_providers
 from seqio import feature_converters
+from seqio import utils
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 import typing_extensions
@@ -297,6 +298,8 @@ class Evaluator:
     model_feature_lengths: mapping from model feature to its length in the
       `cached_model_datasets`.
     logger: a subclass of `Logger`.
+    json_formatters: custom formatting functions to use for feature values
+      in the .jsonl file
   """
 
   def __init__(self,
@@ -306,7 +309,8 @@ class Evaluator:
                use_cached: bool = False,
                sequence_length: Optional[Mapping[str, int]] = None,
                logger: Optional[Logger] = None,
-               write_n_results: Optional[int] = None):
+               write_n_results: Optional[int] = None,
+               json_formatters: Optional[Mapping[str, Any]] = None):
     """Evaluator constructor.
 
     Args:
@@ -325,6 +329,8 @@ class Evaluator:
       logger: a subclass of `Logger`.
       write_n_results: an int, number of scores/predictions to be written to
         file. if None, scores and predictions from all examples are written.
+      json_formatters: nested mapping of keys to formatting functions to use for
+        the .jsonl file
 
     Raises:
       ValueError if `sequence_length` is None but a preprocessor depends on its
@@ -443,6 +449,7 @@ class Evaluator:
     self._model_feature_lengths = feature_converter.get_model_feature_lengths(
         sequence_length)
     self._logger = logger
+    self._json_formatters = json_formatters
 
   def evaluate(self,
                *,
@@ -684,6 +691,9 @@ class Evaluator:
 
         if score is not None:
           json_dict["score"] = score
+
+        if self._json_formatters:
+          json_dict = utils.apply_formatters(self._json_formatters, json_dict)
 
         f.write(json.dumps(json_dict, cls=_TensorAndNumpyEncoder) + "\n")
     write_time = time.time() - write_tick
