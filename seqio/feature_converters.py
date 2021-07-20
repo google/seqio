@@ -80,10 +80,10 @@ input dataset.
   - The input dataset is not batched.
 """
 import abc
+import dataclasses
 import functools
 from typing import Mapping, Sequence
 
-import dataclasses
 from seqio import utils
 import tensorflow.compat.v2 as tf
 
@@ -671,7 +671,7 @@ class EncDecFeatureConverter(FeatureConverter):
     return model_feature_lengths
 
 
-class LMFeatureConverter(FeatureConverter):
+class StrictLMFeatureConverter(FeatureConverter):
   """Feature converter for a language model (decoder-only) architecture.
 
   The input dataset must have "targets" field only.
@@ -681,7 +681,8 @@ class LMFeatureConverter(FeatureConverter):
   ones) on a unlabeled text corpus which only has "targets". Then the
   pre-trained model can be fine-tuned on a supervised task, e.g., machine
   translation by concatenating "inputs" and "targets". For this use case,
-  pre-train with LMFeatureConverter and fine-tune with PrefixLMFeatureConverter.
+  pre-train with StrictLMFeatureConverter and fine-tune with
+  PrefixLMFeatureConverter.
 
   Example: a packed dataset.
 
@@ -751,11 +752,11 @@ class LMFeatureConverter(FeatureConverter):
     return model_feature_lengths
 
 
-class PrefixLMFeatureConverter(LMFeatureConverter):
+class PrefixLMFeatureConverter(StrictLMFeatureConverter):
   """Feature converter for a prefix language model architecture.
 
   The input dataset must have both "inputs" and "targets" fields. For language
-  modeling objective with "targets" only dataset, use LMFeatureConverter.
+  modeling objective with "targets" only dataset, use StrictLMFeatureConverter.
 
   A decoder is a network which autoregressively produces an output sequence. It
   can be used for an input dataset which has a notion of "inputs" as well as
@@ -770,8 +771,8 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
 
   In order to provide this information, this class provides an additional
   feature "decoder_causal_attention" on top of the model features returned by
-  LMFeatureConverter. "decoder_causal_attention" is a binary mask where a value
-  of 1 represents that the corresponding input token to the decoder belongs to
+  StrictLMFeatureConverter."decoder_causal_attention" is a binary mask where
+  1 represents that the corresponding input token to the decoder belongs to
   the "inputs" before concatenation. Note that this attention mask is optional.
   For a model that does not require this feature, e.g., a fully causal masking
   on the concatenated sequence, the attention mask can be simply ignored.
@@ -877,7 +878,7 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
                     xor    ---------------------------
     decoder_loss_weights = [0, 0, 0, 0, 1, 1, 1, 0, 0]
 
-    Note that decoder_loss_weights is computed by the LMFeatureConverter.
+    Note that decoder_loss_weights is computed by the StrictLMFeatureConverter.
     ```
 
     Args:
@@ -986,6 +987,27 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
   @property
   def loss_on_targets_only(self) -> bool:
     return self._loss_on_targets_only
+
+
+class LMFeatureConverter:
+  """Wrapper of FeatureConverter which handles both LM and PrefixLM tasks.
+
+  The converter to choose depends on the keys of `task_feature_lengths`.
+  """
+
+  def __init__(self, **kwargs):
+
+    self.prefixlm_feature_converter = PrefixLMFeatureConverter(**kwargs)
+    kwargs = {k: v for k, v in kwargs.items() if k != "loss_on_targets_only"}
+    self.strictlm_feature_converter = StrictLMFeatureConverter(**kwargs)
+
+  def __call__(self, ds: tf.data.Dataset,
+               task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+
+    if "inputs" in task_feature_lengths:
+      return self.prefixlm_feature_converter(ds, task_feature_lengths)
+    else:
+      return self.strictlm_feature_converter(ds, task_feature_lengths)
 
 
 class EncoderFeatureConverter(FeatureConverter):
