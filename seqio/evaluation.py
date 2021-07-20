@@ -127,7 +127,7 @@ class Audio(Metric):
 
 @dataclasses.dataclass
 class Histogram(Metric):
-  """A historgram to output to tensorboard."""
+  """A histogram to output to tensorboard."""
   values: np.ndarray
   bins: Optional[int] = None
 
