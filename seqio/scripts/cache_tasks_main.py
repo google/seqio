@@ -58,9 +58,6 @@ flags.DEFINE_list(
 flags.DEFINE_string(
     "output_cache_dir", None,
     "The directory to output cached tasks to.")
-flags.DEFINE_integer(
-    "max_input_examples", None,
-    "The maximum number of input examples to use. No limit if None.")
 flags.DEFINE_list(
     "tasks_additional_cache_dirs", [],
     "Additional directories to search for cached Tasks after checking the "
@@ -92,18 +89,15 @@ class PreprocessTask(beam.PTransform):
   """
 
   def __init__(
-      self, task, split, max_input_examples=None, modules_to_import=()):
+      self, task, split, modules_to_import=()):
     """BasePreprocessTask constructor.
 
     Args:
       task: Task, the task to process.
       split: string, the split to process.
-      max_input_examples: (Optional) int, the maximum number of input examples
-        to use.
       modules_to_import: (Optional) list, modules to import.
     """
     self._task = task
-    self._max_input_examples = max_input_examples
     self._split = split
     self._modules_to_import = modules_to_import
     self.shards = list(range(len(task.source.list_shards(split))))
@@ -127,10 +121,6 @@ class PreprocessTask(beam.PTransform):
             index=shard_index, num_shards=len(self.shards)
         ),
         shuffle=False)
-
-    if self._max_input_examples:
-      num_shard_examples = int(self._max_input_examples / len(self.shards))
-      ds = ds.repeat().take(num_shard_examples)
 
     ds = ds.prefetch(tf.data.AUTOTUNE)
 
@@ -299,10 +289,13 @@ class GetStats(beam.PTransform):
         | "merge_stats" >> beam.CombineGlobally(_merge_dicts))
 
 
-def run_pipeline(
-    pipeline, task_names, cache_dir, max_input_examples=None,
-    excluded_tasks=None, modules_to_import=(), overwrite=False,
-    completed_file_contents=""):
+def run_pipeline(pipeline,
+                 task_names,
+                 cache_dir,
+                 excluded_tasks=None,
+                 modules_to_import=(),
+                 overwrite=False,
+                 completed_file_contents=""):
   """Run preprocess pipeline."""
   output_dirs = []
   # Includes all names by default.
@@ -363,7 +356,7 @@ def run_pipeline(
     for split in task.splits:
       label = "%s_%s" % (task.name, split)
 
-      pat = PreprocessTask(task, split, max_input_examples, modules_to_import)
+      pat = PreprocessTask(task, split, modules_to_import)
       num_shards = len(pat.shards)
       examples = pipeline | "%s_pat" % label >> pat
       completion_values.append(
@@ -409,8 +402,11 @@ def main(_):
   with beam.Pipeline(options=pipeline_options) as pipeline:
     tf.io.gfile.makedirs(FLAGS.output_cache_dir)
     unused_output_dirs = run_pipeline(
-        pipeline, FLAGS.tasks, FLAGS.output_cache_dir,
-        FLAGS.max_input_examples, FLAGS.excluded_tasks, FLAGS.module_import,
+        pipeline,
+        FLAGS.tasks,
+        FLAGS.output_cache_dir,
+        FLAGS.excluded_tasks,
+        FLAGS.module_import,
         FLAGS.overwrite,
     )
 
