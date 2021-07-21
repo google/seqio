@@ -17,10 +17,7 @@
 import os
 
 from absl.testing import absltest
-import apache_beam as beam
 from apache_beam.testing.test_pipeline import TestPipeline
-from apache_beam.testing.util import assert_that
-from apache_beam.testing.util import equal_to
 import seqio
 from seqio.scripts import cache_tasks_main
 import tensorflow.compat.v2 as tf
@@ -32,23 +29,6 @@ test_utils = seqio.test_utils
 
 
 class ProcessTaskBeamTest(test_utils.FakeTaskTest):
-
-  def test_get_info(self):
-    input_examples = [{"targets": range(10), "inputs": "test"}]
-
-    with TestPipeline() as p:
-      pcoll = (p
-               | beam.Create(input_examples)
-               | cache_tasks_main.GetInfo(num_shards=3))
-
-    assert_that(pcoll, equal_to(
-        {
-            "num_shards": 3,
-            "features_dict": {
-                "targets": {"dtype": "int32", "shape": [10]},
-                "inputs": {"dtype": "string", "shape": []},
-            }
-        }))
 
   def validate_pipeline(self,
                         task_name,
