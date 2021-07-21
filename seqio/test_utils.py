@@ -525,9 +525,10 @@ def create_prediction(task_name, s, output_feature_name="targets"):
 def test_task(
     task_name: str,
     raw_data: Mapping[str, Any],
-    output_feature_name="targets",
-    feature_encoder=feature_converters.EncDecFeatureConverter(pack=False)
-) -> Tuple[Mapping[str, Any], Mapping[str, Any]]:
+    output_feature_name: str = "targets",
+    feature_encoder: feature_converters.FeatureConverter = (
+        feature_converters.EncDecFeatureConverter(pack=False)),
+    seed: Optional[int] = None) -> Tuple[Mapping[str, Any], Mapping[str, Any]]:
   """Test the preprocessing and metrics functionality for a given task.
 
   This function injects `raw_data` into the task, then creates an Evaluator
@@ -552,14 +553,16 @@ def test_task(
       the expected target from the preprocessing output.
     feature_encoder: An optional feature encoder object. Defaults to
       EncDecFeatureEncoder.
-
+    seed: optional seeed used for deterministic Task preprocessing.
+      Specifically, this seed is passed to the Task to be used in
+      map_seed_manager() wrappers around preprocessor functions.
 
   Returns:
     A tuple (preprocessing_output, metrics), where `preprocessing_output`
     is the result of running the tasks' preprocessing code on `raw_data` and
     `metrics` is a mapping from task name to computed metrics.
   """
-  output = test_preprocessing_single(task_name, raw_data)
+  output = test_preprocessing_single(task_name, raw_data, seed=seed)
 
   eval_output = test_postprocessing(
       task_name,
@@ -570,7 +573,9 @@ def test_task(
 
 
 def test_preprocessing(
-    task_name: str, raw_data: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
+    task_name: str,
+    raw_data: Mapping[str, Any],
+    seed: Optional[int] = None) -> Iterator[Mapping[str, Any]]:
   """Test task preprocessing, returning iterator of the generated dataset.
 
   This function injects `raw_data` into `task` and runs the preprocessing
@@ -582,6 +587,9 @@ def test_preprocessing(
     raw_data: A string-keyed dict of string-keyed dicts. The top-level dict
       should be keyed by dataset splits, and the second-level dict should hold
       the dataset data.
+    seed: optional seeed used for deterministic Task preprocessing.
+      Specifically, this seed is passed to the Task to be used in
+      map_seed_manager() wrappers around preprocessor functions.
 
   Returns:
     Iterator with the result of running the tasks' preprocessing code on
@@ -594,12 +602,14 @@ def test_preprocessing(
     split = list(raw_data.keys())[0]
     task = dataset_providers.get_mixture_or_task(task_name)
     iterator = task.get_dataset(
-        sequence_length=None, split=split, shuffle=False).as_numpy_iterator()
+        sequence_length=None, split=split, shuffle=False,
+        seed=seed).as_numpy_iterator()
     return iterator
 
 
 def test_preprocessing_single(task_name: str,
-                              raw_data: Mapping[str, Any]) -> Mapping[str, Any]:
+                              raw_data: Mapping[str, Any],
+                              seed: Optional[int] = None) -> Mapping[str, Any]:
   """Test task preprocessing, where a single item is expected to be generated.
 
   This is similar to test_preprocessing, but returns a single generated item.
@@ -615,11 +625,14 @@ def test_preprocessing_single(task_name: str,
     raw_data: A string-keyed dict of string-keyed dicts. The top-level dict
       should be keyed by dataset splits, and the second-level dict should hold
       the dataset data.
+    seed: optional seeed used for deterministic Task preprocessing.
+      Specifically, this seed is passed to the Task to be used in
+      map_seed_manager() wrappers around preprocessor functions.
 
   Returns:
     The result of running the tasks' preprocessing code on `raw_data`.
   """
-  iterator = test_preprocessing(task_name, raw_data)
+  iterator = test_preprocessing(task_name, raw_data, seed=seed)
   item = next(iterator)
   # Verify that we've reached the end of the generator.
   _pyunit_proxy.assertIsNone(
