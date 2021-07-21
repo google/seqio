@@ -294,7 +294,8 @@ def assert_dataset(
       if isinstance(actual_value, dict):
         _compare_dict(actual_value, expected_dict[key])
         continue
-      if isinstance(actual_value, tf.RaggedTensor):
+      if (isinstance(actual_value, tf.RaggedTensor) or
+          isinstance(actual_value, tf.compat.v1.ragged.RaggedTensorValue)):
         actual_value = actual_value.to_list()
       np.testing.assert_array_equal(
           actual_value, _maybe_as_bytes(expected_dict[key]), key)

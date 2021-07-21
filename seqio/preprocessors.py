@@ -61,6 +61,9 @@ def tokenize(
   Passes through other features unchanged. Optionally passes through copy
   of original features with "_pretokenized" suffix added to the key.
 
+  When `with_eos` is True and input features are ranked > 1, then an EOS is
+  appended only to the last item of each 1-D sequence.
+
   Args:
     dataset: a tf.data.Dataset of examples to tokenize.
     output_features: a dict of Feature objects; their vocabulary attribute will
@@ -82,7 +85,21 @@ def tokenize(
         vocab = output_features[k].vocabulary
         v = vocab.encode_tf(v)
         if with_eos and output_features[k].add_eos:
-          v = tf.concat([v, [vocab.eos_id]], axis=-1)
+          # Expand dims here so that the below code can work with 1-d tensors.
+          v = tf.expand_dims(v, 0)
+          # Make sure we keep tensor as ragged to allow for uneven concat.
+          if isinstance(v, tf.Tensor):
+            v = tf.RaggedTensor.from_tensor(v)
+
+          # Append eos to the last item of every sequence.
+          eos_shape = tf.concat([v.bounding_shape()[:-2], [1, 1]], axis=0)
+          eos_id = tf.broadcast_to(vocab.eos_id, eos_shape)
+          last_in_sequence = tf.concat([v[..., -1:, :], eos_id], axis=-1)
+          # Concat back the newly modified final sequence item.
+          v = tf.concat([v[..., :-1, :], last_in_sequence], axis=-2)
+          # Un-expand outer dimension.
+          v = v[0]
+
       ret[k] = v
     return ret
 

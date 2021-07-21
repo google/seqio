@@ -63,6 +63,95 @@ class PreprocessorsTest(absltest.TestCase):
             'suffix': [2, 3]
         })
 
+  def test_tokenize_multiple_ranks(self):
+    vocab = test_utils.sentencepiece_vocab()
+    output_features = {
+        'prefix': Feature(vocab, add_eos=True),
+        'suffix': Feature(vocab, add_eos=False),
+    }
+
+    # Test for 1-rank features.
+    og_dataset_1d = tf.data.Dataset.from_tensors({
+        'prefix': ['This is', 'this is'],
+        'suffix': ['a test.', 'another']
+    })
+    assert_dataset(
+        preprocessors.tokenize(og_dataset_1d, output_features=output_features),
+        {
+            'prefix': [[3, 2, 20, 8, 6, 3, 8, 6], [11, 8, 6, 3, 8, 6]],
+            'prefix_pretokenized': ['This is', 'this is'],
+            'suffix': [[3, 5, 10, 2], [3, 5, 22, 7, 24, 20, 4, 23]],
+            'suffix_pretokenized': ['a test.', 'another']
+        })
+    assert_dataset(
+        preprocessors.tokenize(
+            og_dataset_1d, output_features=output_features, with_eos=True), {
+                'prefix': [[3, 2, 20, 8, 6, 3, 8, 6], [11, 8, 6, 3, 8, 6, 1]],
+                'prefix_pretokenized': ['This is', 'this is'],
+                'suffix': [[3, 5, 10, 2], [3, 5, 22, 7, 24, 20, 4, 23]],
+                'suffix_pretokenized': ['a test.', 'another']
+            })
+
+    # Test for 2-rank features.
+    og_dataset_2d = tf.data.Dataset.from_tensors({
+        'prefix': [['This is'], ['this is']],
+        'suffix': [['a test.'], ['another']]
+    })
+
+    assert_dataset(
+        preprocessors.tokenize(og_dataset_2d, output_features=output_features),
+        {
+            'prefix': [[[3, 2, 20, 8, 6, 3, 8, 6]], [[11, 8, 6, 3, 8, 6]]],
+            'prefix_pretokenized': [['This is'], ['this is']],
+            'suffix': [[[3, 5, 10, 2]], [[3, 5, 22, 7, 24, 20, 4, 23]]],
+            'suffix_pretokenized': [['a test.'], ['another']]
+        })
+    assert_dataset(
+        preprocessors.tokenize(
+            og_dataset_2d, output_features=output_features, with_eos=True), {
+                'prefix': [[[3, 2, 20, 8, 6, 3, 8, 6, 1]],
+                           [[11, 8, 6, 3, 8, 6, 1]]],
+                'prefix_pretokenized': [['This is'], ['this is']],
+                'suffix': [[[3, 5, 10, 2]], [[3, 5, 22, 7, 24, 20, 4, 23]]],
+                'suffix_pretokenized': [['a test.'], ['another']]
+            })
+
+    # Test for 3-rank features.
+    og_dataset_3d = tf.data.Dataset.from_tensors({
+        'prefix':
+            tf.ragged.constant([[['a', 'b'], ['c']], [['d', 'e'], ['f']],
+                                [['g', 'h'], ['i']]]),
+        'suffix':
+            tf.ragged.constant([[['j'], ['k', 'l', 'm']], [['n'], ['o', 'p']]]),
+    })
+    assert_dataset(
+        preprocessors.tokenize(og_dataset_3d, output_features=output_features),
+        {
+            'prefix': [[[[3, 5], [3, 2]], [[3, 13]]],
+                       [[[3, 21], [3, 4]], [[3, 2]]],
+                       [[[3, 2], [3, 20]], [[3, 8]]]],
+            'prefix_pretokenized': [[['a', 'b'], ['c']], [['d', 'e'], ['f']],
+                                    [['g', 'h'], ['i']]],
+            'suffix': [[[[3, 2]], [[3, 2], [3, 9], [3, 14]]],
+                       [[[3, 22]], [[3, 7], [3, 15]]]],
+            'suffix_pretokenized': [[['j'], ['k', 'l', 'm']], [['n'],
+                                                               ['o', 'p']]],
+        })
+    assert_dataset(
+        preprocessors.tokenize(
+            og_dataset_3d, output_features=output_features, with_eos=True),
+        {
+            'prefix': [[[[3, 5], [3, 2, 1]], [[3, 13, 1]]],
+                       [[[3, 21], [3, 4, 1]], [[3, 2, 1]]],
+                       [[[3, 2], [3, 20, 1]], [[3, 8, 1]]]],
+            'prefix_pretokenized': [[['a', 'b'], ['c']], [['d', 'e'], ['f']],
+                                    [['g', 'h'], ['i']]],
+            'suffix': [[[[3, 2]], [[3, 2], [3, 9], [3, 14]]],
+                       [[[3, 22]], [[3, 7], [3, 15]]]],
+            'suffix_pretokenized': [[['j'], ['k', 'l', 'm']], [['n'],
+                                                               ['o', 'p']]],
+        })
+
   def test_append_eos(self):
     og_dataset = tf.data.Dataset.from_tensors({
         'inputs': [1, 2, 3],
