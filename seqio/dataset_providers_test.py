@@ -432,6 +432,10 @@ class TasksTest(test_utils.FakeTaskTest):
                 vocabulary=vocabularies.PassThroughVocabulary(5),
                 required=False,
                 rank=2),
+        "continuous_features":
+            dataset_providers.ContinuousFeature(
+                required=False,
+                rank=2)
     }
 
     def _materialize(output):
@@ -482,6 +486,11 @@ class TasksTest(test_utils.FakeTaskTest):
         "Task dataset has incorrect rank for feature 'inputs_rank2' after "
         "preprocessing: Got 1, expected 2"):
       _materialize({"targets": [0], "inputs_rank2": [0]})
+    # Test ContinuousFeature
+    _materialize({
+        "targets": [0],
+        "continuous_features": [[1, 1], [0, 1]]
+    })
 
   def test_value_errors(self):
     dataset_fn = (

@@ -32,6 +32,7 @@ import numpy as np
 from packaging import version
 from seqio import utils
 from seqio.feature_converters import FeatureConverter
+from seqio.vocabularies import PassThroughVocabulary
 from seqio.vocabularies import Vocabulary
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
@@ -56,6 +57,13 @@ class Feature:
   required: bool = True
   dtype: tf.DType = tf.int32
   rank: int = 1
+
+
+@dataclasses.dataclass(frozen=True)
+class ContinuousFeature(Feature):
+  """A container for multi-modal output features of data providers."""
+  vocabulary: Vocabulary = PassThroughVocabulary(size=0)
+  add_eos: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
