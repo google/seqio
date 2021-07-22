@@ -376,7 +376,11 @@ class TfdsDataSource(DataSource):
     return self.tfds_dataset.size(split)
 
   def list_shards(self, split: str) -> Sequence[str]:
-    return [info["filename"] for info in self.tfds_dataset.files(split)]
+    def _get_filename(info):
+      if isinstance(info, dict):  # this is true for unit tests
+        return info["filename"]
+      return info.filename  # TFDS FileInstruction
+    return [_get_filename(info) for info in self.tfds_dataset.files(split)]
 
 
 class FileDataSource(DataSource):
