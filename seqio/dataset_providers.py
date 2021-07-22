@@ -376,7 +376,7 @@ class TfdsDataSource(DataSource):
     return self.tfds_dataset.size(split)
 
   def list_shards(self, split: str) -> Sequence[str]:
-    return self.tfds_dataset.files(split)
+    return [info["filename"] for info in self.tfds_dataset.files(split)]
 
 
 class FileDataSource(DataSource):

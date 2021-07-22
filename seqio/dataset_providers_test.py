@@ -700,6 +700,45 @@ class TasksTest(test_utils.FakeTaskTest):
         set(["inputs", "inputs_pretokenized",
              "targets", "targets_pretokenized"]))
 
+  def test_list_shards(self):
+
+    def _get_formatted_shards_list(task_name, split):
+      shards = dataset_providers.get_mixture_or_task(
+          task_name).source.list_shards(split)
+      shards = [s.split("/")[-1] for s in shards]
+      return sorted(shards)
+
+    self.assertListEqual(
+        _get_formatted_shards_list("tfds_task", "train"),
+        ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"])
+    self.assertListEqual(
+        _get_formatted_shards_list("text_line_task", "train"),
+        ["train.tsv-00000-of-00002", "train.tsv-00001-of-00002"])
+    self.assertListEqual(
+        _get_formatted_shards_list("tf_example_task", "train"),
+        ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"])
+    self.assertListEqual(
+        _get_formatted_shards_list("proto_task", "train"),
+        ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"])
+    self.assertListEqual(
+        _get_formatted_shards_list("function_task", "train"), ["train"])
+    self.assertListEqual(
+        _get_formatted_shards_list("fully_processed_precache", "train"),
+        ["train"])
+    self.assertListEqual(
+        _get_formatted_shards_list("tokenized_postcache", "train"), ["train"])
+    self.assertListEqual(
+        _get_formatted_shards_list("random_task", "train"), ["train"])
+    self.assertListEqual(
+        _get_formatted_shards_list("uncached_task", "train"),
+        ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"])
+    self.assertListEqual(
+        _get_formatted_shards_list("cached_task", "train"),
+        ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"])
+    self.assertListEqual(
+        _get_formatted_shards_list("cached_plaintext_task", "train"),
+        ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"])
+
 
 class MixturesTest(test_utils.FakeTaskTest):
 
