@@ -38,7 +38,9 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
     with TestPipeline() as p:
       pcoll = (
           p | beam_utils.PreprocessTask(
-              task=seqio.get_mixture_or_task("tfds_task"), split="train")
+              task=seqio.get_mixture_or_task("tfds_task"),
+              split="train",
+              add_provenance=True)
           | beam.Map(_np_to_list))
       util.assert_that(
           pcoll,
@@ -47,16 +49,28 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6],
               "targets_pretokenized": b"is a test",
               "targets": [3, 8, 6, 3, 5, 10],
+              "provenance/task": "tfds_task",
+              "provenance/source_shard": "train.tfrecord-00000-of-00002",
+              "provenance/source_shard_index": 0,
+              "provenance/index_within_shard": 0
           }, {
               "inputs_pretokenized": b"complete: those",
               "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4],
               "targets_pretokenized": b"were tests",
               "targets": [17, 4, 23, 4, 10, 6],
+              "provenance/task": "tfds_task",
+              "provenance/source_shard": "train.tfrecord-00000-of-00002",
+              "provenance/source_shard_index": 0,
+              "provenance/index_within_shard": 1
           }, {
               "inputs_pretokenized": b"complete: that",
               "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18],
               "targets_pretokenized": b"was a test",
               "targets": [17, 5, 6, 3, 5, 10],
+              "provenance/task": "tfds_task",
+              "provenance/source_shard": "train.tfrecord-00001-of-00002",
+              "provenance/source_shard_index": 1,
+              "provenance/index_within_shard": 0
           }]))
 
   def test_write_example_tf_record(self):
@@ -139,6 +153,29 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "targets_max_tokens": 11,
               "examples": 2
           }]))
+
+  def test_preprocess_task_error_with_provenance(self):
+    def _test_dataset_fn(split, shuffle_files=None, seed=None):
+      del split, shuffle_files, seed
+      return tf.data.Dataset.from_tensor_slices({
+          "inputs": ["some input", "other input"],
+          "targets": ["some target", "other target"],
+          "provenance/task": ["task_with_provenance", "task_with_provenance"],
+      })
+    seqio.TaskRegistry.add(
+        "task_with_provenance",
+        source=seqio.FunctionDataSource(_test_dataset_fn, splits=["split"]),
+        preprocessors=[],
+        output_features={})
+
+    with self.assertRaises(ValueError):
+      with TestPipeline() as p:
+        _ = (
+            p | beam_utils.PreprocessTask(
+                task=seqio.TaskRegistry.get("task_with_provenance"),
+                split="split",
+                add_provenance=True))
+    seqio.TaskRegistry.remove("task_with_provenance")
 
 
 if __name__ == "__main__":

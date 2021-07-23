@@ -37,30 +37,33 @@ class PreprocessTask(beam.PTransform):
   """
 
   def __init__(
-      self, task, split, modules_to_import=()):
+      self, task, split, modules_to_import=(), add_provenance=False):
     """BasePreprocessTask constructor.
 
     Args:
       task: Task, the task to process.
       split: string, the split to process.
       modules_to_import: (Optional) list, modules to import.
+      add_provenance: If True, provenance is added to each example.
     """
     self._task = task
     self._split = split
     self._modules_to_import = modules_to_import
-    self.shards = list(range(len(task.source.list_shards(split))))
+    self._add_provenance = add_provenance
+    self.shards = list(enumerate(task.source.list_shards(split)))
     logging.info(
         "%s %s shards: %s", task.name, split, ", ".join(
-            ["%s" % f for f in self.shards]))
+            ["%s" % f[1] for f in self.shards]))
 
   def _increment_counter(self, name):
     metrics.Metrics.counter(
         str("%s_%s" % (self._task.name, self._split)), name).inc()
 
-  def _emit_examples(self, shard_index):
+  def _emit_examples(self, shard):
     """Emits examples keyed by shard number and index for a single shard."""
     _import_modules(self._modules_to_import)
-    logging.info("Processing shard: %d", shard_index)
+    shard_index, shard_name = shard
+    logging.info("Processing shard: %s", shard_name)
     self._increment_counter("input-shards")
 
     ds = self._task.source.get_dataset(
@@ -74,7 +77,20 @@ class PreprocessTask(beam.PTransform):
 
     ds = self._task.preprocess_precache(ds)
 
+    def _add_provenance(index_within_shard, ex):
+      if [k for k in ex.keys() if "provenance/" in k]:
+        raise ValueError("Example contains provenance. Please set "
+                         "PreprocessTask.add_provenance = False.")
+      ex["provenance/task"] = self._task.name
+      ex["provenance/source_shard"] = shard_name
+      ex["provenance/source_shard_index"] = shard_index
+      ex["provenance/index_within_shard"] = index_within_shard
+      # TODO(b/193334270): Add preprocessors_seed.
+      return ex
+
     for i, ex in enumerate(ds.as_numpy_iterator()):
+      if self._add_provenance:
+        ex = _add_provenance(i, ex)
       self._increment_counter("examples")
       # Log every power of two.
       if i & (i - 1) == 0:
