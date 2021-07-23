@@ -40,6 +40,7 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           p | beam_utils.PreprocessTask(
               task=seqio.get_mixture_or_task("tfds_task"),
               split="train",
+              preprocessors_seed=42,
               add_provenance=True)
           | beam.Map(_np_to_list))
       util.assert_that(
@@ -52,7 +53,8 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "provenance/task": "tfds_task",
               "provenance/source_shard": "train.tfrecord-00000-of-00002",
               "provenance/source_shard_index": 0,
-              "provenance/index_within_shard": 0
+              "provenance/index_within_shard": 0,
+              "provenance/preprocessors_seed": 42,
           }, {
               "inputs_pretokenized": b"complete: those",
               "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4],
@@ -61,7 +63,8 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "provenance/task": "tfds_task",
               "provenance/source_shard": "train.tfrecord-00000-of-00002",
               "provenance/source_shard_index": 0,
-              "provenance/index_within_shard": 1
+              "provenance/index_within_shard": 1,
+              "provenance/preprocessors_seed": 42,
           }, {
               "inputs_pretokenized": b"complete: that",
               "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18],
@@ -70,7 +73,8 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "provenance/task": "tfds_task",
               "provenance/source_shard": "train.tfrecord-00001-of-00002",
               "provenance/source_shard_index": 1,
-              "provenance/index_within_shard": 0
+              "provenance/index_within_shard": 0,
+              "provenance/preprocessors_seed": 42,
           }]))
 
   def test_write_example_tf_record(self):

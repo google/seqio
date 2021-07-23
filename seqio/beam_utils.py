@@ -16,6 +16,7 @@
 
 import importlib
 import json
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from absl import logging
 import apache_beam as beam
 import apache_beam.metrics as metrics
@@ -36,18 +37,25 @@ class PreprocessTask(beam.PTransform):
   Returns a PCollection of example dicts containing Tensors.
   """
 
-  def __init__(
-      self, task, split, modules_to_import=(), add_provenance=False):
+  def __init__(self,
+               task: seqio.Task,
+               split: str,
+               preprocessors_seed: Optional[int] = None,
+               modules_to_import: Sequence[str] = (),
+               add_provenance: bool = False):
     """BasePreprocessTask constructor.
 
     Args:
       task: Task, the task to process.
       split: string, the split to process.
+      preprocessors_seed: (Optional) int, a seed for stateless random ops in
+          task preprocessing.
       modules_to_import: (Optional) list, modules to import.
       add_provenance: If True, provenance is added to each example.
     """
     self._task = task
     self._split = split
+    self._preprocessors_seed = preprocessors_seed
     self._modules_to_import = modules_to_import
     self._add_provenance = add_provenance
     self.shards = list(enumerate(task.source.list_shards(split)))
@@ -59,7 +67,7 @@ class PreprocessTask(beam.PTransform):
     metrics.Metrics.counter(
         str("%s_%s" % (self._task.name, self._split)), name).inc()
 
-  def _emit_examples(self, shard):
+  def _emit_examples(self, shard: Tuple[int, str]):
     """Emits examples keyed by shard number and index for a single shard."""
     _import_modules(self._modules_to_import)
     shard_index, shard_name = shard
@@ -75,17 +83,20 @@ class PreprocessTask(beam.PTransform):
 
     ds = ds.prefetch(tf.data.AUTOTUNE)
 
-    ds = self._task.preprocess_precache(ds)
+    ds = self._task.preprocess_precache(ds, seed=self._preprocessors_seed)
 
-    def _add_provenance(index_within_shard, ex):
+    def _add_provenance(index_within_shard: int, ex: Dict[str, Any]):
       if [k for k in ex.keys() if "provenance/" in k]:
         raise ValueError("Example contains provenance. Please set "
                          "PreprocessTask.add_provenance = False.")
-      ex["provenance/task"] = self._task.name
-      ex["provenance/source_shard"] = shard_name
-      ex["provenance/source_shard_index"] = shard_index
-      ex["provenance/index_within_shard"] = index_within_shard
-      # TODO(b/193334270): Add preprocessors_seed.
+      ex.update({
+          "provenance/task": self._task.name,
+          "provenance/source_shard": shard_name,
+          "provenance/source_shard_index": shard_index,
+          "provenance/index_within_shard": index_within_shard
+      })
+      if self._preprocessors_seed:
+        ex.update({"provenance/preprocessors_seed": self._preprocessors_seed})
       return ex
 
     for i, ex in enumerate(ds.as_numpy_iterator()):
@@ -109,7 +120,7 @@ class PreprocessTask(beam.PTransform):
 class WriteExampleTfRecord(beam.PTransform):
   """Writes examples (dicts) to a TFRecord of tf.Example protos."""
 
-  def __init__(self, output_path, num_shards=None):
+  def __init__(self, output_path: str, num_shards: Optional[int] = None):
     """WriteExampleTfRecord constructor.
 
     Args:
@@ -134,7 +145,7 @@ class WriteExampleTfRecord(beam.PTransform):
 class WriteJson(beam.PTransform):
   """Writes datastructures to file as JSON(L)."""
 
-  def __init__(self, output_path, prettify=True):
+  def __init__(self, output_path: str, prettify: Optional[bool] = True):
     """WriteJson constructor.
 
     Args:
@@ -170,10 +181,10 @@ class GetInfo(beam.PTransform):
   shards, feature shapes and types)
   """
 
-  def __init__(self, num_shards):
+  def __init__(self, num_shards: int):
     self._num_shards = num_shards
 
-  def _info_dict(self, ex):
+  def _info_dict(self, ex: List[Dict[str, Any]]):
     if not ex:
       return {}
     assert len(ex) == 1
@@ -206,7 +217,7 @@ class GetStats(beam.PTransform):
   prefixed by the identifiers.
   """
 
-  def __init__(self, output_features):
+  def __init__(self, output_features: Mapping[str, seqio.Feature]):
     self._output_features = output_features
 
   def expand(self, pcoll):
