@@ -713,13 +713,17 @@ class LMFeatureConverter(FeatureConverter):
       self, features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
     """Convert an LM example into an example with model features."""
     # targets_segment_id is present only for a packed dataset.
+    targets_mask = tf.cast(features["targets"] >= 0, features["targets"].dtype)
+    features_targets_nonnegative = features["targets"] * (targets_mask * 2 - 1)
+
     decoder_input_token = autoregressive_inputs(
-        features["targets"],
+        features_targets_nonnegative,
         sequence_id=features.get("targets_segment_ids", None))
 
-    d = {"decoder_target_tokens": features["targets"],
+    d = {"decoder_target_tokens": features_targets_nonnegative,
          "decoder_input_tokens": decoder_input_token,
-         "decoder_loss_weights": non_padding_position(features["targets"])}
+         "decoder_loss_weights":
+             non_padding_position(features_targets_nonnegative) * targets_mask}
 
     if self.pack:
       d["decoder_segment_ids"] = features["targets_segment_ids"]
