@@ -17,7 +17,7 @@
 
 import functools
 import os
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -252,6 +252,62 @@ class TasksTest(test_utils.FakeTaskTest):
       task.get_dataset(None, shuffle=True, shuffle_buffer_size=100)
 
     task.get_dataset(None, shuffle=False)
+
+  def test_non_default_shuffle_fn(self):
+
+    def no_shuffle(ds: tf.data.Dataset, shuffle_buffer_size: int,
+                   seed: Optional[int]) -> tf.data.Dataset:
+      del shuffle_buffer_size, seed
+      return ds
+
+    def reverse_dataset(ds: tf.data.Dataset, shuffle_buffer_size: int,
+                        seed: Optional[int]) -> tf.data.Dataset:
+      del shuffle_buffer_size, seed
+      ds = ds.padded_batch(3)
+      ds = ds.map(
+          lambda x: tf.nest.map_structure(lambda y: tf.reverse(y, [0]), x))
+      return ds.unbatch()
+
+    # No shuffle function (default) will apply random shuffling.
+    task = dataset_providers.Task(
+        "shuffled",
+        source=self.function_source,
+        output_features=self.DEFAULT_OUTPUT_FEATURES,
+        preprocessors=self.DEFAULT_PREPROCESSORS,
+        shuffle_buffer_size=100)
+    shuffled = task.get_dataset(None, shuffle=True, seed=1)
+    expected = [b"complete: that", b"complete: those", b"complete: this"]
+    actual = [x["inputs_pretokenized"] for x in shuffled.as_numpy_iterator()]
+    self.assertEqual(expected, actual)
+
+    # no_shuffle is a pass-through function so the outputs should match the
+    # values from test_utils._FAKE_TOKENIZED_DATASET.
+    task = dataset_providers.Task(
+        "no_shuffle",
+        source=self.function_source,
+        output_features=self.DEFAULT_OUTPUT_FEATURES,
+        preprocessors=self.DEFAULT_PREPROCESSORS,
+        shuffle_buffer_size=100,
+        shuffle_fn=no_shuffle)
+    not_shuffled = task.get_dataset(None, shuffle=True, seed=1)
+    expected = [b"complete: this", b"complete: that", b"complete: those"]
+    actual = [
+        x["inputs_pretokenized"] for x in not_shuffled.as_numpy_iterator()
+    ]
+    self.assertEqual(expected, actual)
+
+    # reverse the order of results.
+    task = dataset_providers.Task(
+        "reverse",
+        source=self.function_source,
+        output_features=self.DEFAULT_OUTPUT_FEATURES,
+        preprocessors=self.DEFAULT_PREPROCESSORS,
+        shuffle_buffer_size=100,
+        shuffle_fn=reverse_dataset)
+    reverse = task.get_dataset(None, shuffle=True, seed=1)
+    expected = [b"complete: those", b"complete: that", b"complete: this"]
+    actual = [x["inputs_pretokenized"] for x in reverse.as_numpy_iterator()]
+    self.assertEqual(expected, actual)
 
   def test_supports_caching(self):
     self.assertFalse(
