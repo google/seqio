@@ -215,15 +215,15 @@ class SentencePieceVocabulary(Vocabulary):
     with tf.io.gfile.GFile(self._sentencepiece_model_file, "rb") as f:
       self._sp_model = f.read()
       # Add placeholde strings for extra IDs.
+      model = sentencepiece_model_pb2.ModelProto.FromString(self._sp_model)
       if self._extra_ids:
-        model = sentencepiece_model_pb2.ModelProto.FromString(self._sp_model)
         # We name them in reverse order to match their use in span corruption.
         for i in reversed(range(self._extra_ids)):
           model.pieces.add(
               piece=f"▁<extra_id_{i}>", score=0.0,
               type=
               sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED)
-        self._sp_model = model.SerializeToString()
+      self._sp_model = model.SerializeToString()
     # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
     self._tokenizer = sentencepiece_processor.SentencePieceProcessor()
     self._tokenizer.LoadFromSerializedProto(self._sp_model)
@@ -328,7 +328,7 @@ class SentencePieceVocabulary(Vocabulary):
       return False
     try:
       their_md5 = hashlib.md5(other.sp_model).hexdigest()
-    # If other has no sp_model/extra_ids attribute, we can't test for equality
+    # If other has no sp_model attribute, we can't test for equality
     except AttributeError:
       return False
     our_md5 = hashlib.md5(self.sp_model).hexdigest()
@@ -336,7 +336,8 @@ class SentencePieceVocabulary(Vocabulary):
 
   def __str__(self) -> str:
     return (f"SentencePieceVocabulary(file={self._sentencepiece_model_file}, "
-            f"extra_ids={self.extra_ids})")
+            f"extra_ids={self.extra_ids}, "
+            f"spm_md5={hashlib.md5(self.sp_model).hexdigest()})")
 
 
 class ByteVocabulary(Vocabulary):
