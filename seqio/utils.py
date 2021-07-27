@@ -659,7 +659,7 @@ def map_over_dataset(fn=None, *, num_seeds=None,
         random_ds_seeds = tuple(tuple(s) for s in random_ds_seeds)
         _NEXT_MAP_SEED += 2 * num_seeds
       seed_datasets = tf.nest.map_structure(
-          tf.data.experimental.RandomDataset,
+          tf.data.Dataset.random,
           random_ds_seeds)
       if num_seeds == 1:
         map_fn = lambda x, s: fn(x, seed=s[0], *args, **kwargs)
