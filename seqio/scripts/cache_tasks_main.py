@@ -147,7 +147,8 @@ def run_pipeline(pipeline,
     for split in task.splits:
       label = "%s_%s" % (task.name, split)
 
-      pat = beam_utils.PreprocessTask(task, split, modules_to_import)
+      pat = beam_utils.PreprocessTask(
+          task, split, modules_to_import=modules_to_import)
       num_shards = len(pat.shards)
       examples = pipeline | "%s_pat" % label >> pat
       completion_values.append(
