@@ -24,6 +24,13 @@ import numpy as np
 import seqio
 import tensorflow.compat.v2 as tf
 
+PROVENANCE_PREFIX = "provenance/"
+TASK_PROVENANCE_KEY = PROVENANCE_PREFIX + "task"
+SOURCE_SHARD_PROVENANCE_KEY = PROVENANCE_PREFIX + "source_shard"
+SOURCE_SHARD_ID_PROVENANCE_KEY = PROVENANCE_PREFIX + "source_shard_index"
+ID_WITHIN_SHARD_PROVENANCE_KEY = PROVENANCE_PREFIX + "index_within_shard"
+PREPROCESSORS_SEED_PROVENANCE_KEY = PROVENANCE_PREFIX + "preprocessors_seed"
+
 
 def _import_modules(modules):
   for module in modules:
@@ -40,6 +47,7 @@ class PreprocessTask(beam.PTransform):
   def __init__(self,
                task: seqio.Task,
                split: str,
+               *,
                preprocessors_seed: Optional[int] = None,
                modules_to_import: Sequence[str] = (),
                add_provenance: bool = False):
@@ -86,17 +94,17 @@ class PreprocessTask(beam.PTransform):
     ds = self._task.preprocess_precache(ds, seed=self._preprocessors_seed)
 
     def _add_provenance(index_within_shard: int, ex: Dict[str, Any]):
-      if [k for k in ex.keys() if "provenance/" in k]:
+      if [k for k in ex.keys() if k.startswith(PROVENANCE_PREFIX)]:
         raise ValueError("Example contains provenance. Please set "
                          "PreprocessTask.add_provenance = False.")
       ex.update({
-          "provenance/task": self._task.name,
-          "provenance/source_shard": shard_name,
-          "provenance/source_shard_index": shard_index,
-          "provenance/index_within_shard": index_within_shard
+          TASK_PROVENANCE_KEY: self._task.name,
+          SOURCE_SHARD_PROVENANCE_KEY: shard_name,
+          SOURCE_SHARD_ID_PROVENANCE_KEY: shard_index,
+          ID_WITHIN_SHARD_PROVENANCE_KEY: index_within_shard
       })
       if self._preprocessors_seed:
-        ex.update({"provenance/preprocessors_seed": self._preprocessors_seed})
+        ex.update({PREPROCESSORS_SEED_PROVENANCE_KEY: self._preprocessors_seed})
       return ex
 
     for i, ex in enumerate(ds.as_numpy_iterator()):
@@ -181,8 +189,9 @@ class GetInfo(beam.PTransform):
   shards, feature shapes and types)
   """
 
-  def __init__(self, num_shards: int):
+  def __init__(self, num_shards: int, exclude_provenance: bool = True):
     self._num_shards = num_shards
+    self._exclude_provenance = exclude_provenance
 
   def _info_dict(self, ex: List[Dict[str, Any]]):
     if not ex:
@@ -196,6 +205,8 @@ class GetInfo(beam.PTransform):
     }
     feature_dict = info["features"]
     for k, v in ex.items():
+      if self._exclude_provenance and k.startswith(PROVENANCE_PREFIX):
+        continue
       t = tf.constant(v)
       dtype = t.dtype.name
       shape = [None] * len(t.shape)
