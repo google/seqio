@@ -261,6 +261,67 @@ class EvaluationTest(tf.test.TestCase):
     test_utils.assert_dataset(cached_task_datasets["task2"],
                               expected_task2_examples)
 
+  def test_get_targets_and_examples_unicode_decode_error(self):
+    def _task_from_tensor_slices(name, tensor_slices, label_classes,
+                                 unicode_decode_errors):
+      return dataset_providers.Task(
+          name,
+          dataset_providers.FunctionDataSource(
+              lambda split, shuffle_files:
+              tf.data.Dataset.from_tensor_slices(tensor_slices),
+              splits=("validation")),
+          preprocessors=[utils.map_over_dataset(lambda ex: {
+              "inputs": tf.range(ex["inputs_lengths"]),
+              "targets": tf.range(ex["targets_lengths"]),
+              "targets_pretokenized": ex["targets_pretokenized"],
+          })],
+          postprocess_fn=functools.partial(
+              _string_label_to_class_id_postprocessor,
+              label_classes=label_classes),
+          output_features={"inputs": dataset_providers.Feature(mock.Mock()),
+                           "targets": dataset_providers.Feature(mock.Mock())},
+          unicode_decode_errors=unicode_decode_errors
+      )
+    tensor_slices = {
+        "inputs_lengths": [3],
+        "targets_lengths": [4],
+        # The last 3 bytes are invalid utf-8.
+        "targets_pretokenized": [b"\xe5\xae\xb6\xe7\xbe\xef"],
+    }
+    label_classes = ("e5", "e6", "家")  # Label 2 is the first 3 bytes only.
+    task1 = _task_from_tensor_slices(
+        "task1", tensor_slices, label_classes, "strict")
+    task2 = _task_from_tensor_slices(
+        "task2", tensor_slices, label_classes, "ignore")
+    # Task 1 has unicode_decode_errors='strict', so it fails.
+    with self.assertRaises(UnicodeDecodeError):
+      evaluation.get_targets_and_examples(
+          [task1],
+          lambda t: t.get_dataset(
+              split="validation", sequence_length=None, shuffle=False),
+          sequence_dims={})
+    # Task 2 has unicode_decode_error='ignore', so it succeeds.
+    cached_targets, cached_task_datasets, max_sequence_length = (
+        evaluation.get_targets_and_examples(
+            [task2],
+            lambda t: t.get_dataset(
+                split="validation", sequence_length=None, shuffle=False),
+            sequence_dims={}))
+
+    self.assertDictEqual({"task2": [2]}, cached_targets)
+    self.assertDictEqual({"inputs": 3, "targets": 4}, max_sequence_length)
+    self.assertCountEqual(["task2"], cached_task_datasets.keys())
+    self.assertLen(cached_task_datasets["task2"], 1)
+    expected_task2_examples = [
+        {
+            "inputs": [0, 1, 2],
+            "targets": [0, 1, 2, 3],
+            "targets_pretokenized": b"\xe5\xae\xb6\xe7\xbe\xef"
+        },
+    ]
+    test_utils.assert_dataset(cached_task_datasets["task2"],
+                              expected_task2_examples)
+
   def _evaluate_single_task(self, task):
     id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
     mock_vocab = task.output_features["targets"].vocabulary

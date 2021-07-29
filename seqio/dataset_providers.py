@@ -670,7 +670,8 @@ class Task(DatasetProviderBase):
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
       metric_fns: Optional[Sequence[MetricFnCallable]] = None,
-      shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE):
+      shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE,
+      unicode_decode_errors: str = "strict"):
     """Task constructor.
 
     Args:
@@ -693,6 +694,10 @@ class Task(DatasetProviderBase):
         undefined or empty, no evaluation will occur on the task.
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
+      unicode_decode_errors: str, determines how invalid UTF-8 byte sequences
+        within the Task's targets are handled. in `strict` mode (the default),
+        a UnicodeDecodeError will be raised during evaluation. see
+        https://docs.python.org/3/library/codecs.html#error-handlers
     """
     if not _VALID_TASK_NAME_REGEX.match(name):
       raise ValueError(
@@ -754,6 +759,7 @@ class Task(DatasetProviderBase):
     self._cache_dir = None
     self._stats = {}
     self._shuffle_buffer_size = shuffle_buffer_size
+    self._unicode_decode_errors = unicode_decode_errors
 
     self._output_features = collections.OrderedDict(
         sorted(list(output_features.items()))
@@ -950,6 +956,11 @@ class Task(DatasetProviderBase):
     """Whether or not this task requires offline caching."""
     return (self._cache_step_idx is not None and
             self.preprocessors[self._cache_step_idx].required)
+
+  @property
+  def unicode_decode_errors(self) -> str:
+    """How invalid UTF-8 byte sequences are handled."""
+    return self._unicode_decode_errors
 
   def assert_cached(self) -> None:
     """Raises an assertion error if cached dataset does not exist."""

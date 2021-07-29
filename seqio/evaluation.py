@@ -205,7 +205,7 @@ def get_targets_and_examples(
         target = task.output_features["targets"].vocabulary.decode(
             [int(x) for x in ex["targets"]])
       if isinstance(target, bytes):
-        target = target.decode("utf-8")
+        target = target.decode("utf-8", errors=task.unicode_decode_errors)
       targets.append(task.postprocess_fn(target, example=ex, is_target=True))
 
     cached_targets[task.name] = targets
