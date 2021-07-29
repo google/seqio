@@ -1432,8 +1432,9 @@ def get_mixture_or_task(task_or_mixture_name):
   if task_or_mixture_name in tasks:
     return TaskRegistry.get(task_or_mixture_name)
   else:
-    raise ValueError("No Task or Mixture found with name: %s" %
-                     task_or_mixture_name)
+    raise ValueError(
+        "No Task or Mixture found with name '%s'. Available:\n - %s" %
+        (task_or_mixture_name, "\n - ".join(sorted(tasks))))
 
 
 def get_subtasks(task_or_mixture):
