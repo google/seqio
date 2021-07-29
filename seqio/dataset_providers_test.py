@@ -215,17 +215,24 @@ class TasksTest(test_utils.FakeTaskTest):
     self.verify_task_matches_fake_datasets(
         "function_task", use_cached=False)
 
+  def test_function_task_splt_mapping(self):
+    self.verify_task_matches_fake_datasets(
+        "function_task_split_mapping",
+        use_cached=False,
+        task_splits=["train", "eval"],
+        fake_dataset_splits=["train", "validation"])
+
   def test_text_line_task(self):
     self.verify_task_matches_fake_datasets(
-        "text_line_task", use_cached=False, splits=["train"])
+        "text_line_task", use_cached=False, task_splits=["train"])
 
   def test_tf_example_task(self):
     self.verify_task_matches_fake_datasets(
-        "tf_example_task", use_cached=False, splits=["train"])
+        "tf_example_task", use_cached=False, task_splits=["train"])
 
   def test_proto_task(self):
     self.verify_task_matches_fake_datasets(
-        "proto_task", use_cached=False, splits=["train"])
+        "proto_task", use_cached=False, task_splits=["train"])
 
   def test_num_input_examples(self):
     self.assertEqual(30, self.cached_task.num_input_examples("train"))

@@ -962,6 +962,16 @@ class FakeTaskTest(absltest.TestCase):
     )
     self.add_task("function_task", source=self.function_source)
 
+    self.function_source_split_mapping = dataset_providers.FunctionDataSource(
+        dataset_fn=get_fake_dataset,
+        splits={
+            "train": "train",
+            "eval": "validation"
+        })
+    self.add_task(
+        "function_task_split_mapping",
+        source=self.function_source_split_mapping)
+
     # Prepare Task that is tokenized and preprocessed before caching.
     self.add_task(
         "fully_processed_precache",
@@ -1034,13 +1044,13 @@ class FakeTaskTest(absltest.TestCase):
       task_name,
       use_cached,
       token_preprocessed=False,
-      splits=("train", "validation"),
+      task_splits=("train", "validation"),
+      fake_dataset_splits=("train", "validation"),
       sequence_length=_DEFAULT_SEQUENCE_LENGTH,
-      num_shards=None
-  ):
+      num_shards=None):
     """Assert all splits for both tokenized datasets are correct."""
     task = TaskRegistry.get(task_name)
-    for split in splits:
+    for split_index, split in enumerate(task_splits):
       get_dataset = functools.partial(
           task.get_dataset, sequence_length, split, use_cached=use_cached,
           shuffle=False)
@@ -1054,7 +1064,7 @@ class FakeTaskTest(absltest.TestCase):
         ds = get_dataset()
       _assert_compare_to_fake_dataset(
           ds,
-          split,
+          fake_dataset_splits[split_index],
           task.output_features,
           sequence_length,
           token_preprocessed=token_preprocessed,

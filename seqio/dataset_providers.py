@@ -271,26 +271,32 @@ class DatasetFnCallable(typing_extensions.Protocol):
 class FunctionDataSource(DataSource):
   """A `DataSource` that uses a function to provide the input data."""
 
-  def __init__(
-      self,
-      dataset_fn: DatasetFnCallable,
-      splits: Iterable[str],
-      num_input_examples: Optional[Mapping[str, int]] = None
-  ):
+  def __init__(self,
+               dataset_fn: DatasetFnCallable,
+               splits: Union[Iterable[str], Mapping[str, str]],
+               num_input_examples: Optional[Mapping[str, int]] = None):
     """FunctionDataSource constructor.
 
     Args:
       dataset_fn: a function with the signature `dataset_fn(split,
         shuffle_files)' (and optionally the variable `seed`) that returns a
         `tf.data.Dataset`.
-      splits: an iterable of applicable string split names.
+      splits: an iterable of applicable string split names, or a dict mapping
+        split keys to the applicable string split names.
       num_input_examples: dict or None, an optional dictionary mapping split
           to its size in number of input examples (before preprocessing). The
           `num_input_examples` method will return None if not provided.
     """
     _validate_args(dataset_fn, ["split", "shuffle_files"])
     self._dataset_fn = dataset_fn
+    if splits and not isinstance(splits, dict):
+      splits = {k: k for k in splits}
+    self._splits_mapping = splits
     super().__init__(splits=splits, num_input_examples=num_input_examples)
+
+  @property
+  def splits(self) -> Sequence[str]:
+    return self._splits_mapping.keys()
 
   def get_dataset(
       self,
@@ -305,10 +311,12 @@ class FunctionDataSource(DataSource):
           "tf.data.Dataset.shard instead.")
 
     if seed is None:
-      ds = self._dataset_fn(split=split, shuffle_files=shuffle)
+      ds = self._dataset_fn(
+          split=self._splits_mapping[split], shuffle_files=shuffle)
     else:
       _validate_args(self._dataset_fn, ["split", "shuffle_files", "seed"])
-      ds = self._dataset_fn(split=split, shuffle_files=shuffle, seed=seed)
+      ds = self._dataset_fn(
+          split=self._splits_mapping[split], shuffle_files=shuffle, seed=seed)
     return ds
 
   def list_shards(self, split: str) -> Sequence[str]:
