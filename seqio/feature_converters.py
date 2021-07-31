@@ -80,10 +80,10 @@ input dataset.
   - The input dataset is not batched.
 """
 import abc
+import dataclasses
 import functools
 from typing import Mapping, Sequence
 
-import dataclasses
 from seqio import utils
 import tensorflow.compat.v2 as tf
 
@@ -986,6 +986,69 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
   @property
   def loss_on_targets_only(self) -> bool:
     return self._loss_on_targets_only
+
+
+class DecoderFeatureConverter(FeatureConverter):
+  """Wrapper of FeatureConverter that handles both LM and PrefixLM tasks.
+
+  The converter to choose depends on the keys of `task_feature_lengths`.
+  """
+
+  TASK_FEATURES = {
+      "inputs": FeatureConverter.FeatureSpec(dtype=tf.int32),  # Optional field
+      "targets": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+  MODEL_FEATURES = {
+      "decoder_target_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_input_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_loss_weights": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      # Only if `inputs` field is present:
+      "decoder_causal_attention": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+  PACKING_FEATURE_DTYPES = {
+      "decoder_segment_ids": tf.int32,
+      "decoder_positions": tf.int32
+  }
+
+  def __init__(self,
+               loss_on_targets_only: bool = True,
+               pack: bool = True,
+               use_custom_packing_ops: bool = False) -> None:
+
+    self._loss_on_targets_only = loss_on_targets_only
+    super().__init__(pack=pack, use_custom_packing_ops=use_custom_packing_ops)
+    self.prefixlm_feature_converter = PrefixLMFeatureConverter(
+        loss_on_targets_only=loss_on_targets_only,
+        pack=pack,
+        use_custom_packing_ops=use_custom_packing_ops)
+    self.strictlm_feature_converter = LMFeatureConverter(
+        pack=pack, use_custom_packing_ops=use_custom_packing_ops)
+
+  def __call__(self, ds: tf.data.Dataset,
+               task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+
+    if "inputs" in task_feature_lengths:
+      return self.prefixlm_feature_converter(ds, task_feature_lengths)
+    else:
+      return self.strictlm_feature_converter(ds, task_feature_lengths)
+
+  def _convert_features(
+      self, ds: tf.data.Dataset,
+      task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+    """DecoderFeatureConverter does not have this method."""
+    raise Exception("DecoderFeaturerConverter does not have this method.")
+
+  def get_model_feature_lengths(
+      self, task_feature_lengths: Mapping[str, int]) -> Mapping[str, int]:
+    """Define the length relationship between task and model features."""
+
+    if "inputs" in task_feature_lengths:
+      model_feature_lengths = self.prefixlm_feature_converter.get_model_feature_lengths(
+          task_feature_lengths)
+    else:
+      model_feature_lengths = self.strictlm_feature_converter.get_model_feature_lengths(
+          task_feature_lengths)
+    return model_feature_lengths
 
 
 class EncoderFeatureConverter(FeatureConverter):
