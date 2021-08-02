@@ -664,6 +664,7 @@ class Evaluator:
             examples_with_scores, 0, self._write_n_results)
 
       for inp, prediction, target, score in examples_with_scores:
+        inp = {k: inp[k].numpy() for k in inp}
         json_dict = {"input": inp}
 
         # Only write `prediction` if it is JSON serializable.

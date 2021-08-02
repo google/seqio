@@ -1144,6 +1144,46 @@ class EvaluationTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
+  def test_write_to_file_2d_ragged_input(self):
+    x = [{"inputs": tf.ragged.constant([[9, 4, 1], [8, 1]]),
+          "inputs_pretokenized": ["i0_0", "i0_1"]},
+         {"inputs": tf.ragged.constant([[9, 1], [7, 2, 3, 1]]),
+          "inputs_pretokenized": ["i1_0", "i1_1"]}]
+    task_dataset = tf.data.Dataset.from_generator(
+        lambda: x,
+        output_signature={
+            "inputs": tf.RaggedTensorSpec(shape=[None, None], dtype=tf.int32),
+            "inputs_pretokenized": tf.TensorSpec(shape=[None], dtype=tf.string)}
+    )
+    inferences = {"predictions": ["pred0", "pred1"], "scores": [0.2, 0.3]}
+    targets = ["target0", "target1"]
+    tmp_dir = self.create_tempdir().full_path
+    output_fname = os.path.join(tmp_dir, "infer.jsonl")
+
+    def mock_init(self):
+      self._write_n_results = None
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    # Read the written jsonl file.
+    with open(output_fname) as f:
+      actual = [json.loads(line.strip()) for line in f]
+
+    expected = [{
+        "input": {"inputs": [[9, 4, 1], [8, 1]],
+                  "inputs_pretokenized": ["i0_0", "i0_1"]},
+        "prediction": "pred0",
+        "target": "target0",
+        "score": 0.2
+    }, {
+        "input": {"inputs": [[9, 1], [7, 2, 3, 1]],
+                  "inputs_pretokenized": ["i1_0", "i1_1"]},
+        "prediction": "pred1",
+        "target": "target1",
+        "score": 0.3
+    }]
+    self.assertEqual(actual, expected)
 
 if __name__ == "__main__":
   tf.test.main()
