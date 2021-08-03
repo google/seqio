@@ -17,7 +17,7 @@
 
 import functools
 import os
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -894,6 +894,56 @@ class MixturesTest(test_utils.FakeTaskTest):
     self.assertEqual(names, ["task2_a", "task2_b", "task2_c"])
     self.assertEqual([supermix.get_rate(t) for t in supermix.tasks],
                      [1.5, 0.5, 1])
+
+  def test_mixture_with_sample_fn(self):
+
+    def sequential_intereave(datasets: Sequence[tf.data.Dataset],
+                             rates: Sequence[float],
+                             sample_seed: Optional[int]) -> tf.data.Dataset:
+      """Sample function that simply concatenates two datasets."""
+      del rates, sample_seed
+      return datasets[0].concatenate(datasets[1])
+
+    def gen_dataset(split,
+                    shuffle_files=False,
+                    seed=None,
+                    val: str = "") -> tf.data.Dataset:
+      del split, shuffle_files, seed  # Need this to pass arg validation.
+      return tf.data.Dataset.from_tensor_slices({
+          "inputs": [[val]] * 3,
+      })
+
+    # Register two very simple tasks, each with 3 repeated string values.
+    vocab = vocabularies.PassThroughVocabulary(0)
+    tasks = []
+    for task_name in ["first", "second"]:
+      tasks.append(self.add_task(
+          task_name,
+          dataset_providers.FunctionDataSource(
+              dataset_fn=functools.partial(gen_dataset, val=task_name),
+              splits=["train"]),
+          preprocessors=[],
+          output_features={
+              "inputs": dataset_providers.Feature(vocab, dtype=tf.string)
+          }))
+
+    # Verify that by default, interleaving of datasets is random.
+    MixtureRegistry.add("default_mix", [("first", 1), ("second", 1)])
+    default_ds = MixtureRegistry.get("default_mix").get_dataset(
+        None, "train", shuffle=False, seed=2, num_epochs=1)
+    expected = [b"second", b"first", b"second", b"first", b"second", b"first"]
+    actual = [x["inputs"] for x in default_ds.as_numpy_iterator()]
+    self.assertEqual(expected, actual)
+
+    # Verify that we can modify sampling function correctly.
+    MixtureRegistry.add(
+        "sequential_mix", [("first", 1), ("second", 1)],
+        sample_fn=sequential_intereave)
+    sequential_ds = MixtureRegistry.get("sequential_mix").get_dataset(
+        None, "train", shuffle=False, seed=2, num_epochs=1)
+    expected = [b"first"] * 3 + [b"second"] * 3
+    actual = [x["inputs"] for x in sequential_ds.as_numpy_iterator()]
+    self.assertEqual(expected, actual)
 
 
 class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):

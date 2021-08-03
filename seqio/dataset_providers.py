@@ -1115,6 +1115,10 @@ class TaskRegistry(DatasetProviderRegistry):
 
 
 # ================================ Mixtures ====================================
+SampleFn = Callable[[Sequence[tf.data.Dataset], Sequence[float], Optional[int]],
+                    tf.data.Dataset]
+
+
 class Mixture(DatasetProviderBase):
   """Class for mixing multiple tasks."""
 
@@ -1125,7 +1129,8 @@ class Mixture(DatasetProviderBase):
                                                       Callable[[Task],
                                                                float]]]]],
                default_rate: Optional[Union[float, Callable[[Task],
-                                                            float]]] = None):
+                                                            float]]] = None,
+               sample_fn: SampleFn = tf.data.experimental.sample_from_datasets):
     """Mixture constructor.
 
     A mixture specifies a set of tasks with associated mixing rates.
@@ -1143,16 +1148,19 @@ class Mixture(DatasetProviderBase):
 
     Args:
       name: string, a unique name for the Mixture.
-      tasks: a list where each element is either a string (task name) or a
-        pair whose first element is the task name and whose second element
-        is either a float (rate) or a function from Task to float.
+      tasks: a list where each element is either a string (task name) or a pair
+        whose first element is the task name and whose second element is either
+        a float (rate) or a function from Task to float.
       default_rate: a float or a function from Task to float. This specifies the
         default rate if rates are not provided in the `tasks` argument.
+      sample_fn: SampleFn callable that implements sampling logic to interleave
+        multiple datasets into a single dataset.
     """
     self._task_to_rate = {}
     self._tasks = []
     self._sub_mixtures = []
     self._name = name
+    self._sample_fn = sample_fn
     for t in tasks:
       if isinstance(t, str):
         task_name = t
@@ -1305,8 +1313,7 @@ class Mixture(DatasetProviderBase):
       sample_seed = None
     else:
       sample_seed = 42
-    dataset = tf.data.experimental.sample_from_datasets(
-        datasets, rates, sample_seed)
+    dataset = self._sample_fn(datasets, rates, sample_seed)
     if (split == "train" and use_cached and
         all(t.supports_caching for t in tasks)):
       _log_mixing_proportions(tasks, datasets, rates, dataset, sequence_length,
@@ -1411,9 +1418,9 @@ class MixtureRegistry(DatasetProviderRegistry):
   _PROVIDER_TYPE = Mixture
 
   @classmethod
-  def add(cls, name, tasks, default_rate=None) -> Mixture:
+  def add(cls, name, tasks, default_rate=None, **kwargs) -> Mixture:
     """See `Mixture` constructor for docstring."""
-    return super().add(name, Mixture, name, tasks, default_rate)
+    return super().add(name, Mixture, name, tasks, default_rate, **kwargs)
 
   @classmethod
   def get(cls, name) -> Mixture:
