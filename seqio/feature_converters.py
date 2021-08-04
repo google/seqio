@@ -305,9 +305,11 @@ class FeatureConverter(abc.ABC):
 
   def __init__(self,
                pack: bool = True,
-               use_custom_packing_ops: bool = False):
+               use_custom_packing_ops: bool = False,
+               prepad_to_multiple: int = 1):
     self._pack = pack
     self._use_custom_packing_ops = use_custom_packing_ops
+    self._prepad_to_multiple = prepad_to_multiple
 
     if self.TASK_FEATURES is None:
       raise ValueError("TASK_FEATURES must be defined in the subclass.")
@@ -515,8 +517,11 @@ class FeatureConverter(abc.ABC):
                    packed_lengths: Mapping[str, int]) -> tf.data.Dataset:
     """Trim/pad to packed_lengths and optionally pack the input dataset."""
     if self.pack:
-      ds = utils.trim_and_pack_dataset(ds, packed_lengths,
-                                       self._use_custom_packing_ops)
+      ds = utils.trim_and_pack_dataset(
+          ds,
+          packed_lengths,
+          self._use_custom_packing_ops,
+          prepadding_multiple=self._prepad_to_multiple)
     else:
       ds = utils.trim_and_pad_dataset(ds, packed_lengths)
     return ds
