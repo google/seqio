@@ -163,7 +163,8 @@ class FewshotDataSource(dataset_providers.DataSource):
       eval_preprocessors:
       Iterable[Callable[[tf.data.Dataset], tf.data.Dataset]] = (),
       train_split: str = 'train',
-      train_feature_keys: Iterable[str] = ('inputs', 'targets')
+      train_feature_keys: Iterable[str] = ('inputs', 'targets'),
+      shuffle_buffer_size: int = dataset_providers.SHUFFLE_BUFFER_SIZE
   ):
     """Initializes FewshotDataSource.
 
@@ -179,6 +180,9 @@ class FewshotDataSource(dataset_providers.DataSource):
       train_feature_keys: the features to retain in the train split after
         preprocessing but before batching zipping with the eval split. This is
         necessary to remove variable-length sequences, which cannot be batched.
+      shuffle_buffer_size: size of the shuffle buffer used when calling
+        `get_dataset` with shuffle=True. Note that separate shuffles are applied
+        to the `train` and `eval` splits before they are combined.
     """
     self._original_source = original_source
     self._num_shots = num_shots
@@ -186,6 +190,7 @@ class FewshotDataSource(dataset_providers.DataSource):
     self._eval_preprocessors = eval_preprocessors
     self._train_split = train_split
     self._train_feature_keys = train_feature_keys
+    self._shuffle_buffer_size = shuffle_buffer_size
 
     # Override split in property since it may need to be loaded lazily (e.g.,
     # for TfdsSource)
@@ -222,22 +227,51 @@ class FewshotDataSource(dataset_providers.DataSource):
         ds = prep_fn(ds)
       return ds
 
-    def _get_maybe_sharded_dataset(split_: str) -> tf.data.Dataset:
+    def _get_maybe_sharded_dataset(
+        split_: str, shuffle_: bool, seed_: int) -> tf.data.Dataset:
       """Shard at source if possible, but fall back to examples if not."""
       num_shards = len(self._original_source.list_shards(split_))
       if num_shards >= shard_info.num_shards:
         # Shard at the source.
-        return self._original_source.get_dataset(
-            split=split_, shuffle=shuffle, seed=seed, shard_info=shard_info)
+        ds = self._original_source.get_dataset(
+            split=split_, shuffle=shuffle_, seed=seed_, shard_info=shard_info)
       else:
         # Shard the examples.
-        return self._original_source.get_dataset(
-            split=split_, shuffle=shuffle, seed=seed).shard(
+        ds = self._original_source.get_dataset(
+            split=split_, shuffle=shuffle_, seed=seed_).shard(
                 shard_info.num_shards, shard_info.index)
+
+      if shuffle_:
+        # Do our own shuffling here, because original_source.get_dataset does
+        # not necessarily return an adequately shuffled dataset even when we
+        # request shuffle=True. For example, TfdsDataSource only shuffles at the
+        # file shard level, not the individual example level (this amounts to no
+        # shuffling if there is only one file shard).
+        ds = ds.shuffle(
+            buffer_size=self._shuffle_buffer_size,
+            seed=seed_,
+            reshuffle_each_iteration=True)
+      return ds
+
+    if seed is None:
+      train_seed = None
+      eval_seed = None
+    else:
+      # If fixing a seed, train and eval seeds need to be different, otherwise
+      # in the num_shots=1 case, identical examples would be zipped together.
+      train_seed = seed
+      eval_seed = seed + 1
 
     datasets = {}
     if self._num_shots:
-      train_ds = _get_maybe_sharded_dataset(self._train_split)
+      # Note that we ALWAYS shuffle the train split, even if the user passes
+      # shuffle=False. This is to prevent the degenerate situation where train
+      # and eval examples are identical. In the case of shuffle=False, we still
+      # guarantee determinism by using a fixed seed of 0.
+      train_ds = _get_maybe_sharded_dataset(
+          split_=self._train_split,
+          shuffle_=True,
+          seed_=train_seed if shuffle else 0)
       train_ds = _apply_preprocessors(train_ds, self._train_preprocessors)
       train_ds = train_ds.map(
           lambda x: {k: x[k] for k in self._train_feature_keys},
@@ -245,7 +279,8 @@ class FewshotDataSource(dataset_providers.DataSource):
       train_ds = train_ds.repeat().batch(self._num_shots)
       datasets['train'] = train_ds
 
-    eval_ds = _get_maybe_sharded_dataset(split)
+    eval_ds = _get_maybe_sharded_dataset(
+        split_=split, shuffle_=shuffle, seed_=eval_seed)
     eval_ds = _apply_preprocessors(eval_ds, self._eval_preprocessors)
     datasets['eval'] = eval_ds
 

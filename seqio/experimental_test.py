@@ -21,6 +21,7 @@ from seqio import test_utils
 from seqio import utils
 from seqio import vocabularies
 import tensorflow.compat.v2 as tf
+import tensorflow_datasets as tfds
 
 assert_dataset = test_utils.assert_dataset
 Feature = dataset_providers.Feature
@@ -312,10 +313,14 @@ class FewshotTest(absltest.TestCase):
 
   def test_fewshot_data_source(self):
 
-    def fake_dataset_fn(split, shuffle_files):
+    def fake_dataset_fn(split, shuffle_files, seed=None):
+      # Note that for the purposes of this unit test, fake_dataset_fn
+      # deliberately does not properly implement shuffling. We test whether
+      # FewShotDataSource is robust to this.
       del shuffle_files
+      del seed
       return tf.data.Dataset.range(
-          *((0, 2) if split == 'validation' else (3, 5))
+          *((0, 2) if split == 'validation' else (3, 7))
       )
 
     # 0 shot
@@ -326,10 +331,46 @@ class FewshotTest(absltest.TestCase):
         ),
         num_shots=0
     )
-    dataset = src.get_dataset('validation')
+    dataset = src.get_dataset('validation', shuffle=False)
     assert_dataset(
         dataset, [{'eval': 0,}, {'eval': 1}]
     )
+
+    # 1 shot
+    preprocessors = [
+        utils.map_over_dataset(lambda x: {'inputs': 0, 'targets': x})]
+    src = experimental.FewshotDataSource(
+        dataset_providers.FunctionDataSource(
+            dataset_fn=fake_dataset_fn, splits=['train', 'validation']),
+        train_preprocessors=preprocessors,
+        eval_preprocessors=preprocessors,
+        num_shots=1,
+    )
+
+    # When split is 'train', check that 'train' and 'eval' fields of each
+    # example are NOT always the same -- this can happen if the underlying
+    # dataset_fn does not implement shuffling, causing identical examples from
+    # the same split to be zipped together.
+
+    def train_and_eval_fields_always_same(dataset):
+      for ex in tfds.as_numpy(dataset):
+        if ex['train'] != ex['eval']:
+          return False
+      return True
+
+    # As long as train and eval fields aren't the same for SOME random seed, we
+    # have achieved the desired behavior. We fix the seed for this test because
+    # there are some seeds where train and eval fields DO happen to be the same
+    # by random chance, which would break this test.
+    self.assertFalse(
+        train_and_eval_fields_always_same(
+            src.get_dataset(split='train', shuffle=True, seed=123)))
+
+    # Even when shuffle is off, we don't want the train and eval fields to be
+    # the same. Instead, the 'train' field should be deterministically shuffled.
+    self.assertFalse(
+        train_and_eval_fields_always_same(
+            src.get_dataset(split='train', shuffle=False)))
 
     # 3 shot
     src = experimental.FewshotDataSource(
@@ -342,37 +383,47 @@ class FewshotTest(absltest.TestCase):
         ],
         num_shots=3
     )
-    dataset = src.get_dataset('validation')
+    dataset = src.get_dataset('validation', shuffle=False)
     assert_dataset(
         dataset, [
             {
                 'eval': 0,
-                'train': {'inputs': [0, 0, 0], 'targets': [3, 4, 3]}
+                'train': {'inputs': [0, 0, 0], 'targets': [3, 5, 4]}
             },
             {
                 'eval': 1,
-                'train': {'inputs': [0, 0, 0], 'targets': [4, 3, 4]}
+                'train': {'inputs': [0, 0, 0], 'targets': [6, 6, 3]}
             },
         ]
     )
+    # Note: the train split has been deterministically shuffled, so the values
+    # of the 'targets' field that we test for are deterministic but arbitrary.
 
     # 3-shot, sharded.
     assert_dataset(
-        src.get_dataset('validation', shard_info=ShardInfo(0, 2)), [
-            {
-                'eval': 0,
-                'train': {'inputs': [0, 0, 0], 'targets': [3, 3, 3]}
-            },
-        ]
-    )
+        src.get_dataset(
+            'validation', shuffle=False, shard_info=ShardInfo(0, 2)), [
+                {
+                    'eval': 0,
+                    'train': {
+                        'inputs': [0, 0, 0],
+                        'targets': [3, 5, 5]
+                    }
+                },
+            ])
     assert_dataset(
-        src.get_dataset('validation', shard_info=ShardInfo(1, 2)), [
-            {
-                'eval': 1,
-                'train': {'inputs': [0, 0, 0], 'targets': [4, 4, 4]}
-            },
-        ]
-    )
+        src.get_dataset(
+            'validation', shuffle=False, shard_info=ShardInfo(1, 2)), [
+                {
+                    'eval': 1,
+                    'train': {
+                        'inputs': [0, 0, 0],
+                        'targets': [4, 6, 6]
+                    }
+                },
+            ])
+    # Note: the train split has been deterministically shuffled, so the values
+    # of the 'targets' field that we test for are deterministic but arbitrary.
 
     # Missing train
     src = experimental.FewshotDataSource(
