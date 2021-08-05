@@ -19,6 +19,7 @@ from seqio.dataset_providers import *
 from seqio import evaluation
 from seqio import experimental
 from seqio.evaluation import Evaluator
+from seqio.evaluation import TensorAndNumpyEncoder
 from seqio.feature_converters import *
 from seqio import preprocessors
 import seqio.test_utils
