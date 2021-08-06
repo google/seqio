@@ -200,6 +200,10 @@ class FewshotDataSource(dataset_providers.DataSource):
   def splits(self) -> Sequence[str]:
     return self._original_source.splits
 
+  @property
+  def supports_subsharding(self) -> bool:
+    return False
+
   def list_shards(self, split: str) -> Sequence[str]:
     return self._original_source.list_shards(split)
 

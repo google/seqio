@@ -20,6 +20,7 @@ Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 
 import abc
 import collections
+import dataclasses
 import inspect
 import json
 import os
@@ -27,7 +28,6 @@ import re
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
-import dataclasses
 import numpy as np
 from packaging import version
 from seqio import utils
@@ -207,6 +207,11 @@ class DataSource(DatasetProviderBase):
   def splits(self) -> Sequence[str]:
     return self._splits
 
+  @abc.abstractproperty
+  def supports_subsharding(self) -> bool:
+    """Whether num_pipeline_shards > num_data_shards is handled by source."""
+    raise NotImplementedError
+
   @property
   def output_features(self) -> Mapping[str, Feature]:
     """Override unused property of `DatasetProviderBase`."""
@@ -292,6 +297,10 @@ class FunctionDataSource(DataSource):
     self._dataset_fn = dataset_fn
     super().__init__(splits=splits, num_input_examples=num_input_examples)
 
+  @property
+  def supports_subsharding(self) -> bool:
+    return False
+
   def get_dataset(
       self,
       split: str,
@@ -361,6 +370,10 @@ class TfdsDataSource(DataSource):
   def tfds_dataset(self):
     return self._tfds_dataset
 
+  @property
+  def supports_subsharding(self) -> bool:
+    return False
+
   def get_dataset(
       self,
       split: str,
@@ -408,6 +421,10 @@ class FileDataSource(DataSource):
     super().__init__(
         splits=split_to_filepattern.keys(),
         num_input_examples=num_input_examples)
+
+  @property
+  def supports_subsharding(self) -> bool:
+    return False
 
   def get_dataset(
       self,
@@ -1017,7 +1034,14 @@ class Task(DatasetProviderBase):
           f"Task '{self.name}' requires caching, but was called with "
           "`use_cached=False`.")
 
-    if shard_info:
+    if use_cached:
+      source = self._get_cached_source(split)
+    else:
+      source = self.source
+
+    if source.supports_subsharding:
+      shard_data_source = True
+    elif shard_info:
       # Whether we should shard at source or on the examples from the source.
       shard_data_source = (
           len(self.source.list_shards(split=split)) >= shard_info.num_shards)
@@ -1028,11 +1052,6 @@ class Task(DatasetProviderBase):
       # No sharding.
       shard_data_source = False
       shard_info = ShardInfo(0, 1)
-
-    if use_cached:
-      source = self._get_cached_source(split)
-    else:
-      source = self.source
 
     if shard_data_source:
       ds = source.get_dataset(
