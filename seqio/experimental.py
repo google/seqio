@@ -198,8 +198,7 @@ class FewshotDataSource(dataset_providers.DataSource):
 
   @property
   def splits(self) -> Sequence[str]:
-    return tuple(
-        s for s in self._original_source.splits if s != self._train_split)
+    return self._original_source.splits
 
   def list_shards(self, split: str) -> Sequence[str]:
     return self._original_source.list_shards(split)
