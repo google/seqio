@@ -60,19 +60,20 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
       obj = obj.numpy()
 
     if isinstance(obj, np.ndarray):
+      obj_dtype = obj.dtype
       if str(obj.dtype) == "bfloat16":
         # bfloat16 not supported, convert to float32.
         obj = obj.astype(np.float32)
       retval = obj.tolist()  # Convert arrays to lists of py-native types.
+      str_repr = json.dumps(retval, cls=TensorAndNumpyEncoder)
+      if len(str_repr) <= _MAX_NDARRAY_BYTES_JSON:
+        return retval
       # If the stringified ndarray would be larger than allowed, truncate
       # by removing bytes in the middle (and return a string instead of
       # nested lists).
-      str_repr = json.dumps(retval, cls=TensorAndNumpyEncoder)
-      if len(str_repr) > _MAX_NDARRAY_BYTES_JSON:
-        return " ... ".join([
-            str_repr[:_MAX_NDARRAY_BYTES_JSON // 2],
-            str_repr[-_MAX_NDARRAY_BYTES_JSON // 2:]])
-      return retval
+      return f"{type(obj).__name__}(shape={obj.shape}, dtype={obj_dtype}): " + (
+          " ... ".join([str_repr[:_MAX_NDARRAY_BYTES_JSON // 2],
+                        str_repr[-_MAX_NDARRAY_BYTES_JSON // 2:]]))
     elif (np.issubdtype(type(obj), np.number) or
           np.issubdtype(type(obj), np.bool_)):
       return obj.item()  # Convert most primitive np types to py-native types.
