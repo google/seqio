@@ -521,7 +521,7 @@ class FullCodepointVocabulary(Vocabulary):
     return [ord(i) for i in s]
 
   def _decode(self, ids: Sequence[int]) -> str:
-    return "".join(chr(i) for i in ids)
+    return "".join(chr(id_) for id_ in ids if id_ != self.EOS_CODEPOINT)
 
   def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
     return tf.strings.unicode_decode(s, input_encoding="UTF-8")
@@ -617,14 +617,16 @@ class PartialCodepointVocabulary(Vocabulary):
   def _encode(self, s: str) -> Sequence[int]:
     output_ids = []
     for c in s:
-      codepoint_id = ord(c)
-      output_ids.append(self._codepoint_to_id.get(codepoint_id, self.unk_id))
+      codepoint = ord(c)
+      output_ids.append(self._codepoint_to_id.get(codepoint, self.unk_id))
     return output_ids
 
   def _decode(self, ids: Sequence[int]) -> str:
     output_str = ""
-    for codepoint_id in ids:
-      output_str += chr(self._id_to_codepoint.get(codepoint_id, self.unk_id))
+    for id_ in ids:
+      codepoint = self._id_to_codepoint.get(id_, self.UNK_CODEPOINT)
+      if codepoint == self.EOS_CODEPOINT: continue
+      output_str += chr(codepoint)
     return output_str
 
   def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:

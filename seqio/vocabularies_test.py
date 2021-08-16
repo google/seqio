@@ -257,6 +257,10 @@ class FullCodepointVocabularyTest(absltest.TestCase):
   TEST_STRING = "this is a test"
   TEST_CODEPOINT_IDS = (116, 104, 105, 115, 32, 105, 115, 32, 97, 32, 116, 101,
                         115, 116)
+  EOS_TEST_STRING = "this is a test" + chr(
+      vocabularies.FullCodepointVocabulary.EOS_CODEPOINT)
+  EOS_TEST_CODEPOINT_IDS = (116, 104, 105, 115, 32, 105, 115, 32, 97, 32, 116,
+                            101, 115, 116, 57349)
 
   def test_vocab(self):
     vocab = vocabularies.FullCodepointVocabulary()
@@ -269,20 +273,28 @@ class FullCodepointVocabularyTest(absltest.TestCase):
     vocab = vocabularies.FullCodepointVocabulary()
     self.assertEqual(self.TEST_CODEPOINT_IDS,
                      tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
+    self.assertEqual(self.EOS_TEST_CODEPOINT_IDS,
+                     tuple(vocab.encode_tf(self.EOS_TEST_STRING).numpy()))
 
   def test_decode_tf(self):
     vocab = vocabularies.FullCodepointVocabulary()
     self.assertSequenceEqual(self.TEST_STRING,
                              _decode_tf(vocab, self.TEST_CODEPOINT_IDS))
+    self.assertSequenceEqual(self.EOS_TEST_STRING,
+                             _decode_tf(vocab, self.EOS_TEST_CODEPOINT_IDS))
 
   def test_encode(self):
     vocab = vocabularies.FullCodepointVocabulary()
     self.assertSequenceEqual(self.TEST_CODEPOINT_IDS,
                              vocab.encode(self.TEST_STRING))
+    self.assertSequenceEqual(self.EOS_TEST_CODEPOINT_IDS,
+                             vocab.encode(self.EOS_TEST_STRING))
 
   def test_decode(self):
     vocab = vocabularies.FullCodepointVocabulary()
     self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_CODEPOINT_IDS))
+    self.assertEqual(self.TEST_STRING,
+                     vocab.decode(self.EOS_TEST_CODEPOINT_IDS))
 
 
 class PartialCodepointVocabularyTest(absltest.TestCase):
@@ -325,20 +337,21 @@ class PartialCodepointVocabularyTest(absltest.TestCase):
         self.char_points_file.full_path)
     self.assertEqual(self.TEST_CODEPOINT_IDS,
                      tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
-    self.assertSequenceEqual(self.UNK_TEST_CODEPOINT_IDS,
-                             vocab.encode(self.UNK_TEST_STRING))
-    self.assertSequenceEqual(self.EOS_TEST_CODEPOINT_IDS,
-                             vocab.encode(self.EOS_TEST_STRING))
+    self.assertEqual(self.UNK_TEST_CODEPOINT_IDS,
+                     tuple(vocab.encode_tf(self.UNK_TEST_STRING).numpy()))
+    self.assertEqual(
+        self.EOS_TEST_CODEPOINT_IDS,
+        tuple(vocab.encode_tf(self.EOS_TEST_STRING).numpy()))
 
   def test_decode_tf(self):
     vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
         self.char_points_file.full_path)
     self.assertSequenceEqual(self.TEST_STRING,
                              _decode_tf(vocab, self.TEST_CODEPOINT_IDS))
-    self.assertEqual(self.UNK_TEST_STRING_ENCODED,
-                     vocab.decode(self.UNK_TEST_CODEPOINT_IDS))
-    self.assertEqual(self.EOS_TEST_STRING,
-                     vocab.decode(self.EOS_TEST_CODEPOINT_IDS))
+    self.assertSequenceEqual(self.EOS_TEST_STRING,
+                             _decode_tf(vocab, self.EOS_TEST_CODEPOINT_IDS))
+    self.assertSequenceEqual(self.UNK_TEST_STRING_ENCODED,
+                             _decode_tf(vocab, self.UNK_TEST_CODEPOINT_IDS))
 
   def test_encode(self):
     vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
@@ -356,7 +369,7 @@ class PartialCodepointVocabularyTest(absltest.TestCase):
     self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_CODEPOINT_IDS))
     self.assertEqual(self.UNK_TEST_STRING_ENCODED,
                      vocab.decode(self.UNK_TEST_CODEPOINT_IDS))
-    self.assertEqual(self.EOS_TEST_STRING,
+    self.assertEqual(self.TEST_STRING,
                      vocab.decode(self.EOS_TEST_CODEPOINT_IDS))
 
 
