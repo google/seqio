@@ -136,7 +136,7 @@ class EvaluationTest(tf.test.TestCase):
           dataset_providers.FunctionDataSource(
               lambda split, shuffle_files:
               tf.data.Dataset.from_tensor_slices(tensor_slices),
-              splits=("validation")),
+              splits=("validation")),  # pytype: disable=wrong-arg-types
           preprocessors=[utils.map_over_dataset(lambda ex: {
               "inputs": tf.range(ex["inputs_lengths"]),
               "targets": tf.range(ex["targets_lengths"]),
@@ -196,7 +196,7 @@ class EvaluationTest(tf.test.TestCase):
           dataset_providers.FunctionDataSource(
               lambda split, shuffle_files: tf.data.Dataset.from_tensor_slices(
                   tensor_slices),
-              splits=("validation")),
+              splits=("validation")),  # pytype: disable=wrong-arg-types
           preprocessors=[
               utils.map_over_dataset(
                   lambda ex: {
