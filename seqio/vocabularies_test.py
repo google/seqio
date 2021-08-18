@@ -173,6 +173,18 @@ class PassThroughVocabularyTest(absltest.TestCase):
     np.testing.assert_equal(
         [ids[0:4] + [0]*5], vocab.decode_tf(ids_t).numpy())
 
+  def test_equal(self):
+    vocab1 = vocabularies.PassThroughVocabulary(size=128)
+    vocab2 = vocabularies.PassThroughVocabulary(size=128)
+    self.assertEqual(vocab1, vocab2)
+
+  def test_not_equal(self):
+    vocab1 = vocabularies.PassThroughVocabulary(size=128, eos_id=None)
+    vocab2 = vocabularies.PassThroughVocabulary(size=256, eos_id=None)
+    vocab3 = vocabularies.PassThroughVocabulary(size=128, eos_id=1)
+    self.assertNotEqual(vocab1, vocab2)
+    self.assertNotEqual(vocab1, vocab3)
+
 
 class SentencepieceVocabularyTest(absltest.TestCase):
 

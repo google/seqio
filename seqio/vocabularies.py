@@ -177,6 +177,12 @@ class PassThroughVocabulary(Vocabulary):
   def unk_id(self) -> Optional[int]:
     return None
 
+  def __eq__(self, other):
+    if not isinstance(other, PassThroughVocabulary):
+      return False
+    return (self._size == other._size and
+            self.eos_id == other.eos_id)
+
 
 class SentencePieceVocabulary(Vocabulary):
   """Wrapper for nlp/sentencepiece encoder.
