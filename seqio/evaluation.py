@@ -316,6 +316,7 @@ class Evaluator:
                feature_converter: FeatureConverter,
                eval_split: str = "validation",
                use_cached: bool = False,
+               seed: Optional[int] = 42,
                sequence_length: Optional[Mapping[str, int]] = None,
                logger: Optional[Logger] = None,
                write_n_results: Optional[int] = None):
@@ -329,6 +330,11 @@ class Evaluator:
       eval_split: evaluation split. Typically "validation" or "test".
       use_cached: whether to use the cached dataset instead of processing it on
         the fly.
+      seed: random seed used for dataset shuffle and preprocessing. This
+        is usually not needed since eval datasets aren't shuffled and shouldn't
+        use stochastic operations. It is only useful for in certain data sources
+        such as `FewshotDataSource` where the training examples are randomly
+        selected during evaluation.
       sequence_length: an optional length specification. If specified, these
         will be the hard-limit on the evaluation data used for prediction. If
         none of the preprocessors depend on the sequence length, it can be left
@@ -385,7 +391,7 @@ class Evaluator:
           split=eval_split,
           shuffle=False,
           num_epochs=1,
-          seed=42,
+          seed=seed,
           use_cached=use_cached)
 
     # `task_datasets` have the output features from seqio.Task.get_dataset.
