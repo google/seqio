@@ -164,7 +164,8 @@ class FewshotDataSource(dataset_providers.DataSource):
       Iterable[Callable[[tf.data.Dataset], tf.data.Dataset]] = (),
       train_split: str = 'train',
       train_feature_keys: Iterable[str] = ('inputs', 'targets'),
-      shuffle_buffer_size: int = dataset_providers.SHUFFLE_BUFFER_SIZE
+      shuffle_buffer_size: int = dataset_providers.SHUFFLE_BUFFER_SIZE,
+      eval_on_fixed_exemplars: bool = False,
   ):
     """Initializes FewshotDataSource.
 
@@ -183,6 +184,9 @@ class FewshotDataSource(dataset_providers.DataSource):
       shuffle_buffer_size: size of the shuffle buffer used when calling
         `get_dataset` with shuffle=True. Note that separate shuffles are applied
         to the `train` and `eval` splits before they are combined.
+      eval_on_fixed_exemplars: If True, uses a fixed set of exemplars at
+        evaluation time. Only effective during evaluation when `split` not
+        equals `self._train_split`.
     """
     self._original_source = original_source
     self._num_shots = num_shots
@@ -191,6 +195,7 @@ class FewshotDataSource(dataset_providers.DataSource):
     self._train_split = train_split
     self._train_feature_keys = train_feature_keys
     self._shuffle_buffer_size = shuffle_buffer_size
+    self._eval_on_fixed_exemplars = eval_on_fixed_exemplars
 
     # Override split in property since it may need to be loaded lazily (e.g.,
     # for TfdsSource)
@@ -280,6 +285,8 @@ class FewshotDataSource(dataset_providers.DataSource):
           lambda x: {k: x[k] for k in self._train_feature_keys},
           num_parallel_calls=tf.data.experimental.AUTOTUNE)
       train_ds = train_ds.repeat().batch(self._num_shots)
+      if self._eval_on_fixed_exemplars and split != self._train_split:
+        train_ds = train_ds.take(1).cache().repeat()
       datasets['train'] = train_ds
 
     eval_ds = _get_maybe_sharded_dataset(
@@ -358,4 +365,3 @@ def fewshot_preprocessor(
     # Unbatch if not a scalar. This is useful for fewshot eval.
     ds = ds.unbatch()
   return ds
-

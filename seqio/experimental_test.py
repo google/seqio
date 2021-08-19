@@ -439,6 +439,69 @@ class FewshotTest(absltest.TestCase):
         r'\(\'validation\',\)'):
       dataset = src.get_dataset('validation')
 
+  def test_fewshot_data_source_eval_on_fixed_exemplars(self):
+
+    def fake_dataset_fn(split, shuffle_files, seed=None):
+      # Note that for the purposes of this unit test, fake_dataset_fn
+      # deliberately does not properly implement shuffling. We test whether
+      # FewShotDataSource is robust to this.
+      del shuffle_files
+      del seed
+      return tf.data.Dataset.range(*((0, 2) if split == 'validation' else (3,
+                                                                           7)))
+
+    # 1 shot
+    preprocessors = [
+        utils.map_over_dataset(lambda x: {'inputs': 0, 'targets': x})]
+    src = experimental.FewshotDataSource(
+        dataset_providers.FunctionDataSource(
+            dataset_fn=fake_dataset_fn, splits=['train', 'validation']),
+        train_preprocessors=preprocessors,
+        num_shots=1,
+        eval_on_fixed_exemplars=True,
+    )
+
+    def exemplars_always_same(dataset):
+      """Checks if exemplars are always the same."""
+      train_ex = None
+      for ex in dataset:
+        if train_ex is None:
+          train_ex = ex['train']
+          continue
+        if ex['train'] != train_ex:
+          return False
+      return True
+
+    # Use 'validation' split for `eval_ds`. Since `train_ds` is initiated from
+    # the 'train' split and `eval_on_fixed_exemplars=True`, always use the fixed
+    # set of exemplars.
+    self.assertTrue(
+        exemplars_always_same(
+            src.get_dataset(split='validation', shuffle=True, seed=123)))
+
+    assert_dataset(
+        src.get_dataset('validation', shuffle=False), [
+            {
+                'eval': 0,
+                'train': {
+                    'inputs': [0],
+                    'targets': [3],
+                }
+            },
+            {
+                'eval': 1,
+                'train': {
+                    'inputs': [0],
+                    'targets': [3],
+                }
+            },
+        ])
+
+    # `eval_on_fixed_exemplars` is ignored when `split` equals `train_split`.
+    self.assertFalse(
+        exemplars_always_same(
+            src.get_dataset(split='train', shuffle=True, seed=123)))
+
   def test_fewshot_preprocessor(self):
     train_examples = [
         {
