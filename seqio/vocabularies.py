@@ -347,11 +347,14 @@ class SentencePieceVocabulary(Vocabulary):
 
 
 class ByteVocabulary(Vocabulary):
-  """Byte level vocabulary.
+  """Byte-level vocabulary.
 
-  Build mappings between Unicode characters and IDs. Encode/decode
-  Unicode characeters/IDs based on UTF-8. Reserve ID=0 is for padding,
-  ID=1 for EOS, and ID=2 for UNK.
+  Encode/decode text directly to 256 "byte IDs" using UTF-8 encoding. Three
+  special IDs are reserved (0=padding, 1=EOS, 2=UNK), so our encoded byte IDs
+  are +3 greater than UTF-8 byte values.
+
+  This is the vocabulary used by the ByT5 models:
+  https://arxiv.org/abs/2105.13626
   """
 
   def __init__(self, extra_ids: int = 0):
