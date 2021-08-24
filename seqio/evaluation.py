@@ -675,14 +675,19 @@ class Evaluator:
     logging.info("Writing evaluation results to %s", output_fname)
     with tf.io.gfile.GFile(output_fname, "w") as f:
       examples_with_scores = itertools.zip_longest(
-          task_dataset, inferences.get("predictions", []), targets,
-          inferences.get("scores", []))
+          tfds.as_numpy(task_dataset), inferences.get("predictions", []),
+          targets, inferences.get("scores", []))
       if self._write_n_results:
         examples_with_scores = itertools.islice(
             examples_with_scores, 0, self._write_n_results)
 
       for inp, prediction, target, score in examples_with_scores:
-        inp = {k: inp[k].numpy() for k in inp}
+
+        # tfds.as_numpy does not convert ragged tensors
+        for k in inp:
+          if isinstance(inp[k], tf.RaggedTensor):
+            inp[k] = inp[k].numpy()
+
         json_dict = {"input": inp}
 
         # Only write `prediction` if it is JSON serializable.
