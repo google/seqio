@@ -353,6 +353,14 @@ class TasksTest(test_utils.FakeTaskTest):
         "'tfds_task' does not exist in any of the task cache directories."):
       TaskRegistry.get("tfds_task").assert_cached()
 
+    invalid_dir = os.path.join(self.test_data_dir, "invalid_dir")
+    self.uncached_task._cache_dir = invalid_dir
+    with self.assertRaisesWithLiteralMatch(
+        AssertionError,
+        f"Couldn't find '{self.uncached_task.name}' cached in {invalid_dir}."):
+      self.uncached_task.assert_cached()
+    self.uncached_task._cache_dir = None
+
   def test_get_cached_stats(self):
     expected_train_stats = {
         "examples": 3,

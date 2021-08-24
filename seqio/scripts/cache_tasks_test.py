@@ -138,6 +138,24 @@ class ProcessTaskBeamTest(test_utils.FakeTaskTest):
 
     self.assertGreater(stat_new.mtime_nsec, stat_old.mtime_nsec)
 
+  def test_invalid_cache_dir(self):
+    tfds_task = seqio.TaskRegistry.get("tfds_task")
+    tfds_task_invalid_cache_dir = seqio.Task(
+        name="tfds_task_invalid_cache_dir",
+        source=tfds_task.source,
+        output_features=tfds_task.output_features,
+        preprocessors=tfds_task.preprocessors)
+    tfds_task_invalid_cache_dir._cache_dir = os.path.join(
+        self.test_data_dir, "invalid_dir")
+    seqio.TaskRegistry.add_provider("tfds_task_invalid_cache_dir",
+                                    tfds_task_invalid_cache_dir)
+    with self.assertRaisesWithLiteralMatch(
+        AssertionError, "Couldn't find 'tfds_task_invalid_cache_dir' cached in "
+        f"{tfds_task_invalid_cache_dir._cache_dir}."):
+      with TestPipeline() as p:
+        _ = cache_tasks_main.run_pipeline(
+            p, ["tfds_task_invalid_cache_dir"], cache_dir=self.test_data_dir)
+
 
 if __name__ == "__main__":
   absltest.main()
