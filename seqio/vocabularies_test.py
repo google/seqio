@@ -308,6 +308,11 @@ class FullCodepointVocabularyTest(absltest.TestCase):
     self.assertEqual(self.TEST_STRING,
                      vocab.decode(self.EOS_TEST_CODEPOINT_IDS))
 
+  def test_equal(self):
+    vocab1 = vocabularies.FullCodepointVocabulary()
+    vocab2 = vocabularies.FullCodepointVocabulary()
+    self.assertEqual(vocab1, vocab2)
+
 
 class PartialCodepointVocabularyTest(absltest.TestCase):
 
@@ -383,6 +388,13 @@ class PartialCodepointVocabularyTest(absltest.TestCase):
                      vocab.decode(self.UNK_TEST_CODEPOINT_IDS))
     self.assertEqual(self.TEST_STRING,
                      vocab.decode(self.EOS_TEST_CODEPOINT_IDS))
+
+  def test_not_equal(self):
+    vocab1 = vocabularies.PartialCodepointVocabulary.create_from_file(
+        self.char_points_file.full_path)
+    vocab2 = vocabularies.PartialCodepointVocabulary.create_from_file(
+        self.char_points_file.full_path, extra_ids=10)
+    self.assertNotEqual(vocab1, vocab2)
 
 
 class BertWordpieceVocabularyTest(absltest.TestCase):

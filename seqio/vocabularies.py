@@ -538,6 +538,9 @@ class FullCodepointVocabulary(Vocabulary):
   def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
     return tf.strings.unicode_encode(ids, output_encoding="UTF-8")
 
+  def __eq__(self, other):
+    return isinstance(other, FullCodepointVocabulary)
+
 
 class PartialCodepointVocabulary(Vocabulary):
   """Encodes and decodes text as a fixed set of codepoints.
@@ -645,6 +648,12 @@ class PartialCodepointVocabulary(Vocabulary):
   def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
     return tf.strings.unicode_encode(
         self._id_to_codepoint_tf[ids], output_encoding="UTF-8")
+
+  def __eq__(self, other):
+    if not isinstance(other, PartialCodepointVocabulary):
+      return False
+    return (self._codepoint_to_id == other._codepoint_to_id and
+            self.extra_ids == other.extra_ids)
 
 
 class BertWordPieceVocabulary(Vocabulary):
