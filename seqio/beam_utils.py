@@ -30,6 +30,11 @@ SOURCE_SHARD_PROVENANCE_KEY = PROVENANCE_PREFIX + "source_shard"
 SOURCE_SHARD_ID_PROVENANCE_KEY = PROVENANCE_PREFIX + "source_shard_index"
 ID_WITHIN_SHARD_PROVENANCE_KEY = PROVENANCE_PREFIX + "index_within_shard"
 PREPROCESSORS_SEED_PROVENANCE_KEY = PROVENANCE_PREFIX + "preprocessors_seed"
+PROVENANCE_KEYS = [
+    TASK_PROVENANCE_KEY, SOURCE_SHARD_PROVENANCE_KEY,
+    SOURCE_SHARD_ID_PROVENANCE_KEY, ID_WITHIN_SHARD_PROVENANCE_KEY,
+    PREPROCESSORS_SEED_PROVENANCE_KEY
+]
 
 
 def _import_modules(modules):
@@ -232,13 +237,12 @@ class GetStats(beam.PTransform):
     self._output_features = output_features
 
   def expand(self, pcoll):
-    to_dict = lambda x: {x[0]: x[1]}
     example_counts = (
         pcoll
         | "count_examples" >> beam.combiners.Count.Globally()
-        | "key_example_counts" >> beam.Map(
-            lambda x: ("examples", x))
-        | "example_count_dict" >> beam.Map(to_dict))
+        | "key_example_counts" >> beam.Map(lambda x: ("examples", x))
+        | "example_count_dict" >> beam.combiners.ToDict())
+
     def _count_tokens(pcoll, feat):
 
       def _count(ex):
@@ -255,13 +259,13 @@ class GetStats(beam.PTransform):
     total_tokens = (
         token_counts
         | "sum_tokens" >> beam.CombinePerKey(sum)
-        | "token_count_dict" >> beam.Map(to_dict))
+        | "token_count_dict" >> beam.combiners.ToDict())
     max_tokens = (
         token_counts
         | "max_tokens" >> beam.CombinePerKey(max)
-        | "rename_max_stat" >> beam.Map(
-            lambda x: (x[0].replace("tokens", "max_tokens"), x[1]))
-        | "token_max_dict" >> beam.Map(to_dict))
+        | "rename_max_stat" >>
+        beam.Map(lambda x: (x[0].replace("tokens", "max_tokens"), x[1]))
+        | "token_max_dict" >> beam.combiners.ToDict())
 
     def _merge_dicts(dicts):
       merged_dict = {}

@@ -1,0 +1,66 @@
+{
+  "features": {
+    "id": {
+      "dtype": "string",
+      "shape": []
+    },
+    "ids": {
+      "dtype": "string",
+      "shape": [
+        null
+      ]
+    },
+    "idx": {
+      "dtype": "int64",
+      "shape": []
+    },
+    "idxs": {
+      "dtype": "int32",
+      "shape": [
+        null
+      ]
+    },
+    "inputs": {
+      "dtype": "int32",
+      "shape": [
+        null
+      ]
+    },
+    "inputs_pretokenized": {
+      "dtype": "string",
+      "shape": []
+    },
+    "provenance/index_within_shard": {
+      "dtype": "int32",
+      "shape": []
+    },
+    "provenance/preprocessors_seed": {
+      "dtype": "int32",
+      "shape": []
+    },
+    "provenance/source_shard": {
+      "dtype": "string",
+      "shape": []
+    },
+    "provenance/source_shard_index": {
+      "dtype": "int32",
+      "shape": []
+    },
+    "provenance/task": {
+      "dtype": "string",
+      "shape": []
+    },
+    "targets": {
+      "dtype": "int32",
+      "shape": [
+        null
+      ]
+    },
+    "targets_pretokenized": {
+      "dtype": "string",
+      "shape": []
+    }
+  },
+  "num_shards": 1,
+  "seqio_version": "0.0.0"
+}
