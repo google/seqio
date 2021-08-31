@@ -22,6 +22,7 @@ from seqio.evaluation import Evaluator
 from seqio.evaluation import TensorAndNumpyEncoder
 from seqio.feature_converters import *
 from seqio import preprocessors
+from seqio import tensor_preprocessors
 import seqio.test_utils
 from seqio.utils import *
 from seqio.vocabularies import *

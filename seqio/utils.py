@@ -18,7 +18,7 @@
 import contextlib
 import functools
 import os
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Dict, Union
 
 from absl import logging
 import numpy as np
@@ -247,6 +247,44 @@ def trim_and_pad_dataset(
   return dataset.map(
       lambda x: {k: _trim_and_pad(k, t) for k, t in x.items()},
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+
+def trim_and_pad_tensor(
+    features: Mapping[str, tf.Tensor],
+    feature_lengths: Mapping[str, int]
+) -> Dict[str, tf.Tensor]:
+  """Trim and pad first dimension of features to `feature_lengths`.
+
+  Args:
+    features: tf.data.Dataset, the dataset to trimp/pad examples in.
+    feature_lengths: map from feature key to final length. Other features will
+      be returned unchanged.
+  Returns:
+    Trimmed/padded tf.data.Dataset.
+  """
+  def _trim_and_pad_fn(t, length_k):
+    t = t[:length_k]
+    pad_amt = length_k - tf.shape(t)[0]
+    padded_t = tf.pad(t, [(0, pad_amt)] + [(0, 0)] * (tf.rank(t) - 1))
+    # TODO(zhonglinhan): need to have ensure shape.
+    # ensure_shape = tf.TensorShape(length_k).concatenate(t.shape[1:])
+    # padded_t = tf.ensure_shape(padded_t, ensure_shape)
+    return padded_t
+
+  def _trim_and_pad(k: str, v: Union[tf.Tensor, tf.RaggedTensor]) -> tf.Tensor:
+    """Trim/pad to the first axis of `t` to be of size `length`."""
+    if k not in feature_lengths:
+      return v
+    length_k = feature_lengths[k]
+    return tf.map_fn(lambda x: _trim_and_pad_fn(x, length_k), v)
+
+  ret = {}
+  for k, t in features.items():
+    v = _trim_and_pad(k, t)
+    if isinstance(v, tf.RaggedTensor):
+      v = v.to_tensor()
+    ret[k] = v
+  return ret
 
 
 def _strip_packed_feature_key(key: str) -> str:
