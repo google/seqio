@@ -948,6 +948,10 @@ class Task(DatasetProviderBase):
         except tf.errors.PermissionDeniedError:
           logging.warning(
               "Permission denied for global cache folder: %s", cache_dir)
+        except tf.errors.FailedPreconditionError as e:
+          logging.warning(
+              "Failed precondition for global cache folder: %s with %r",
+              cache_dir, e)
 
       if not self._cache_dir:
         logging.info(
