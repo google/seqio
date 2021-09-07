@@ -103,6 +103,7 @@ def add_fully_cached_task(
       preprocessors=new_preprocessors,
       output_features=task.output_features,
       metric_fns=task.metric_fns,
+      postprocess_fn=task.postprocessor,
       shuffle_buffer_size=
       None if disallow_shuffling else dataset_providers.SHUFFLE_BUFFER_SIZE
   )
