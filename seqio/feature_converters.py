@@ -789,7 +789,7 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
   zeros out "inputs" portion as well as the padding tokens while having 1's on
   the targets token.
 
-  Example: a packed dataset
+  Example 1: a packed dataset
   ```
   ds = [{"inputs": [7, 8, 5, 1], "targets": [3, 9, 1]},
         {"inputs": [8, 4, 9, 3, 1], "targets": [4, 1]}]
@@ -804,6 +804,24 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
         "decoder_segment_ids": [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 0],
    "decoder_causal_attention": [1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0]
   }
+  ```
+
+  Example 2: unpacked dataset with extra long "inputs" `task_feature_lengths`
+  ```
+  ds = [{"inputs": [9, 4, 6, 1], "targets": [3, 9, 1]}]
+
+  task_feature_lengths = {"inputs": 10, "targets": 4}
+
+  converted_ds = {
+         "decoder_target_tokens": [9, 4, 6, 1, 3, 9, 1, 0, 0, 0, 0, 0, 0, 0],
+          "decoder_input_tokens": [0, 9, 4, 6, 1, 3, 9, 1, 0, 0, 0, 0, 0, 0],
+          "decoder_loss_weights": [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+      "decoder_causal_attention": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  }
+
+  Note that if the inputs length specified in `task_feature_lengths` is longer
+  than the actual example length, the padding tokens are added after
+  concatenation.
   ```
 
   Attributes:

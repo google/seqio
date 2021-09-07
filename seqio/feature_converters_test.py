@@ -592,6 +592,23 @@ class PrefixLMFeatureConverter(tf.test.TestCase):
     }
     assert_dataset(converted_ds, expected)
 
+  def test_prefix_lm_long_inputs_feature_length(self):
+    x = [{"inputs": [9, 4, 6, 1], "targets": [3, 9, 1]}]
+    ds = create_default_dataset(x)
+
+    task_feature_lengths = {"inputs": 10, "targets": 4}
+    converter = feature_converters.PrefixLMFeatureConverter(pack=False)
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "decoder_target_tokens": [9, 4, 6, 1, 3, 9, 1, 0, 0, 0, 0, 0, 0, 0],
+        # The last EOS token is kept if unpacked.
+        "decoder_input_tokens": [0, 9, 4, 6, 1, 3, 9, 1, 0, 0, 0, 0, 0, 0],
+        "decoder_loss_weights": [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        "decoder_causal_attention": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    }
+    assert_dataset(converted_ds, expected)
+
   def test_prefix_lm_packed(self):
     x = [{"inputs": [7, 8, 5, 1], "targets": [3, 9, 1]},
          {"inputs": [8, 4, 9, 3, 1], "targets": [4, 1]}]
