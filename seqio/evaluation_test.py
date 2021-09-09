@@ -19,7 +19,7 @@ import concurrent
 import functools
 import json
 import os
-from typing import Callable, Sequence, Mapping, Optional, Tuple
+from typing import Callable, Sequence, Mapping, Optional, Tuple, Iterable
 from unittest import mock
 
 import numpy as np
@@ -62,6 +62,15 @@ def _sum_scores_metric(targets, scores):
   return {"total_score": (np.array(scores) * np.array(weights)).sum()}
 
 
+def _sum_scores_targetless_metric(scores: Iterable[float]):
+  print(scores)
+  return {"total_score_targetless": np.array(scores).sum()}
+
+
+def _concat_predictions_targetless_metric(predictions: Iterable[str]):
+  return {"concat_predictions_targetless": ", ".join(predictions)}
+
+
 def register_dummy_task(
     task_name: str,
     dataset_fn: Callable[[str, bool, Optional[int]], tf.data.Dataset],
@@ -87,17 +96,25 @@ def register_dummy_task(
 def get_mocked_task(
     name: str = "mocked_test",
     predict_metric_fns: Sequence[Callable] = (_sequence_accuracy_metric,),
-    score_metric_fns: Sequence[Callable] = ()) -> mock.Mock:
+    score_metric_fns: Sequence[Callable] = (),
+    predict_targetless_metric_fns: Sequence[Callable] = (),
+    score_targetless_metric_fns: Sequence[Callable] = ()
+) -> mock.Mock:
   task = mock.Mock()
   task.name = name
   task.score_metric_fns = list(score_metric_fns)
   task.predict_metric_fns = list(predict_metric_fns)
   task.metric_fns = list(predict_metric_fns) + list(score_metric_fns)
+  task.score_targetless_metric_fns = list(score_targetless_metric_fns)
+  task.predict_targetless_metric_fns = list(predict_targetless_metric_fns)
+  task.targetless_metric_fns = list(predict_targetless_metric_fns) + list(
+      score_targetless_metric_fns)
   # Identity postprocess function
   task.postprocess_fn = lambda d, example, is_target: d
 
   mock_vocab = mock.Mock()
   task.output_features = {"targets": dataset_providers.Feature(mock_vocab)}
+  task.output_vocabulary = mock_vocab
   return task
 
 
@@ -320,6 +337,23 @@ class EvaluationTest(tf.test.TestCase):
         score_metric_fns=[_sum_scores_metric])
     all_metrics = self._evaluate_single_task(task)
     expected = {"sequence_accuracy": 2.0 / 3 * 100, "total_score": 1305}
+    self.assertDictClose(expected, all_metrics[task.name])
+
+  def test_evaluate_single_task_all(self):
+    task = get_mocked_task(
+        predict_metric_fns=[_sequence_accuracy_metric],
+        score_metric_fns=[_sum_scores_metric],
+        predict_targetless_metric_fns=[_concat_predictions_targetless_metric],
+        score_targetless_metric_fns=[_sum_scores_targetless_metric])
+    all_metrics = self._evaluate_single_task(task)
+    expected = {
+        "sequence_accuracy": 2.0 / 3 * 100,
+        "total_score": 1305,
+        "total_score_targetless": 6,
+        "concat_predictions_targetless": "e5 e6, e7, e7",
+    }
+    print(expected)
+    print(all_metrics[task.name])
     self.assertDictClose(expected, all_metrics[task.name])
 
   def test_evaluate_non_string(self):

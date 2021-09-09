@@ -114,22 +114,37 @@ class TasksTest(test_utils.FakeTaskTest):
     def predict_metric_fn(targets, predictions):
       return {}
 
-    valid_task = add_task(
-        "valid_metrics", metric_fns=[score_metric_fn, predict_metric_fn])
+    def score_targetless_metric_fn(scores):
+      return {}
 
-    self.assertSameElements(
-        [score_metric_fn, predict_metric_fn], valid_task.metric_fns)
-    self.assertSameElements(
-        [score_metric_fn], valid_task.score_metric_fns)
-    self.assertSameElements(
-        [predict_metric_fn], valid_task.predict_metric_fns)
+    def predict_targetless_metric_fn(predictions):
+      return {}
+
+    valid_task = add_task(
+        "valid_metrics",
+        metric_fns=[
+            score_metric_fn, predict_metric_fn, score_targetless_metric_fn,
+            predict_targetless_metric_fn
+        ])
+
+    self.assertSameElements([
+        score_metric_fn, predict_metric_fn, score_targetless_metric_fn,
+        predict_targetless_metric_fn
+    ], valid_task.metric_fns)
+    self.assertSameElements([score_metric_fn], valid_task.score_metric_fns)
+    self.assertSameElements([predict_metric_fn], valid_task.predict_metric_fns)
+    self.assertSameElements([score_targetless_metric_fn],
+                            valid_task.score_targetless_metric_fns)
+    self.assertSameElements([predict_targetless_metric_fn],
+                            valid_task.predict_targetless_metric_fns)
 
     def extra_arg_metric_fn(targets, predictions, extra_param):
       return {}
 
     expected_error_message_prefix = (
         "Metric functions must have positional arguments matching either "
-        "('targets', 'predictions') or ('targets', 'scores'). Got: ")
+        "('targets', 'predictions') or ('targets', 'scores') "
+        "or ('predictions',) or ('scores',). Got: ")
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
@@ -188,6 +203,38 @@ class TasksTest(test_utils.FakeTaskTest):
                             valid_task_with_types.metric_fns)
 
     # pylint:enable=unused-argument
+
+  def test_datasource_with_metrics(self):
+
+    def metric_fn_1(targets, predictions, extra_param=3):
+      del targets, predictions, extra_param
+      return {}
+
+    def good_fn(split, shuffle_files):
+      del split
+      del shuffle_files
+
+    source_with_metrics = dataset_providers.FunctionDataSourceWithMetrics(
+        good_fn, splits=["train", "test"], metric_fns=[metric_fn_1])
+
+    valid_task = self.add_task(
+        "valid_source_with_metrics_1", source_with_metrics, metric_fns=None)
+    self.assertSameElements([metric_fn_1], valid_task.metric_fns)
+    self.assertEmpty(valid_task.score_metric_fns)
+    self.assertSameElements([metric_fn_1], valid_task.predict_metric_fns)
+
+    def metric_fn_2(targets, predictions, extra_param=3):
+      del targets, predictions, extra_param
+      return {}
+
+    valid_task = self.add_task(
+        "valid_source_with_metrics_2",
+        source_with_metrics,
+        metric_fns=[metric_fn_2])
+    self.assertSameElements([metric_fn_1, metric_fn_2], valid_task.metric_fns)
+    self.assertEmpty(valid_task.score_metric_fns)
+    self.assertSameElements([metric_fn_1, metric_fn_2],
+                            valid_task.predict_metric_fns)
 
   def test_no_tfds_version(self):
     with self.assertRaisesWithLiteralMatch(
