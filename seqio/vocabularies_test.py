@@ -435,5 +435,39 @@ class BertWordpieceVocabularyTest(absltest.TestCase):
     self.assertNotEqual(vocab1, vocab2)
 
 
+class ClassificationSentencepieceVocabularyTest(absltest.TestCase):
+
+  TEST_STRING = "class_B"
+  TEST_TOKENS = (34,)
+
+  def test_vocab(self):
+    cls_vocab = test_utils.classification_sentencepiece_vocab(
+        extra_ids=10, class_labels=["class_A", "class_B", "class_C"])
+    self.assertEqual(36, cls_vocab.vocab_size)
+
+  def test_encode(self):
+    cls_vocab = test_utils.classification_sentencepiece_vocab(
+        extra_ids=10, class_labels=["class_A", "class_B", "class_C"])
+    self.assertSequenceEqual(self.TEST_TOKENS,
+                             cls_vocab.encode(self.TEST_STRING))
+
+  def test_encode_tf(self):
+    cls_vocab = test_utils.classification_sentencepiece_vocab(
+        extra_ids=10, class_labels=["class_A", "class_B", "class_C"])
+    self.assertSequenceEqual(
+        self.TEST_TOKENS,
+        tuple(cls_vocab.encode_tf(tf.constant(self.TEST_STRING)).numpy()))
+
+  def test_decode(self):
+    cls_vocab = test_utils.classification_sentencepiece_vocab(
+        extra_ids=10, class_labels=["class_A", "class_B", "class_C"])
+    self.assertEqual(self.TEST_STRING, cls_vocab.decode(self.TEST_TOKENS))
+
+  def test_decode_tf(self):
+    cls_vocab = test_utils.classification_sentencepiece_vocab(
+        extra_ids=10, class_labels=["class_A", "class_B", "class_C"])
+    self.assertEqual(self.TEST_STRING, _decode_tf(cls_vocab, self.TEST_TOKENS))
+
+
 if __name__ == "__main__":
   absltest.main()
