@@ -185,6 +185,20 @@ class DatasetProviderRegistry(object):
         num_epochs=num_epochs)
 
 
+# ============================= metric_fn types ================================
+
+# TODO(soergel): refactor packaging to allow strong typing.
+# Return type should be Mapping[str, Union[evaluation.Metric, float]] but to
+# avoid circular package dependencies, we wildcard to `Any`.
+
+# Arguments are (targets, predictions) or (targets, scores).
+TargetedMetricFnCallable = Callable[[Iterable[Any], Iterable[Any]],
+                                    Mapping[str, Any]]
+# Arguments are (predictions) or (scores).
+TargetlessMetricFnCallable = Callable[[Iterable[Any]], Mapping[str, Any]]
+MetricFnCallable = Union[TargetedMetricFnCallable, TargetlessMetricFnCallable]
+
+
 # =============================== DataSources ==================================
 
 
@@ -244,6 +258,15 @@ class DataSource(DatasetProviderBase):
     if self._num_input_examples is None:
       return None
     return self._num_input_examples[split]
+
+
+class DataSourceWithMetrics(DataSource):
+  """A `DataSource` that comes bundled with metrics to be evaluated."""
+
+  @abc.abstractmethod
+  def metric_fns(self) -> Sequence[MetricFnCallable]:
+    """Returns metric_fns associated with this data source."""
+    raise NotImplementedError
 
 
 def _validate_args(fn, expected_pos_args):
@@ -322,6 +345,34 @@ class FunctionDataSource(DataSource):
 
   def list_shards(self, split: str) -> Sequence[str]:
     return [split]
+
+
+class FunctionDataSourceWithMetrics(FunctionDataSource, DataSourceWithMetrics):
+  """A `FunctionDataSource` that comes bundled with metrics to be evaluated."""
+
+  def __init__(self,
+               dataset_fn: DatasetFnCallable,
+               splits: Iterable[str],
+               num_input_examples: Optional[Mapping[str, int]] = None,
+               metric_fns: Optional[Sequence[MetricFnCallable]] = None):
+    """FunctionDataSourceWithMetrics constructor.
+
+    Args:
+      dataset_fn: a function with the signature `dataset_fn(split,
+        shuffle_files)' (and optionally the variable `seed`) that returns a
+        `tf.data.Dataset`.
+      splits: an iterable of applicable string split names.
+      num_input_examples: dict or None, an optional dictionary mapping split to
+        its size in number of input examples (before preprocessing). The
+        `num_input_examples` method will return None if not provided.
+      metric_fns: list(callable), an optional list of metric functions with the
+        signature `metric_fn(targets, predictions)` to use during evaluation.
+    """
+    self._metric_fns = metric_fns
+    super().__init__(dataset_fn, splits, num_input_examples)
+
+  def metric_fns(self):
+    return self._metric_fns
 
 
 class TfdsDataSource(DataSource):
@@ -671,11 +722,6 @@ class CacheDatasetPlaceholder(object):
 # ================================ Tasks =======================================
 
 
-# Return type should be Mapping[str, Union[evaluation.Metric, float]] but to
-# avoid circular package dependencies, we wildcard to `Any`.
-MetricFnCallable = Callable[..., Mapping[str, Any]]
-
-
 class Task(DatasetProviderBase):
   """A class to manage a dataset and its related metrics."""
 
@@ -687,6 +733,7 @@ class Task(DatasetProviderBase):
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
       metric_fns: Optional[Sequence[MetricFnCallable]] = None,
+      output_vocabulary: Optional[Vocabulary] = None,
       shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE):
     """Task constructor.
 
@@ -705,9 +752,19 @@ class Task(DatasetProviderBase):
       postprocess_fn: callable, an optional function that receives decoded model
         outputs and converts them to a form that is ready for evaluation using
         the metric functions in `metric_fns`.
-      metric_fns: list(callable), an optional list of metric functions with the
-        signature `metric_fn(targets, predictions)` to use during evaluation. If
-        undefined or empty, no evaluation will occur on the task.
+      metric_fns: list(callable), an optional list of metric functions to use
+        during evaluation.  These may have any of the signatures:
+          * `metric_fn(targets, predictions)`
+          * `metric_fn(targets, scores)`
+          * `metric_fn(predictions)`
+          * `metric_fn(scores)`
+        Note that the `source` may provide bundled metric functions, if it is a
+        `DataSourceWithMetrics`; these will be combined with this argument.
+      output_vocabulary: a `Vocabulary` with which to decode predictions.
+        Defaults to the `Vocabulary` associated with the 'targets' `Feature`
+        within `output_features`.  This argument exists to support targetless
+        metrics, which may require output decoding even in the absence of
+        explicit 'targets'.
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
     """
@@ -716,9 +773,15 @@ class Task(DatasetProviderBase):
           "Task name '%s' contains invalid characters. Must match regex: %s" % (
               name, _VALID_TASK_NAME_REGEX.pattern))
 
-    metric_fns = metric_fns or []
+    metric_fns = list(metric_fns or [])
+
+    if isinstance(source, DataSourceWithMetrics):
+      metric_fns.extend(source.metric_fns())
+
     self._predict_metric_fns = []
     self._score_metric_fns = []
+    self._predict_targetless_metric_fns = []
+    self._score_targetless_metric_fns = []
     for metric_fn in metric_fns:
       pos_args = tuple(
           key for key, param in inspect.signature(metric_fn).parameters.items()
@@ -728,10 +791,15 @@ class Task(DatasetProviderBase):
         self._score_metric_fns.append(metric_fn)
       elif pos_args == ("targets", "predictions"):
         self._predict_metric_fns.append(metric_fn)
+      elif pos_args == ("scores",):
+        self._score_targetless_metric_fns.append(metric_fn)
+      elif pos_args == ("predictions",):
+        self._predict_targetless_metric_fns.append(metric_fn)
       else:
         raise ValueError(
             "Metric functions must have positional arguments matching either "
-            "('targets', 'predictions') or ('targets', 'scores'). "
+            "('targets', 'predictions') or ('targets', 'scores') "
+            "or ('predictions',) or ('scores',). "
             f"Got: {pos_args}")
 
     self._name = name
@@ -776,6 +844,21 @@ class Task(DatasetProviderBase):
         sorted(list(output_features.items()))
     )
 
+    try:
+      targets_vocabulary = self._output_features["targets"].vocabulary
+    except KeyError:
+      # The dataset has no "targets" column; ok.
+      targets_vocabulary = None
+      pass
+
+    if (output_vocabulary is not None and targets_vocabulary is not None and
+        targets_vocabulary is not output_vocabulary):
+      raise ValueError(
+          "output_vocabulary was provided, but did not match the vocabulary "
+          "already associated with the 'targets' output feature.")
+
+    self._output_vocabulary = output_vocabulary or targets_vocabulary
+
   @property
   def name(self) -> str:
     return self._name
@@ -783,7 +866,7 @@ class Task(DatasetProviderBase):
   @property
   def metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of all metric functions."""
-    return self._predict_metric_fns + self._score_metric_fns
+    return self._predict_metric_fns + self._score_metric_fns + self._predict_targetless_metric_fns + self._score_targetless_metric_fns
 
   @property
   def score_metric_fns(self) -> Sequence[MetricFnCallable]:
@@ -796,8 +879,23 @@ class Task(DatasetProviderBase):
     return self._predict_metric_fns
 
   @property
+  def score_targetless_metric_fns(self) -> Sequence[TargetlessMetricFnCallable]:
+    """List of targetless metric functions that use log likelihood scores."""
+    return self._score_targetless_metric_fns
+
+  @property
+  def predict_targetless_metric_fns(
+      self) -> Sequence[TargetlessMetricFnCallable]:
+    """List of targetless metric functions that use model predictions."""
+    return self._predict_targetless_metric_fns
+
+  @property
   def output_features(self) -> Mapping[str, Feature]:
     return self._output_features
+
+  @property
+  def output_vocabulary(self) -> Optional[Vocabulary]:
+    return self._output_vocabulary
 
   @property
   def splits(self) -> Sequence[str]:
@@ -1123,18 +1221,19 @@ class TaskRegistry(DatasetProviderRegistry):
   _PROVIDER_TYPE = Task
 
   @classmethod
-  def add(
-      cls,
-      name: str,
-      source: DataSource,
-      output_features: Mapping[str, Feature],
-      preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
-      postprocess_fn: Optional[Callable[..., Any]] = None,
-      metric_fns: Optional[Sequence[MetricFnCallable]] = None,
-      **kwargs) -> Task:
+  def add(cls,
+          name: str,
+          source: DataSource,
+          output_features: Mapping[str, Feature],
+          preprocessors: Optional[Sequence[Callable[...,
+                                                    tf.data.Dataset]]] = None,
+          postprocess_fn: Optional[Callable[..., Any]] = None,
+          metric_fns: Optional[Sequence[MetricFnCallable]] = None,
+          output_vocabulary: Optional[Vocabulary] = None,
+          **kwargs) -> Task:
     """See `Task` constructor for docstring."""
     return super().add(name, Task, name, source, output_features, preprocessors,
-                       postprocess_fn, metric_fns, **kwargs)
+                       postprocess_fn, metric_fns, output_vocabulary, **kwargs)
 
   @classmethod
   def get(cls, name) -> Task:
