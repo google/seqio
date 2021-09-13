@@ -1183,6 +1183,8 @@ class Mixture(DatasetProviderBase):
       sample_fn: SampleFn callable that implements sampling logic to interleave
         multiple datasets into a single dataset.
     """
+    if not tasks:
+      raise ValueError("tasks must not be empty when creating a mixture.")
     self._task_to_rate = {}
     self._tasks = []
     self._sub_mixtures = []
