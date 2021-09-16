@@ -32,16 +32,14 @@ import seqio
 FLAGS = flags.FLAGS
 flags.DEFINE_list(
     "tasks", None,
-    "Regexes matching task(s) to build a preprocessed dataset for. Will build "
-    "all registered if not specified.")
+    "Regexes matching task(s) to inspect. Will inspect all registered if not "
+    "specified.")
 
 flags.DEFINE_list("excluded_tasks", None, "Regexes matching task(s) to skip.")
 
 flags.DEFINE_multi_string(
-    "module_import", [
-        "flan.genie_tasks",
-        "flan.mixtures",
-    ], "Modules to import. Use this, for example, to add new `Task`s to the "
+    "module_import", [],
+    "Modules to import. Use this, for example, to add new `Task`s to the "
     "global `TaskRegistry`.")
 flags.DEFINE_string(
     "sequence_length", "{'inputs': 32, 'targets': 32}",
