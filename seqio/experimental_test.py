@@ -617,5 +617,54 @@ class FewshotTest(absltest.TestCase):
         ])
 
 
+class SentinelTaskTest(FullyCachedTaskTest):
+
+  def validate_sentinel_task(
+      self, name, sequence_length, expected_dataset):
+    new_task = TaskRegistry.get(name)
+    # With sentinels inserted we want +1 processors.
+    self.assertLen(new_task.preprocessors, 5)
+    self.assertEqual(new_task.metric_fns, self.metrics_fns)
+    self.assertIsNotNone(new_task.postprocessor)
+
+    assert_dataset(
+        new_task.get_dataset(sequence_length, shuffle=False),
+        expected_dataset)
+
+  def test_add_sentinel_task(self):
+    preprocessors = list(self.preprocessors)
+
+    TaskRegistry.add(
+        'encoder_decoder_task',
+        source=self.fake_source,
+        preprocessors=preprocessors,
+        output_features={
+            'inputs': Feature(self.vocabulary, add_eos=True),
+            'targets': Feature(self.vocabulary, add_eos=False)
+        },
+        metric_fns=self.metrics_fns)
+
+    sequence_length = {'inputs': 10, 'targets': 11}
+    for num_sentinels in [1, 2, 4]:
+      experimental.add_task_with_sentinels(
+          'encoder_decoder_task', num_sentinels=num_sentinels)
+
+    for sentinel_num in [1, 2, 4]:
+      sentinel_ids = [
+          self.vocabulary.vocab_size - (i + 1) for i in range(sentinel_num)]
+      self.validate_sentinel_task(
+          f'encoder_decoder_task_{sentinel_num}_sentinel', sequence_length,
+          [
+              {
+                  'inputs': [1, 10, 10] + sentinel_ids,
+                  'targets': sentinel_ids + [1, 11]
+              },
+              {
+                  'inputs': [2, 10, 10] + sentinel_ids,
+                  'targets': sentinel_ids + [2, 11]
+              },
+          ])
+
+
 if __name__ == '__main__':
   absltest.main()

@@ -13,11 +13,13 @@
 # limitations under the License.
 
 """Experimental utilities for SeqIO."""
+import functools
 import inspect
 from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 from absl import logging
 from seqio import dataset_providers
+from seqio import preprocessors as seqio_preprocessors
 from seqio import utils
 import tensorflow as tf
 
@@ -366,3 +368,158 @@ def fewshot_preprocessor(
     # Unbatch if not a scalar. This is useful for fewshot eval.
     ds = ds.unbatch()
   return ds
+
+
+def add_task_with_sentinels(
+    task_name: str,
+    num_sentinels: Optional[int] = 1):
+  """Adds sentinels to the inputs/outputs of a task.
+
+  Adds num_sentinels sentinels to the end of 'inputs' and at the beginning
+  of 'targets'. This is known to help fine-tuning span corruption models,
+  especially on smaller datasets.
+
+  This will also rename the task by adding a "_{num_sentinels}_sentinel" suffix
+  to the task name, but making sure it comes before the following suffixes:
+  '_train', '_dev', '_test', '.'.
+
+  Example before:
+  'inputs': What is the captial of illinois?
+  'targets': Springfield.
+
+  Example after:
+  'inputs': What is the captial of illinois? <extra_id_0>
+  'targets': <extra_id_0> Springfield.
+
+  Args:
+    task_name: a str, which is the name of the task you want to have sentinels
+      added to. Note this will not override the current task, but will create
+      a new one.
+    num_sentinels: integer, number of sentinels to end of inputs and the
+      beginning of targets.
+  """
+  def _append_eos_after_trim_and_preserve(
+      dataset: tf.data.Dataset,
+      output_features: Mapping[str, dataset_providers.Feature],
+      sequence_length: Optional[Mapping[str, int]] = None,
+      preserve_final_n_tokens_when_trimming: Optional[int] = None
+      ) -> tf.data.Dataset:
+    """Version of append_eos_after_trim with option to preserve last n tokens."""
+    def _maybe_add_eos_and_trim(key: str, value: tf.Tensor) -> tf.Tensor:
+      if key not in output_features or not output_features[key].add_eos:
+        return value
+      eos_id = output_features[key].vocabulary.eos_id
+      if (sequence_length is not None and
+          sequence_length.get(key, None) is not None):
+        max_length = sequence_length[key]
+        if (preserve_final_n_tokens_when_trimming is not None and
+            preserve_final_n_tokens_when_trimming > 0):
+          # Compute the new length of the sequence excluding the EOS token.
+          trimmed_length = tf.minimum(max_length, tf.shape(value)[0] + 1)
+          # Can't preserve more tokens than the sequence length.
+          n_tokens_to_preserve = tf.minimum(
+              preserve_final_n_tokens_when_trimming, trimmed_length - 1)
+          # pylint: disable=invalid-unary-operand-type
+          return tf.concat(
+              [value[:trimmed_length-(n_tokens_to_preserve + 1)],
+               value[-n_tokens_to_preserve:],
+               [eos_id]], axis=0)
+          # pylint: enable=invalid-unary-operand-type
+        else:
+          return tf.concat([value[:max_length-1], [eos_id]], axis=0)
+      else:
+        return tf.concat([value, [eos_id]], axis=0)
+    return dataset.map(
+        lambda ex: {k: _maybe_add_eos_and_trim(k, v) for k, v in ex.items()},
+        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+  def _create_new_task_name(task_name):
+    """Creates the new task name with sentinels added."""
+    sentinel_name = '_{}_sentinel'.format(num_sentinels)
+    # Avoid messing up evaluation suffixes, so insert the sentinel name right
+    # before these keywords.
+    for suffix in ['_train', '_dev', '_test', '.']:
+      idx = task_name.find(suffix)
+      if idx >= 0:
+        return task_name[:idx] + sentinel_name + task_name[idx:]
+    return task_name + sentinel_name
+
+  def _sentinel_id(vocabulary, sentinel_num=0):
+    """Token ID to use as a sentinel.
+
+    Args:
+      vocabulary: a t5.data.vocabularies.Vocabulary
+      sentinel_num: an optional interger, what sentinel should be returned.
+        By default it returns the first sentinel.
+    Returns:
+      an integer
+    """
+    return vocabulary.vocab_size - 1 - sentinel_num
+
+  def _add_sentinels(dataset, sequence_length, output_features):
+    """Adds sentinels to end of inputs and beginning of targets."""
+    del sequence_length
+    input_vocab = output_features['inputs'].vocabulary
+    target_vocab = output_features['targets'].vocabulary
+    @utils.map_over_dataset
+    def _my_fn(x):
+      sentinels_input = [
+          _sentinel_id(input_vocab, idx) for idx in range(num_sentinels)]
+      sentinels_output = [
+          _sentinel_id(target_vocab, idx) for idx in range(num_sentinels)]
+      x['inputs'] = tf.concat([x['inputs'], sentinels_input], 0)
+      x['targets'] = tf.concat([sentinels_output, x['targets']], 0)
+      return x
+    return _my_fn(dataset)
+
+  def _postprocess_fn_remove_sentinel(string_label, *args, **kwargs):
+    """If sentinels are appended to the task, then remove them before eval."""
+    del args
+    del kwargs
+    vocab = task.output_features['targets'].vocabulary
+    sentinel_str = vocab.decode(
+        [_sentinel_id(vocab, idx) for idx in range(num_sentinels)])
+    if string_label.startswith(sentinel_str):
+      string_label = string_label[len(sentinel_str):].strip()
+    return string_label
+
+  def _wrap_postprocess_fn_remove_sentinel(postprocess_fn):
+    """Wrap around another postprocess_fn to remove sentinels first."""
+    def new_fn(string_label, *args, **kwargs):
+      string_label = _postprocess_fn_remove_sentinel(
+          string_label, *args, **kwargs)
+      return postprocess_fn(string_label, *args, **kwargs)
+    return new_fn
+
+  # Create the new task name.
+  task = TaskRegistry.get(task_name)
+  sentinel_task_name = _create_new_task_name(task_name)
+
+  # Make the new preprocessors that will insert sentinels and make sure
+  # sentinels are preserved if the sequences are trimmed.
+  new_preprocessors = list(task.preprocessors)
+  if new_preprocessors[-1] is seqio_preprocessors.append_eos_after_trim:
+    new_eos_funtion = functools.partial(
+        _append_eos_after_trim_and_preserve,
+        preserve_final_n_tokens_when_trimming=num_sentinels)
+    new_preprocessors[-1] = new_eos_funtion
+    new_preprocessors.insert(-1, _add_sentinels)
+  else:
+    new_preprocessors.append(_add_sentinels)
+
+  # Remove the inserted sentinels in the postprocessor.
+  postprocess_fn = task.postprocessor
+  if postprocess_fn is not None:
+    new_postprocess_fn = _wrap_postprocess_fn_remove_sentinel(postprocess_fn)
+  else:
+    new_postprocess_fn = _postprocess_fn_remove_sentinel
+
+  TaskRegistry.add(
+      sentinel_task_name,
+      source=task.source,
+      preprocessors=new_preprocessors,
+      output_features=task.output_features,
+      postprocess_fn=new_postprocess_fn,
+      metric_fns=task.metric_fns,
+  )
+
