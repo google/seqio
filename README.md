@@ -361,7 +361,7 @@ You can also include `Mixture`s in your `Mixture`! For example, the following ta
 ```py
 seqio.MixtureRegistry.add(
   "mix3",
-  ["mix1", task1", "task3"],
+  ["mix1", "task1", "task3"],
   default_rate=1
 )
 ```
