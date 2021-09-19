@@ -573,7 +573,7 @@ class EncDecFeatureConverter(FeatureConverter):
         "encoder_segment_ids": [1, 1, 1, 1, 2, 2, 2, 2, 2, 0],
           "encoder_positions": [0, 1, 2, 3, 0, 1, 2, 3, 4, 0],
       "decoder_target_tokens": [3, 9, 1, 4, 1, 0, 0],
-       "decoder_input_tokens": [0, 3, 9, 0, 4, 0, 0],
+       "decoder_input_tokens": [0, 3, 9, 1, 4, 0, 0],
        "decoder_loss_weights": [1, 1, 1, 1, 1, 0, 0],
         "decoder_segment_ids": [1, 1, 1, 2, 2, 0, 0],
           "decoder_positions": [0, 1, 2, 0, 1, 0, 0],
