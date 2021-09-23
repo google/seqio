@@ -438,7 +438,7 @@ def add_task_with_sentinels(
     sentinel_name = '_{}_sentinel'.format(num_sentinels)
     # Avoid messing up evaluation suffixes, so insert the sentinel name right
     # before these keywords.
-    for suffix in ['_train', '_dev', '_test', '.']:
+    for suffix in ['_train', '_dev', '_test', '_eval', '.']:
       idx = task_name.find(suffix)
       if idx >= 0:
         return task_name[:idx] + sentinel_name + task_name[idx:]
