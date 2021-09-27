@@ -59,7 +59,7 @@ class Vocabulary(metaclass=abc.ABCMeta):
 
   @abc.abstractproperty
   def unk_id(self) -> Optional[int]:
-    raise NotImplementedError("need to implement pad_id")
+    raise NotImplementedError("need to implement unk_id")
 
   @property
   def extra_ids(self) -> int:
@@ -93,7 +93,6 @@ class Vocabulary(metaclass=abc.ABCMeta):
     """Detokenizes int32 iterable to a string, up through first EOS."""
     clean_ids = list(ids)
 
-    # replace_with = 0 if self.unk_id is None else self.unk_id
     if self.unk_id is not None:
       vocab_size = self._base_vocab_size
       clean_ids = [
@@ -220,7 +219,7 @@ class SentencePieceVocabulary(Vocabulary):
     # Handle cases where SP can't load the file, but gfile can.
     with tf.io.gfile.GFile(self._sentencepiece_model_file, "rb") as f:
       self._sp_model = f.read()
-      # Add placeholde strings for extra IDs.
+      # Add placeholder strings for extra IDs.
       model = sentencepiece_model_pb2.ModelProto.FromString(self._sp_model)
       if self._extra_ids:
         # We name them in reverse order to match their use in span corruption.

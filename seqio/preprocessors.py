@@ -56,7 +56,7 @@ def tokenize(
     copy_pretokenized: bool = True,
     with_eos: bool = False
 ) -> tf.data.Dataset:
-  """Encode output features with specified vocbularies.
+  """Encode output features with specified vocabularies.
 
   Passes through other features unchanged. Optionally passes through copy
   of original features with "_pretokenized" suffix added to the key.

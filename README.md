@@ -126,7 +126,7 @@ Each `Feature` includes:
   * `add_eos`, which specifies whether the feature should end with the vocabulary's EOS token.
   * The output `dtype` which must be a `tf.dtypes.DType`.
 
-**Note:** specifying these options on `Feature` does not by itself ensure the proper transformations are applied -- you must also include then necessary preprocessors.
+**Note:** specifying these options on `Feature` does not by itself ensure the proper transformations are applied -- you must also include the necessary preprocessors.
 
 The [tasks used in T5](TODO) all produce "inputs" and "targets" features to be consumed by the text-to-text model. For a decoder-only language model, only a single feature (e.g., "targets") would be necessary.
 Nevertheless, SeqIO is flexible enough to generate arbitrary output features what will be converted into model features by the [`FeatureConverter`](#featureconverter) later in the pipeline.
@@ -462,14 +462,14 @@ is
 
 ```python
 converted_dataset = [{
-    "encoder_input_token": [7, 8, 5, 1, 8, 4, 9, 3, 1, 0],
-     "encoder_segment_id": [1, 1, 1, 1, 2, 2, 2, 2, 2, 0],
-       "encoder_position": [0, 1, 2, 3, 0, 1, 2, 3, 4, 0],
-   "decoder_target_token": [3, 9, 1, 4, 1, 0, 0],
-    "decoder_input_token": [0, 3, 9, 0, 4, 0, 0],
-    "decoder_loss_weight": [1, 1, 1, 1, 1, 0, 0],
-       "decoder_position": [0, 1, 2, 0, 1, 0, 0],
-     "decoder_segment_id": [1, 1, 1, 2, 2, 0, 0],
+    "encoder_input_tokens": [7, 8, 5, 1, 8, 4, 9, 3, 1, 0],
+     "encoder_segment_ids": [1, 1, 1, 1, 2, 2, 2, 2, 2, 0],
+       "encoder_positions": [0, 1, 2, 3, 0, 1, 2, 3, 4, 0],
+   "decoder_target_tokens": [3, 9, 1, 4, 1, 0, 0],
+    "decoder_input_tokens": [0, 3, 9, 0, 4, 0, 0],
+    "decoder_loss_weights": [1, 1, 1, 1, 1, 0, 0],
+       "decoder_positions": [0, 1, 2, 0, 1, 0, 0],
+     "decoder_segment_ids": [1, 1, 1, 2, 2, 0, 0],
 }]
 ```
 
@@ -492,7 +492,7 @@ SeqIO library.
 In the SeqIO library, each architecture has a class defining how the task
 features are converted to model features. Since these feature converters are
 already implemented, it is straightforward to use them by providing the class as a
-`feature_converter_cls` argument of the `seqio.get_dataset` function. The
+`feature_converter` argument of the `seqio.get_dataset` function. The
 following sections will show the example usage of `seqio.get_dataset`.
 
 
@@ -516,14 +516,14 @@ The resulting dataset object has the following 7 fields
 
 |Feature name          | Explanation                |
 |----------------------|---------------------------|
-|`encoder_input_token` | Input tokens to the encoder. |
-|`encoder_position`    | Position index in the sequence before packing.|
-|`encoder_segment_id`  | Sequence membership before packing. Two positions with the same positive integer mean that they belong to the same sequence before packing. |
-|`decoder_input_token` | Input tokens to the decoder. |
-|`decoder_target_token`| Output tokens from the decoder. |
-|`decoder_loss_weight` | A weight on each position that can be used as a mask. |
-|`decoder_position`    | Position index in the sequence before packing. |
-|`decoder_segment_id`  | Same as `encoder_segment_id` but for decoder.|
+|`encoder_input_tokens` | Input tokens to the encoder. |
+|`encoder_positions`    | Position index in the sequence before packing.|
+|`encoder_segment_ids`  | Sequence membership before packing. Two positions with the same positive integer mean that they belong to the same sequence before packing. |
+|`decoder_input_tokens` | Input tokens to the decoder. |
+|`decoder_target_tokens`| Output tokens from the decoder. |
+|`decoder_loss_weights` | A weight on each position that can be used as a mask. |
+|`decoder_positions`    | Position index in the sequence before packing. |
+|`decoder_segment_ids`  | Same as `encoder_segment_ids` but for decoder.|
 
 
 ##### Decoder-only architecture
@@ -572,22 +572,22 @@ dataset: tf.data.Dataset = seqio.get_dataset(
 )
 ```
 
-Note that "standard_lm" is not a registered task in the T5 codebase. It is the
+Note that "standard_lm" is not a registered task in the codebase. It is the
 left-to-right language modeling task, i.e., predict the next token given the
 previous tokens on some language corpus (e.g.,
-[C4](https://www.tensorflow.org/datasets/catalog/c4).
+[C4](https://www.tensorflow.org/datasets/catalog/c4)).
 
 The output dataset has the following model features.
 
 |Feature name          | Explanation                |
 |----------------------|---------------------------|
-|`decoder_target_token`| Output tokens from the decoder |
-|`decoder_input_token` | Input tokens to the decoder |
-|`decoder_loss_weight` | Binary mask to indicate where the loss should be taken |
-|`decoder_position`    | Position index in the sequence before packing|
-|`decoder_segment_id`  | Sequence membership before packing. Two positions with the same positive integer mean that they belong to the same sequence before packing. |
+|`decoder_target_tokens`| Output tokens from the decoder |
+|`decoder_input_tokens` | Input tokens to the decoder |
+|`decoder_loss_weights` | Binary mask to indicate where the loss should be taken |
+|`decoder_positions`    | Position index in the sequence before packing|
+|`decoder_segment_ids`  | Sequence membership before packing. Two positions with the same positive integer mean that they belong to the same sequence before packing. |
 
-The `decoder_target_token` is a shifted version of `decoder_input_token` for the
+The `decoder_target_tokens` is a shifted version of `decoder_input_tokens` for the
 standard teacher-forced autoregressive training.
 
 
@@ -662,7 +662,7 @@ decoder_causal_attention = [1, 1, 1, 1, 1, 0, 0, 0]
 ```
 
 indicating that the non-causal attention can be applied to the first five
-positions. Note that this feature seems trivial but for a packed dataset,
+positions. Note that this feature seems trivial, but for a packed dataset
 the inputs and targets boundary are more nuanced.
 
 
@@ -702,11 +702,11 @@ additional feature is `decoder_causal_attention`.
 
 |Feature name          | Explanation                |
 |----------------------|---------------------------|
-|`decoder_target_token`| Output tokens from the decoder |
-|`decoder_input_token` | Input tokens to the decoder |
-|`decoder_loss_weight` | Binary mask to indicate where the loss should be taken |
-|`decoder_position`    | Position index in the sequence before packing|
-|`decoder_segment_id`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
+|`decoder_target_tokens`| Output tokens from the decoder |
+|`decoder_input_tokens` | Input tokens to the decoder |
+|`decoder_loss_weights` | Binary mask to indicate where the loss should be taken |
+|`decoder_positions`    | Position index in the sequence before packing|
+|`decoder_segment_ids`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
 |`decoder_causal_attention`| Binary mask denoting which tokens are in the non-causal masking region.|
 
 
@@ -743,11 +743,11 @@ dataset = [{"inputs": [8, 9, 9, 3, 4], "targets": [8, 7, 4, 3, 4]},
            {"inputs": [8, 3, 9], "targets": [8, 3, 6]}]
 
 converted_dataset = {
-     "encoder_input_token": [8, 9, 9, 3, 4, 1, 8, 3, 9, 1, 0],
-    "encoder_target_token": [8, 7, 4, 3, 4, 1, 8, 3, 6, 1, 0],
-      "encoder_segment_id": [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 0],
-        "encoder_position": [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 0],
-     "encoder_loss_weight": [0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0],
+     "encoder_input_tokens": [8, 9, 9, 3, 4, 1, 8, 3, 9, 1, 0],
+    "encoder_target_tokens": [8, 7, 4, 3, 4, 1, 8, 3, 6, 1, 0],
+      "encoder_segment_ids": [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 0],
+        "encoder_positions": [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 0],
+     "encoder_loss_weights": [0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0],
 }
 ```
 
@@ -774,11 +774,11 @@ The resulting dataset object has the following 5 fields
 
 |Feature name          | Explanation                |
 |----------------------|---------------------------|
-|`encoder_input_token` | Input tokens to the encoder |
-|`encoder_position`    | Position index in the sequence before packing|
-|`encoder_segment_id`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
-|`encoder_target_token`| Output tokens from the encoder |
-|`encoder_loss_weight` | Binary mask to indicate where the loss should be taken |
+|`encoder_input_tokens` | Input tokens to the encoder |
+|`encoder_positions`    | Position index in the sequence before packing|
+|`encoder_segment_ids`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
+|`encoder_target_tokens`| Output tokens from the encoder |
+|`encoder_loss_weights` | Binary mask to indicate where the loss should be taken |
 
 
 ###### Custom architectures

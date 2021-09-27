@@ -502,7 +502,7 @@ class Evaluator:
 
     There are 2 steps involved in the evaluation using scores:
 
-    1. Model returns indices and scores: Sequence[Tuple[int, float]]
+    1. Model returns indices and scores: Sequence[Tuple[int, Sequence[float]]]
     2. Each metric function is applied to the scores and the cached targets.
 
     Args:

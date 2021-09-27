@@ -14,7 +14,7 @@
 
 """Feature converters for common architectures.
 
-In short, feature converters provide additional data processings to the
+In short, feature converters carry out additional data processing to the
 tf.data.Dataset out of the Task API. They convert the features of the input
 dataset into more descriptive features (e.g., "decoder_target_tokens" instead of
 "targets") as well as pad and/or pack them. The features of the input dataset
@@ -43,7 +43,7 @@ be returned by the feature converter.
 
   - encoder_input_tokens
   - encoder_target_tokens
-  - encoder_loss_weight
+  - encoder_loss_weights
   - encoder_positions
   - encoder_segment_ids
   - decoder_input_tokens
@@ -52,22 +52,22 @@ be returned by the feature converter.
   - decoder_positions
   - decoder_segment_ids
 
-  *_segment_id and *_position fields are only relevant for packed dataset.
+  *_segment_ids and *_positions fields are only relevant for packed dataset.
 
-  *_segment_id is a tf.Tensor of integer which is aligned with
-  *_input_token. Positive integers represent the sequence membership in
+  *_segment_ids is a tf.Tensor of integer which is aligned with
+  *_input_tokens. Positive integers represent the sequence membership in
   the packed examples. 0 represents padding. For example, encoder_segment_ids =
   [1, 1, 2, 2, 2, 0] means that the first two positions belong to the first
   sequence, the next three to the second sequence and the last position is a
   padding.
 
-  *_position is a tf.Tensor of integer representing the position index in the
+  *_positions is a tf.Tensor of integer representing the position index in the
   original sequence before packing. For example, consider
   encoder_positions = [0, 1, 0, 1, 2, 0]. The first two tokens were the 0th and
   1st tokens of the first sequence and next three tokens are the 0th, 1st and
   2nd tokens of the second sequence before packing.
 
-  *_loss_weight is used to indicate which positions should be used for the loss
+  *_loss_weights is used to indicate which positions should be used for the loss
   calculation.
 
 
@@ -405,7 +405,7 @@ class FeatureConverter(abc.ABC):
                   `get_model_feature_lengths`.
 
     Validation 4: check whether the output dataset has expected features (extra
-                  features are allowed), dtype, rank and lengths (exact mactch).
+                  features are allowed), dtype, rank and lengths (exact match).
 
     Validation 5: check one-to-one match between the output dataset and
                   `expected_dtypes`. Extra features are not allowed.
@@ -690,11 +690,11 @@ class LMFeatureConverter(FeatureConverter):
     input_lengths = {"targets": 6}
 
     converted_ds = {
-        "decoder_target_token": [3, 9, 1, 4, 1, 0],
-         "decoder_input_token": [0, 3, 9, 0, 4, 0],
-         "decoder_loss_weight": [1, 1, 1, 1, 1, 0],
-            "decoder_position": [0, 1, 2, 0, 1, 0],
-          "decoder_segment_id": [1, 1, 1, 2, 2, 0]
+        "decoder_target_tokens": [3, 9, 1, 4, 1, 0],
+         "decoder_input_tokens": [0, 3, 9, 0, 4, 0],
+         "decoder_loss_weights": [1, 1, 1, 1, 1, 0],
+            "decoder_positions": [0, 1, 2, 0, 1, 0],
+          "decoder_segment_ids": [1, 1, 1, 2, 2, 0]
     }
   Note that two examples are packed together into one example.
   """
@@ -713,12 +713,12 @@ class LMFeatureConverter(FeatureConverter):
       self, features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
     """Convert an LM example into an example with model features."""
     # targets_segment_id is present only for a packed dataset.
-    decoder_input_token = autoregressive_inputs(
+    decoder_input_tokens = autoregressive_inputs(
         features["targets"],
         sequence_id=features.get("targets_segment_ids", None))
 
     d = {"decoder_target_tokens": features["targets"],
-         "decoder_input_tokens": decoder_input_token,
+         "decoder_input_tokens": decoder_input_tokens,
          "decoder_loss_weights": non_padding_position(features["targets"])}
 
     if self.pack:

@@ -17,7 +17,7 @@ r"""Dumps preprocessed tasks as TFRecord of tf.Examples.
 
 Usage:
 ====================
-t5_cache_tasks \
+cache_tasks_main \
 --tasks=my_task_*,your_task \
 --excluded_tasks=my_task_5 \
 --output_cache_dir=/path/to/cache_dir \

@@ -16,7 +16,7 @@ r"""Python script to inspect Seqio tasks.
 
 Usage:
 ====================
-t5_inspect_tasks \
+inspect_tasks_main \
 --tasks=my_task_*,your_task \
 --module_import=my.tasks \
 --sequence_length="{'inputs':2048,'targets':2048}"
