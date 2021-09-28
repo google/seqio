@@ -208,8 +208,8 @@ class DataSource(DatasetProviderBase):
     return self._splits
 
   @abc.abstractproperty
-  def supports_subsharding(self) -> bool:
-    """Whether num_pipeline_shards > num_data_shards is handled by source."""
+  def supports_arbitrary_sharding(self) -> bool:
+    """Whether supports sharding beyond those available in `list_shards`."""
     raise NotImplementedError
 
   @property
@@ -298,7 +298,7 @@ class FunctionDataSource(DataSource):
     super().__init__(splits=splits, num_input_examples=num_input_examples)
 
   @property
-  def supports_subsharding(self) -> bool:
+  def supports_arbitrary_sharding(self) -> bool:
     return False
 
   def get_dataset(
@@ -371,7 +371,7 @@ class TfdsDataSource(DataSource):
     return self._tfds_dataset
 
   @property
-  def supports_subsharding(self) -> bool:
+  def supports_arbitrary_sharding(self) -> bool:
     return False
 
   def get_dataset(
@@ -423,7 +423,7 @@ class FileDataSource(DataSource):
         num_input_examples=num_input_examples)
 
   @property
-  def supports_subsharding(self) -> bool:
+  def supports_arbitrary_sharding(self) -> bool:
     return False
 
   def get_dataset(
@@ -1047,7 +1047,7 @@ class Task(DatasetProviderBase):
     else:
       source = self.source
 
-    if source.supports_subsharding:
+    if source.supports_arbitrary_sharding:
       shard_data_source = True
     elif shard_info:
       # Whether we should shard at source or on the examples from the source.
