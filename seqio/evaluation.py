@@ -17,16 +17,16 @@
 import abc
 import base64
 import concurrent
+import dataclasses
 import functools
 import inspect
 import itertools
 import json
 import os
 import time
-from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
 
 from absl import logging
-import dataclasses
 import numpy as np
 from seqio import dataset_providers
 from seqio import feature_converters
@@ -268,11 +268,23 @@ class Logger(abc.ABC):
   """
 
   @abc.abstractmethod
-  def __call__(self,
-               task_metrics: Mapping[str, Union[Metric, float]],
-               step: int,
-               task_name: str) -> None:
-    """Logs the metric for each task."""
+  def __call__(self, task_name: str, step: int, metrics: Mapping[str, Metric],
+               dataset: tf.data.Dataset, inferences: Mapping[str,
+                                                             Sequence[Any]],
+               targets: Sequence[Any]) -> None:
+    """Logs the metrics and inferences for each task.
+
+    Args:
+      task_name: The name of the task these datapoints are relevant to.
+      step: The timestep to place this datapoint at.
+      metrics: A mapping from series names to numeric datapoints to be added to
+         that series.
+      dataset: The Task dataset.
+      inferences: Mapping from inference type ("predictions", "scores") to the
+        model outputs, aligned with the dataset.
+      targets: The postprocessed targets, aligned with the dataset.
+    """
+    ...
 
   @abc.abstractproperty
   def summary_dir(self) -> str:
@@ -308,7 +320,7 @@ class Evaluator:
     cached_targets: cached evaluation targets.
     model_feature_lengths: mapping from model feature to its length in the
       `cached_model_datasets`.
-    logger: a subclass of `Logger`.
+    loggers: a sequence of subclasses of `Logger`.
   """
 
   def __init__(self,
@@ -318,8 +330,7 @@ class Evaluator:
                use_cached: bool = False,
                seed: Optional[int] = 42,
                sequence_length: Optional[Mapping[str, int]] = None,
-               logger: Optional[Logger] = None,
-               write_n_results: Optional[int] = None):
+               loggers: Sequence[Logger] = ()):
     """Evaluator constructor.
 
     Args:
@@ -340,9 +351,7 @@ class Evaluator:
         none of the preprocessors depend on the sequence length, it can be left
         unspecified and the maximum length for each feature will be used. These
         lengths are computed while caching the datasets.
-      logger: a subclass of `Logger`.
-      write_n_results: an int, number of scores/predictions to be written to
-        file. if None, scores and predictions from all examples are written.
+      loggers: a set of subclasses of `Logger` to write results to.
 
     Raises:
       ValueError if `sequence_length` is None but a preprocessor depends on its
@@ -356,8 +365,6 @@ class Evaluator:
     self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
         max_workers=1)
     self._metrics_future = None
-
-    self._write_n_results = write_n_results
 
     if not self._eval_tasks:
       logging.warning(
@@ -460,7 +467,7 @@ class Evaluator:
     self._cached_task_datasets = cached_task_datasets
     self._model_feature_lengths = feature_converter.get_model_feature_lengths(
         sequence_length)
-    self._logger = logger
+    self._loggers = loggers
 
   def evaluate(self,
                *,
@@ -655,27 +662,162 @@ class Evaluator:
           k: Scalar(v) if not isinstance(v, Metric) else v
           for k, v in all_metrics[task.name].items()
       }
-      if self.logger is not None:
-        self.logger(metrics, step, task_name=task.name)  # pylint: disable=not-callable
-        output_fname = os.path.join(self.logger.summary_dir,
-                                    f"{task.name}-{step}.jsonl")
-        self._write_to_file(inferences, targets, task_dataset, output_fname)
+      for logger in self.loggers:
+        logger(task_name=task.name, step=step, metrics=metrics,
+               dataset=task_dataset, inferences=inferences, targets=targets)
 
     return all_metrics
 
-  def _write_to_file(self,
-                     inferences: Mapping[str, Sequence[Any]],
-                     targets: Sequence[Any],
-                     task_dataset: tf.data.Dataset,
-                     output_fname: str) -> None:
-    """Writes inputs, targets, predictions and scores to a file."""
+  @property
+  def eval_tasks(self) -> Sequence[Task]:
+    return self._eval_tasks
+
+  @property
+  def cached_model_datasets(self) -> Mapping[str, tf.data.Dataset]:
+    return self._cached_model_datasets
+
+  @property
+  def cached_task_datasets(self) -> Mapping[str, tf.data.Dataset]:
+    return self._cached_task_datasets
+
+  @property
+  def cached_targets(self) -> Mapping[str, Sequence[str]]:
+    return self._cached_targets
+
+  @property
+  def model_feature_lengths(self) -> Mapping[str, int]:
+    return self._model_feature_lengths
+
+  @property
+  def loggers(self) -> Tuple[Logger]:
+    return tuple(self._loggers)
+
+
+class TensorBoardLogger(Logger):
+  """A logger that writes metrics to TensorBoard summaries."""
+
+  def __init__(self, summary_dir: str):
+    """TensorBoardLogger initializer.
+
+    Args:
+      summary_dir: The base directory where all logs will be written.
+    """
+    self._summary_dir = summary_dir
+    self._summary_writers = {}
+
+  def _get_summary_writer(self, task_name: str) -> tf.summary.SummaryWriter:
+    """Create (if needed) and return a SummaryWriter for a given task."""
+    if task_name not in self._summary_writers:
+      with tf.compat.v1.Graph().as_default():
+        self._summary_writers[task_name] = tf.compat.v1.summary.FileWriter(
+            os.path.join(self._summary_dir, task_name))
+    return self._summary_writers[task_name]
+
+  def __call__(self,
+               task_name: str,
+               step: int,
+               metrics: Mapping[str, Scalar],
+               dataset: tf.data.Dataset,
+               inferences: Mapping[str, Sequence[Any]],
+               targets: Sequence[Any]) -> None:
+    """Log the eval results and optionally write summaries for TensorBoard.
+
+    Note:
+      This is the default implementation using tensorflow v1 operations. This
+      only supports logging metrics of the Scalar type.
+
+    Args:
+      task_name: The name of the task these datapoints are relevant to.
+      step: The timestep to place this datapoint at.
+      metrics: A mapping from series names to numeric datapoints to be added to
+         that series.
+      dataset: The Task dataset, which is unused by this logger.
+      inferences: The model outputs, which are unused by this logger.
+      targets: The postprocessed targets, which are unused by this logger.
+    """
+    del dataset
+    del inferences
+    del targets
+    if step is None:
+      logging.warning("Step number for the logging session is not provided. "
+                      "A dummy value of -1 will be used.")
+      step = -1
+
+    summary_writer = self._get_summary_writer(task_name)
+
+    for metric_name, metric_value in metrics.items():
+      if not isinstance(metric_value, Scalar):
+        raise ValueError(f"Value for metric '{metric_name}' should be of "
+                         f"type 'Scalar, got '{type(metric_value).__name__}'.")
+      summary = tf.compat.v1.Summary()
+
+      tag = f"eval/{metric_name}"
+      logging.info("%s at step %d: %.3f", tag, step, metric_value.value)
+
+      summary.value.add(tag=tag, simple_value=metric_value.value)
+      summary_writer.add_summary(summary, step)
+
+    summary_writer.flush()
+
+  @property
+  def summary_dir(self) -> str:
+    return self._summary_dir
+
+
+class JSONLogger(Logger):
+  """A logger that writes metrics and model outputs to JSONL files."""
+
+  def __init__(self, summary_dir: str, write_n_results: Optional[int] = None):
+    """JSONLogger constructor.
+
+    Args:
+      summary_dir: The base directory where all logs will be written.
+      write_n_results: number of scores/predictions to be written to the file at
+        each step. If None, scores and predictions from all examples are
+        written.
+    """
+    self._summary_dir = summary_dir
+    self._write_n_results = write_n_results
+
+  def __call__(self,
+               task_name: str,
+               step: int,
+               metrics: Mapping[str, Metric],
+               dataset: tf.data.Dataset,
+               inferences: Mapping[str, Sequence[Any]],
+               targets: Sequence[Any]) -> None:
+    if step is None:
+      logging.warning("Step number for the logging session is not provided. "
+                      "A dummy value of -1 will be used.")
+      step = -1
+
+    metrics_fname = os.path.join(self.summary_dir, f"{task_name}-metrics.jsonl")
+
+    serializable_metrics = {}
+    for metric_name, metric_value in metrics.items():
+      if isinstance(metric_value, Scalar):
+        serializable_metrics[metric_name] = metric_value.value
+      elif isinstance(metric_value, Text):
+        serializable_metrics[metric_name] = metric_value.textdata
+      else:
+        logging.warning(
+            "Skipping JSON logging of non-serializable metric '%s' of type %s.",
+            metric_value, type(metric_value))
+
+    logging.info("Appending metrics to %s", metrics_fname)
+    with tf.io.gfile.GFile(metrics_fname, "a") as f:
+      f.write(json.dumps({"step": step, **serializable_metrics}) + "\n")
+
     if self._write_n_results == 0:
       return
+
     write_tick = time.time()
-    logging.info("Writing evaluation results to %s", output_fname)
-    with tf.io.gfile.GFile(output_fname, "w") as f:
+    inferences_fname = os.path.join(self.summary_dir,
+                                    f"{task_name}-{step}.jsonl")
+    logging.info("Writing inferences to %s", inferences_fname)
+    with tf.io.gfile.GFile(inferences_fname, "w") as f:
       examples_with_scores = itertools.zip_longest(
-          tfds.as_numpy(task_dataset), inferences.get("predictions", []),
+          tfds.as_numpy(dataset), inferences.get("predictions", []),
           targets, inferences.get("scores", []))
       if self._write_n_results:
         examples_with_scores = itertools.islice(
@@ -715,90 +857,6 @@ class Evaluator:
     logging.info("Writing completed in %02f seconds (%02f examples/sec).",
                  write_time,
                  len(inferences) / write_time)
-
-  @property
-  def eval_tasks(self) -> Sequence[Task]:
-    return self._eval_tasks
-
-  @property
-  def cached_model_datasets(self) -> Mapping[str, tf.data.Dataset]:
-    return self._cached_model_datasets
-
-  @property
-  def cached_task_datasets(self) -> Mapping[str, tf.data.Dataset]:
-    return self._cached_task_datasets
-
-  @property
-  def cached_targets(self) -> Mapping[str, Sequence[str]]:
-    return self._cached_targets
-
-  @property
-  def model_feature_lengths(self) -> Mapping[str, int]:
-    return self._model_feature_lengths
-
-  @property
-  def logger(self) -> Logger:
-    return self._logger
-
-
-class TensorboardLogging(Logger):
-  """A class the encapulates summary writers to implement custom logging."""
-
-  def __init__(self, summary_dir: str):
-    """Log metrics to tensorboard.
-
-    Args:
-      summary_dir: The base directory where all logs will be written.
-    """
-    self._summary_dir = summary_dir
-    self._summary_writers = {}
-
-  def _get_summary_writer(self, task_name: str) -> tf.summary.SummaryWriter:
-    """Create (if needed) and return a SummaryWriter for a given task."""
-    if task_name not in self._summary_writers:
-      with tf.compat.v1.Graph().as_default():
-        self._summary_writers[task_name] = tf.compat.v1.summary.FileWriter(
-            os.path.join(self._summary_dir, task_name))
-    return self._summary_writers[task_name]
-
-  def __call__(self, task_metrics: Mapping[str, Scalar], step: int,
-               task_name: str) -> None:
-    """Log the eval results and optionally write summaries for TensorBoard.
-
-    Note:
-      This is the default implementation using tensorflow v1 operations. This
-      only supports logging metrics of the Scalar type.
-
-    Args:
-      task_metrics: A mapping from series names to numeric datapoints to be
-        added to that series.
-      step: The timestep to place this datapoint at.
-      task_name: The name of the task these datapoints are relevant to.
-    """
-    if step is None:
-      logging.warning("Step number for the logging session is not provided. "
-                      "A dummy value of -1 will be used.")
-      step = -1
-
-    summary_writer = self._get_summary_writer(task_name)
-
-    for metric_name, metric_value in task_metrics.items():
-      if not isinstance(metric_value, Scalar):
-        if not isinstance(metric_value, (int, float)):
-          raise ValueError(f"Value for metric '{metric_name}' should be of "
-                           "type 'Scalar', 'int', or 'float', got "
-                           f"'{type(metric_value).__name__}'.")
-        # If we passed the check above we are safe to wrap in a Scalar.
-        metric_value = Scalar(metric_value)
-      summary = tf.compat.v1.Summary()
-
-      tag = f"eval/{metric_name}"
-      logging.info("%s at step %d: %.3f", tag, step, metric_value.value)
-
-      summary.value.add(tag=tag, simple_value=metric_value.value)
-      summary_writer.add_summary(summary, step)
-
-    summary_writer.flush()
 
   @property
   def summary_dir(self) -> str:

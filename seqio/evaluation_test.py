@@ -272,7 +272,7 @@ class EvaluationTest(tf.test.TestCase):
       self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
       self._cached_targets = {task.name: ["e5 e6", "e6", "e7"]}
       self._eval_tasks = [task]
-      self._logger = None
+      self._loggers = ()
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
@@ -335,7 +335,7 @@ class EvaluationTest(tf.test.TestCase):
       self._cached_task_datasets = {task.name: tf.data.Dataset.range(2)}
       self._cached_targets = {task.name: [[5, 6], [6, 7]]}
       self._eval_tasks = [task]
-      self._logger = None
+      self._loggers = ()
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
@@ -375,7 +375,7 @@ class EvaluationTest(tf.test.TestCase):
       self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
       self._cached_targets = {task.name: [0, 1, 2]}
       self._eval_tasks = [task]
-      self._logger = None
+      self._loggers = ()
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
@@ -435,7 +435,7 @@ class EvaluationTest(tf.test.TestCase):
           task2.name: [0, 1, 2]
       }
       self._eval_tasks = [task1, task2]
-      self._logger = None
+      self._loggers = ()
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
@@ -711,7 +711,7 @@ class EvaluationTest(tf.test.TestCase):
       self._cached_model_datasets = {task.name: eval_ds}
       self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
       self._eval_tasks = [task]
-      self._logger = None
+      self._loggers = ()
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
@@ -738,7 +738,7 @@ class EvaluationTest(tf.test.TestCase):
       self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
       self._cached_targets = {task.name: ["e5", "e6", "e7"]}
       self._eval_tasks = [task]
-      self._logger = None
+      self._loggers = ()
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
@@ -841,25 +841,22 @@ class EvaluationTest(tf.test.TestCase):
     task.output_features["targets"].vocabulary.decode.assert_called_once_with(
         [42, 48, 1])
 
-  def test_log_eval_results(self):
-    summary_dir = self.create_tempdir().full_path
 
-    def mock_init(self):
-      self._logger = evaluation.TensorboardLogging(summary_dir)
-      self._metrics_future = None
-      self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
-          max_workers=1)
+class TensorBoardLoggerTest(tf.test.TestCase):
 
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
+  def setUp(self):
+    super().setUp()
+    self.logger = evaluation.TensorBoardLogger(self.create_tempdir().full_path)
 
+  def test_logging(self):
     task_metrics = {
         "rouge1": evaluation.Scalar(50),
         "rouge2": evaluation.Scalar(100)
     }
-    evaluator.logger(
-        task_metrics=task_metrics, step=1, task_name="log_eval_task")
-    task_summary_dir = os.path.join(summary_dir, "log_eval_task")
+    self.logger(
+        task_name="log_eval_task", step=1, metrics=task_metrics,
+        dataset=tf.data.Dataset.range(0), inferences={}, targets=[])
+    task_summary_dir = os.path.join(self.logger.summary_dir, "log_eval_task")
     event_file = os.path.join(
         task_summary_dir, tf.io.gfile.listdir(task_summary_dir)[0])
     # First event is boilerplate
@@ -879,57 +876,8 @@ class EvaluationTest(tf.test.TestCase):
     self.assertAlmostEqual(rouge1, 50, places=4)
     self.assertAlmostEqual(rouge2, 100, places=4)
 
-  def test_log_eval_results_non_scalar_but_numeric(self):
-    summary_dir = self.create_tempdir().full_path
 
-    def mock_init(self):
-      self._logger = evaluation.TensorboardLogging(summary_dir)
-
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-
-    task_metrics = {
-        "rouge1": 50.0,  # Test with float
-        "rouge2": 100  # Test with int
-    }
-    evaluator.logger(
-        task_metrics=task_metrics, step=1, task_name="log_eval_task")
-    task_summary_dir = os.path.join(summary_dir, "log_eval_task")
-    event_file = os.path.join(
-        task_summary_dir, tf.io.gfile.listdir(task_summary_dir)[0])
-    # First event is boilerplate
-    serialized_events = list(tfds.as_numpy(
-        tf.data.TFRecordDataset(event_file)))[1:]
-    event1 = tf.compat.v1.Event.FromString(
-        serialized_events[0]).summary.value[0]
-    rouge1 = event1.simple_value
-    tag_rouge1 = event1.tag
-    event2 = tf.compat.v1.Event.FromString(
-        serialized_events[1]).summary.value[0]
-    rouge2 = event2.simple_value
-    tag_rouge2 = event2.tag
-
-    self.assertEqual(tag_rouge1, "eval/rouge1")
-    self.assertEqual(tag_rouge2, "eval/rouge2")
-    self.assertAlmostEqual(rouge1, 50, places=4)
-    self.assertAlmostEqual(rouge2, 100, places=4)
-
-  def test_log_eval_results_non_scalar_non_numeric(self):
-    summary_dir = self.create_tempdir().full_path
-
-    def mock_init(self):
-      self._logger = evaluation.TensorboardLogging(summary_dir)
-
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-
-    task_metrics = {"wrong_type": "string_value"}
-    with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        "Value for metric 'wrong_type' should be of type 'Scalar', 'int', or "
-        "'float', got 'str'."):
-      evaluator.logger(
-          task_metrics=task_metrics, step=1, task_name="wrong_value_type")  # pytype: disable=wrong-arg-types
+class JSONLoggerTest(tf.test.TestCase):
 
   def _get_task_dataset_for_write_to_file_tests(self):
     x = [{"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
@@ -943,20 +891,23 @@ class EvaluationTest(tf.test.TestCase):
         lambda: x, output_types=output_types, output_shapes=output_shapes)
     return task_dataset
 
-  def test_write_to_file_prediction_and_scores(self):
+  def test_logging(self):
     inferences = {"predictions": ["pred0", "pred1"], "scores": [0.2, 0.3]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
-    output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    def mock_init(self):
-      self._write_n_results = None
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    logger = evaluation.JSONLogger(tmp_dir)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": evaluation.Scalar(100)}, dataset=task_dataset,
+           inferences=inferences, targets=targets)
+
+    # Validate the metrics file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(output_fname) as f:
+    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -972,20 +923,23 @@ class EvaluationTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
-  def test_write_to_file_n_prediction_and_scores(self):
+  def test_n_prediction_and_scores(self):
     inferences = {"predictions": ["pred0", "pred1"], "scores": [0.2, 0.3]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
-    output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    def mock_init(self):
-      self._write_n_results = 1
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    logger = evaluation.JSONLogger(tmp_dir, write_n_results=1)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": evaluation.Scalar(100)}, dataset=task_dataset,
+           inferences=inferences, targets=targets)
+
+    # Validate the metrics file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(output_fname) as f:
+    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -996,20 +950,23 @@ class EvaluationTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
-  def test_write_to_file_prediction_only(self):
+  def test_predicitions_only(self):
     inferences = {"predictions": ["pred0", "pred1"]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
-    output_fname = os.path.join(tmp_dir, "pred.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    def mock_init(self):
-      self._write_n_results = None
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    logger = evaluation.JSONLogger(tmp_dir)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": evaluation.Scalar(100)}, dataset=task_dataset,
+           inferences=inferences, targets=targets)
+
+    # Validate the metrics file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(output_fname) as f:
+    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1023,23 +980,26 @@ class EvaluationTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
-  def test_write_to_file_prediction_numpy_data(self):
+  def test_numpy_data(self):
     inferences = {
         "predictions": [np.zeros((2, 2)), np.ones((2, 2))],
         "scores": [0.2, 0.3]
     }
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
-    output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    def mock_init(self):
-      self._write_n_results = None
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    logger = evaluation.JSONLogger(tmp_dir)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": evaluation.Scalar(100)}, dataset=task_dataset,
+           inferences=inferences, targets=targets)
+
+    # Validate the metrics file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(output_fname) as f:
+    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1055,23 +1015,26 @@ class EvaluationTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
-  def test_write_to_file_non_serializable_prediction(self):
+  def test_non_serializable_prediction(self):
     inferences = {
         "predictions": [object(), object()],
         "scores": [0.2, 0.3]
     }
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
-    output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    def mock_init(self):
-      self._write_n_results = None
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    logger = evaluation.JSONLogger(tmp_dir)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": evaluation.Scalar(100)}, dataset=task_dataset,
+           inferences=inferences, targets=targets)
+
+    # Validate the metrics file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(output_fname) as f:
+    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1085,23 +1048,26 @@ class EvaluationTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
-  def test_write_to_file_non_serializable_target(self):
+  def test_non_serializable_target(self):
     inferences = {
         "predictions": ["pred0", "pred1"],
         "scores": [0.2, 0.3]
     }
     targets = [object(), object()]
     tmp_dir = self.create_tempdir().full_path
-    output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    def mock_init(self):
-      self._write_n_results = None
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    logger = evaluation.JSONLogger(tmp_dir)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": evaluation.Scalar(100)}, dataset=task_dataset,
+           inferences=inferences, targets=targets)
+
+    # Validate the metrics file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(output_fname) as f:
+    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1115,22 +1081,25 @@ class EvaluationTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
-  def test_write_to_file_prediction_bytes(self):
+  def test_prediction_bytes(self):
     inferences = {
         "predictions": [b"\x99", b"\x88"],
     }
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
-    output_fname = os.path.join(tmp_dir, "infer.jsonl")
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
-    def mock_init(self):
-      self._write_n_results = None
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+
+    logger = evaluation.JSONLogger(tmp_dir)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": evaluation.Scalar(100)}, dataset=task_dataset,
+           inferences=inferences, targets=targets)
+
+    # Validate the metrics file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(output_fname) as f:
+    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1144,7 +1113,7 @@ class EvaluationTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
-  def test_write_to_file_2d_ragged_input(self):
+  def test_2d_ragged_input(self):
     x = [{"inputs": tf.ragged.constant([[9, 4, 1], [8, 1]]),
           "inputs_pretokenized": ["i0_0", "i0_1"]},
          {"inputs": tf.ragged.constant([[9, 1], [7, 2, 3, 1]]),
@@ -1158,16 +1127,18 @@ class EvaluationTest(tf.test.TestCase):
     inferences = {"predictions": ["pred0", "pred1"], "scores": [0.2, 0.3]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
-    output_fname = os.path.join(tmp_dir, "infer.jsonl")
 
-    def mock_init(self):
-      self._write_n_results = None
-    with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
-      evaluator._write_to_file(inferences, targets, task_dataset, output_fname)
+    logger = evaluation.JSONLogger(tmp_dir)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": evaluation.Scalar(100)}, dataset=task_dataset,
+           inferences=inferences, targets=targets)
+
+    # Validate the metrics file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(output_fname) as f:
+    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1184,6 +1155,44 @@ class EvaluationTest(tf.test.TestCase):
         "score": 0.3
     }]
     self.assertEqual(actual, expected)
+
+  def test_metrics_multiple_steps(self):
+    tmp_dir = self.create_tempdir().full_path
+
+    logger = evaluation.JSONLogger(tmp_dir, write_n_results=0)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": evaluation.Scalar(100)},
+           dataset=tf.data.Dataset.range(0), inferences={}, targets=[])
+
+    logger(task_name="test", step=48,
+           metrics={"accuracy": evaluation.Scalar(50)},
+           dataset=tf.data.Dataset.range(0), inferences={}, targets=[])
+
+    # Read the written jsonl file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      actual = [json.loads(line.strip()) for line in f]
+
+    expected = [
+        {"step": 42, "accuracy": 100},
+        {"step": 48, "accuracy": 50}]
+
+    self.assertEqual(actual, expected)
+
+  def test_metrics_non_serializable(self):
+    tmp_dir = self.create_tempdir().full_path
+
+    logger = evaluation.JSONLogger(tmp_dir, write_n_results=0)
+    logger(task_name="test", step=42,
+           metrics={
+               "scalar": evaluation.Scalar(100),
+               "text": evaluation.Text("foo"),
+               "image": evaluation.Image(np.ones(10)),
+           },
+           dataset=tf.data.Dataset.range(0), inferences={}, targets=[])
+
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f),
+                           {"step": 42, "scalar": 100.0, "text": "foo"})
 
 if __name__ == "__main__":
   tf.test.main()
