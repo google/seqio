@@ -805,8 +805,16 @@ class JSONLogger(Logger):
             metric_value, type(metric_value))
 
     logging.info("Appending metrics to %s", metrics_fname)
-    with tf.io.gfile.GFile(metrics_fname, "a") as f:
+    # We simulate an atomic append for filesystems that do not suppport
+    # mode="a".
+    file_contents = ""
+    if tf.io.gfile.exists(metrics_fname):
+      with tf.io.gfile.GFile(metrics_fname, "r") as f:
+        file_contents = f.read()
+    with tf.io.gfile.GFile(metrics_fname + ".tmp", "w") as f:
+      f.write(file_contents)
       f.write(json.dumps({"step": step, **serializable_metrics}) + "\n")
+    tf.io.gfile.rename(metrics_fname + ".tmp", metrics_fname, overwrite=True)
 
     if self._write_n_results == 0:
       return
