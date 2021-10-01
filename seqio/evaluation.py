@@ -336,6 +336,7 @@ class Evaluator:
                seed: Optional[int] = 42,
                sequence_length: Optional[Mapping[str, int]] = None,
                num_examples: Optional[int] = None,
+               shuffle: bool = False,
                logger_cls: Sequence[Type[Logger]] = (),
                summary_dir: Optional[str] = None):
     """Evaluator constructor.
@@ -360,6 +361,11 @@ class Evaluator:
         lengths are computed while caching the datasets.
       num_examples: an optional maximum number of examples to take from the
         beginning of each Task dataset for evaluation.
+      shuffle: whether to shuffle the Task datasets. Only useful when
+        `num_examples` is also set in order to get a semi-random subsample of
+        the examples. Note that the shuffle will only be applied once during
+        initialization (using `seed`) and the same subsample will be used on
+        call to `evaluate`.
       logger_cls: a set of subclasses of `Logger` to write results with.
       summary_dir: the directory to log summaries to. Required if `logger_cls`
         is non-empty.
@@ -407,7 +413,7 @@ class Evaluator:
       return task.get_dataset(
           sequence_length=sequence_length,
           split=eval_split,
-          shuffle=False,
+          shuffle=shuffle,
           num_epochs=1,
           seed=seed,
           use_cached=use_cached)
