@@ -101,6 +101,26 @@ def get_mocked_task(
   return task
 
 
+def _task_from_tensor_slices(name, tensor_slices, label_classes):
+  return dataset_providers.Task(
+      name,
+      dataset_providers.FunctionDataSource(
+          lambda split, shuffle_files:
+          tf.data.Dataset.from_tensor_slices(tensor_slices),
+          splits=("validation")),  # pytype: disable=wrong-arg-types
+      preprocessors=[utils.map_over_dataset(lambda ex: {
+          "inputs": tf.range(ex["inputs_lengths"]),
+          "targets": tf.range(ex["targets_lengths"]),
+          "targets_pretokenized": ex["targets_pretokenized"],
+      })],
+      postprocess_fn=functools.partial(
+          _string_label_to_class_id_postprocessor,
+          label_classes=label_classes),
+      output_features={"inputs": dataset_providers.Feature(mock.Mock()),
+                       "targets": dataset_providers.Feature(mock.Mock())}
+  )
+
+
 class EvaluationTest(tf.test.TestCase):
 
   def setUp(self):
@@ -130,24 +150,6 @@ class EvaluationTest(tf.test.TestCase):
         [valid_task])
 
   def test_get_targets_and_examples(self):
-    def _task_from_tensor_slices(name, tensor_slices, label_classes):
-      return dataset_providers.Task(
-          name,
-          dataset_providers.FunctionDataSource(
-              lambda split, shuffle_files:
-              tf.data.Dataset.from_tensor_slices(tensor_slices),
-              splits=("validation")),  # pytype: disable=wrong-arg-types
-          preprocessors=[utils.map_over_dataset(lambda ex: {
-              "inputs": tf.range(ex["inputs_lengths"]),
-              "targets": tf.range(ex["targets_lengths"]),
-              "targets_pretokenized": ex["targets_pretokenized"],
-          })],
-          postprocess_fn=functools.partial(
-              _string_label_to_class_id_postprocessor,
-              label_classes=label_classes),
-          output_features={"inputs": dataset_providers.Feature(mock.Mock()),
-                           "targets": dataset_providers.Feature(mock.Mock())}
-      )
     task1 = _task_from_tensor_slices(
         "task1",
         {
@@ -188,9 +190,78 @@ class EvaluationTest(tf.test.TestCase):
     test_utils.assert_dataset(cached_task_datasets["task2"],
                               expected_task2_examples)
 
-  def test_get_targets_and_examples_nondefault_sequence_dim(self):
+  def test_get_targets_and_examples_num_examples(self):
 
-    def _task_from_tensor_slices(name, tensor_slices, label_classes):
+    task1 = _task_from_tensor_slices(
+        "task1",
+        {
+            "inputs_lengths": [3, 2, 4],
+            "targets_lengths": [2, 3, 4],
+            "targets_pretokenized": ["e6", "e5", "e4"],
+        },
+        ("e4", "e5", "e6"))
+    task2 = _task_from_tensor_slices(
+        "task2",
+        {
+            "inputs_lengths": [1],
+            "targets_lengths": [4],
+            "targets_pretokenized": ["e4"],
+        },
+        ("e2", "e3", "e4"))
+    cached_targets, cached_task_datasets, max_sequence_length = (
+        evaluation.get_targets_and_examples(
+            [task1, task2],
+            lambda t: t.get_dataset(
+                split="validation", sequence_length=None, shuffle=False),
+            sequence_dims={},
+            num_examples=2))
+
+    self.assertDictEqual({"task1": [2, 1], "task2": [2]}, cached_targets)
+    self.assertDictEqual({"inputs": 3, "targets": 4}, max_sequence_length)
+    self.assertCountEqual(["task1", "task2"], cached_task_datasets.keys())
+    self.assertLen(cached_task_datasets["task1"], 2)
+    self.assertLen(cached_task_datasets["task2"], 1)
+    expected_task1_examples = [
+        {"inputs": [0, 1, 2], "targets": [0, 1], "targets_pretokenized": "e6"},
+        {"inputs": [0, 1], "targets": [0, 1, 2], "targets_pretokenized": "e5"}
+    ]
+    expected_task2_examples = [
+        {"inputs": [0], "targets": [0, 1, 2, 3], "targets_pretokenized": "e4"},
+    ]
+    test_utils.assert_dataset(cached_task_datasets["task1"],
+                              expected_task1_examples)
+    test_utils.assert_dataset(cached_task_datasets["task2"],
+                              expected_task2_examples)
+
+    cached_targets, cached_task_datasets, max_sequence_length = (
+        evaluation.get_targets_and_examples(
+            [task1, task2],
+            lambda t: t.get_dataset(
+                split="validation", sequence_length=None, shuffle=False),
+            sequence_dims={},
+            num_examples=3))
+
+    self.assertDictEqual({"task1": [2, 1, 0], "task2": [2]}, cached_targets)
+    self.assertDictEqual({"inputs": 4, "targets": 4}, max_sequence_length)
+    self.assertCountEqual(["task1", "task2"], cached_task_datasets.keys())
+    self.assertLen(cached_task_datasets["task1"], 3)
+    self.assertLen(cached_task_datasets["task2"], 1)
+    expected_task1_examples = [
+        {"inputs": [0, 1, 2], "targets": [0, 1], "targets_pretokenized": "e6"},
+        {"inputs": [0, 1], "targets": [0, 1, 2], "targets_pretokenized": "e5"},
+        {"inputs": [0, 1, 2, 3], "targets": [0, 1, 2, 3],
+         "targets_pretokenized": "e4"}
+    ]
+    expected_task2_examples = [
+        {"inputs": [0], "targets": [0, 1, 2, 3], "targets_pretokenized": "e4"},
+    ]
+    test_utils.assert_dataset(cached_task_datasets["task1"],
+                              expected_task1_examples)
+    test_utils.assert_dataset(cached_task_datasets["task2"],
+                              expected_task2_examples)
+
+  def test_get_targets_and_examples_nondefault_sequence_dim(self):
+    def _task_from_tensor_slices_rank2(name, tensor_slices, label_classes):
       return dataset_providers.Task(
           name,
           dataset_providers.FunctionDataSource(
@@ -216,18 +287,20 @@ class EvaluationTest(tf.test.TestCase):
               "targets": dataset_providers.Feature(mock.Mock())
           })
 
-    task1 = _task_from_tensor_slices(
+    task1 = _task_from_tensor_slices_rank2(
         "task1", {
             "inputs_lengths": [3, 2],
             "targets_lengths": [2, 3],
             "targets_pretokenized": ["e6", "e5"],
         }, ("e4", "e5", "e6"))
-    task2 = _task_from_tensor_slices(
+
+    task2 = _task_from_tensor_slices_rank2(
         "task2", {
             "inputs_lengths": [1],
             "targets_lengths": [4],
             "targets_pretokenized": ["e4"],
         }, ("e2", "e3", "e4"))
+
     cached_targets, cached_task_datasets, max_sequence_length = (
         evaluation.get_targets_and_examples(
             [task1, task2],

@@ -24,7 +24,7 @@ import itertools
 import json
 import os
 import time
-from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type
 
 from absl import logging
 import numpy as np
@@ -174,6 +174,7 @@ def get_targets_and_examples(
     tasks: Sequence[Task],
     dataset_fn: Callable[[Task], tf.data.Dataset],
     sequence_dims: Mapping[str, int],
+    num_examples: Optional[int] = None
 ) -> Tuple[
     Mapping[str, Any],
     Mapping[str, tf.data.Dataset],
@@ -184,6 +185,8 @@ def get_targets_and_examples(
     tasks: tasks objects to get targets and examples for.
     dataset_fn: function, returns the dataset from the task object.
     sequence_dims: dict of feature names to their sequence dimension.
+    num_examples: an optional maximum number of examples to take from the
+      beginning of each task dataset.
   Returns:
     cached_targets: unpreprocessed targets for each task
     cached_task_datasets: cached datasets for each task, with cardinality set
@@ -200,7 +203,10 @@ def get_targets_and_examples(
         "all tasks must have the same features")
 
   for task in tasks:
-    ds = dataset_fn(task).cache()
+    ds = dataset_fn(task)
+    if num_examples:
+      ds = ds.take(num_examples)
+    ds = ds.cache()
 
     targets = []
 
@@ -267,6 +273,9 @@ class Logger(abc.ABC):
       "target_pretokenize" and "prediction").
   """
 
+  def __init__(self, summary_dir):
+    self.summary_dir = summary_dir
+
   @abc.abstractmethod
   def __call__(self, task_name: str, step: int, metrics: Mapping[str, Metric],
                dataset: tf.data.Dataset, inferences: Mapping[str,
@@ -285,10 +294,6 @@ class Logger(abc.ABC):
       targets: The postprocessed targets, aligned with the dataset.
     """
     ...
-
-  @abc.abstractproperty
-  def summary_dir(self) -> str:
-    pass
 
 
 class Evaluator:
@@ -330,7 +335,9 @@ class Evaluator:
                use_cached: bool = False,
                seed: Optional[int] = 42,
                sequence_length: Optional[Mapping[str, int]] = None,
-               loggers: Sequence[Logger] = ()):
+               num_examples: Optional[int] = None,
+               logger_cls: Sequence[Type[Logger]] = (),
+               summary_dir: Optional[str] = None):
     """Evaluator constructor.
 
     Args:
@@ -351,7 +358,11 @@ class Evaluator:
         none of the preprocessors depend on the sequence length, it can be left
         unspecified and the maximum length for each feature will be used. These
         lengths are computed while caching the datasets.
-      loggers: a set of subclasses of `Logger` to write results to.
+      num_examples: an optional maximum number of examples to take from the
+        beginning of each Task dataset for evaluation.
+      logger_cls: a set of subclasses of `Logger` to write results with.
+      summary_dir: the directory to log summaries to. Required if `logger_cls`
+        is non-empty.
 
     Raises:
       ValueError if `sequence_length` is None but a preprocessor depends on its
@@ -411,7 +422,8 @@ class Evaluator:
         get_targets_and_examples(
             tasks=self._eval_tasks,
             dataset_fn=dataset_fn,
-            sequence_dims=sequence_dims))
+            sequence_dims=sequence_dims,
+            num_examples=num_examples))
 
     if sequence_length is None:
       logging.info("Setting sequence lengths to %s", max_lengths)
@@ -467,7 +479,12 @@ class Evaluator:
     self._cached_task_datasets = cached_task_datasets
     self._model_feature_lengths = feature_converter.get_model_feature_lengths(
         sequence_length)
-    self._loggers = loggers
+
+    if logger_cls and not summary_dir:
+      raise ValueError(
+          "'summary_dir' must be proviced to `Evaluator` if `logger_cls` is "
+          "non-empty.")
+    self._loggers = (cls(summary_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
 
   def evaluate(self,
                *,
@@ -702,7 +719,7 @@ class TensorBoardLogger(Logger):
     Args:
       summary_dir: The base directory where all logs will be written.
     """
-    self._summary_dir = summary_dir
+    super().__init__(summary_dir)
     self._summary_writers = {}
 
   def _get_summary_writer(self, task_name: str) -> tf.summary.SummaryWriter:
@@ -710,7 +727,7 @@ class TensorBoardLogger(Logger):
     if task_name not in self._summary_writers:
       with tf.compat.v1.Graph().as_default():
         self._summary_writers[task_name] = tf.compat.v1.summary.FileWriter(
-            os.path.join(self._summary_dir, task_name))
+            os.path.join(self.summary_dir, task_name))
     return self._summary_writers[task_name]
 
   def __call__(self,
@@ -759,10 +776,6 @@ class TensorBoardLogger(Logger):
 
     summary_writer.flush()
 
-  @property
-  def summary_dir(self) -> str:
-    return self._summary_dir
-
 
 class JSONLogger(Logger):
   """A logger that writes metrics and model outputs to JSONL files."""
@@ -776,7 +789,7 @@ class JSONLogger(Logger):
         each step. If None, scores and predictions from all examples are
         written.
     """
-    self._summary_dir = summary_dir
+    super().__init__(summary_dir)
     self._write_n_results = write_n_results
 
   def __call__(self,
@@ -865,7 +878,3 @@ class JSONLogger(Logger):
     logging.info("Writing completed in %02f seconds (%02f examples/sec).",
                  write_time,
                  len(inferences) / write_time)
-
-  @property
-  def summary_dir(self) -> str:
-    return self._summary_dir
