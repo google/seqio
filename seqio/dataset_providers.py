@@ -120,7 +120,7 @@ class DatasetProviderRegistry(object):
       raise ValueError("Attempting to register duplicate provider: %s" % name)
     if not isinstance(provider, cls._PROVIDER_TYPE):
       raise ValueError(
-          "Attempting to register a class not of an invalid type. "
+          "Attempting to register a class of an invalid type. "
           "Expecting instance of %s, got %s" %
           (cls._PROVIDER_TYPE, type(provider).__name__))
 
@@ -137,7 +137,7 @@ class DatasetProviderRegistry(object):
     """Instantiates and adds provider to the registry."""
     if not issubclass(provider_cls, cls._PROVIDER_TYPE):
       raise ValueError(
-          "Attempting to register a class not of an invalid type. "
+          "Attempting to register a class of an invalid type. "
           "Expecting instance of %s, got %s" %
           (cls._PROVIDER_TYPE, provider_cls))
     provider = provider_cls(*provider_args, **provider_kwargs)
