@@ -821,7 +821,7 @@ class JSONLogger(Logger):
       else:
         logging.warning(
             "Skipping JSON logging of non-serializable metric '%s' of type %s.",
-            metric_value, type(metric_value))
+            metric_name, type(metric_value))
 
     logging.info("Appending metrics to %s", metrics_fname)
     # We simulate an atomic append for filesystems that do not suppport
