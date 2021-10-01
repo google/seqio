@@ -46,7 +46,7 @@ MetricsAndOutputsType = Tuple[
     AllOutputTokensType,  # output_tokens
     AllOutputScoresType]  # output_scores
 
-_MAX_NDARRAY_BYTES_JSON = 2048
+_MAX_NDARRAY_SIZE_JSON = 32
 
 
 class TensorAndNumpyEncoder(json.JSONEncoder):
@@ -64,16 +64,15 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
       if str(obj.dtype) == "bfloat16":
         # bfloat16 not supported, convert to float32.
         obj = obj.astype(np.float32)
-      retval = obj.tolist()  # Convert arrays to lists of py-native types.
-      str_repr = json.dumps(retval, cls=TensorAndNumpyEncoder)
-      if len(str_repr) <= _MAX_NDARRAY_BYTES_JSON:
-        return retval
-      # If the stringified ndarray would be larger than allowed, truncate
-      # by removing bytes in the middle (and return a string instead of
-      # nested lists).
-      return f"{type(obj).__name__}(shape={obj.shape}, dtype={obj_dtype}): " + (
-          " ... ".join([str_repr[:_MAX_NDARRAY_BYTES_JSON // 2],
-                        str_repr[-_MAX_NDARRAY_BYTES_JSON // 2:]]))
+      if obj.size <= _MAX_NDARRAY_SIZE_JSON:
+        return obj.tolist()  # Convert arrays to lists of py-native types.
+      else:
+        # If the ndarray is larger than allowed, return a summary string
+        # instead of the entire array.
+        first_five_str = str(obj.flatten().tolist()[:5])[1:-1]
+        return (
+            f"{type(obj).__name__}(shape={obj.shape}, dtype={obj_dtype}); "
+            f"first: {first_five_str} ...")
     elif (np.issubdtype(type(obj), np.number) or
           np.issubdtype(type(obj), np.bool_)):
       return obj.item()  # Convert most primitive np types to py-native types.
@@ -786,7 +785,11 @@ class TensorBoardLogger(Logger):
 class JSONLogger(Logger):
   """A logger that writes metrics and model outputs to JSONL files."""
 
-  def __init__(self, summary_dir: str, write_n_results: Optional[int] = None):
+  def __init__(
+      self,
+      summary_dir: str,
+      write_n_results: Optional[int] = None,
+      json_encoder_cls: Type[json.JSONEncoder] = TensorAndNumpyEncoder):
     """JSONLogger constructor.
 
     Args:
@@ -794,9 +797,11 @@ class JSONLogger(Logger):
       write_n_results: number of scores/predictions to be written to the file at
         each step. If None, scores and predictions from all examples are
         written.
+      json_encoder_cls: Class to use for serializing JSON to file.
     """
     super().__init__(summary_dir)
     self._write_n_results = write_n_results
+    self._json_encoder_cls = json_encoder_cls
 
   def __call__(self,
                task_name: str,
@@ -862,7 +867,7 @@ class JSONLogger(Logger):
         # Only write `prediction` if it is JSON serializable.
         if prediction is not None:
           try:
-            json.dumps(prediction, cls=TensorAndNumpyEncoder)
+            json.dumps(prediction, cls=self._json_encoder_cls)
             json_dict["prediction"] = prediction
           except TypeError:
             logging.warning("`prediction` is not JSON serializable",
@@ -870,7 +875,7 @@ class JSONLogger(Logger):
 
         # Only write `target` if it is JSON serializable.
         try:
-          json.dumps(target, cls=TensorAndNumpyEncoder)
+          json.dumps(target, cls=self._json_encoder_cls)
           json_dict["target"] = target
         except TypeError:
           logging.warning("`target` is not JSON serializable", exc_info=True)
@@ -878,7 +883,7 @@ class JSONLogger(Logger):
         if score is not None:
           json_dict["score"] = score
 
-        json_str = json.dumps(json_dict, cls=TensorAndNumpyEncoder)
+        json_str = json.dumps(json_dict, cls=self._json_encoder_cls)
         f.write(json_str + "\n")
     write_time = time.time() - write_tick
     logging.info("Writing completed in %02f seconds (%02f examples/sec).",
