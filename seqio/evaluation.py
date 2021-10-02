@@ -489,7 +489,7 @@ class Evaluator:
       raise ValueError(
           "'summary_dir' must be proviced to `Evaluator` if `logger_cls` is "
           "non-empty.")
-    self._loggers = (cls(summary_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
+    self._loggers = tuple(cls(summary_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
 
   def evaluate(self,
                *,
