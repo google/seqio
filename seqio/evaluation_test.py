@@ -334,18 +334,18 @@ class EvaluationTest(tf.test.TestCase):
     test_utils.assert_dataset(cached_task_datasets["task2"],
                               expected_task2_examples)
 
-  def _evaluate_single_task(self, task):
+  def _evaluate_single_task(self, task, loggers=()):
     id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
     mock_vocab = task.output_features["targets"].vocabulary
     # Define a dummy decoding logic.
     mock_vocab.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
 
     def mock_init(self):
-      self._cached_model_datasets = {task.name: tf.data.Dataset.range(3)}
+      self._cached_model_datasets = {task.name: tf.data.Dataset.range(1, 4)}
       self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
       self._cached_targets = {task.name: ["e5 e6", "e6", "e7"]}
       self._eval_tasks = [task]
-      self._loggers = ()
+      self._loggers = loggers
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
@@ -371,29 +371,88 @@ class EvaluationTest(tf.test.TestCase):
                  (2, 3)] if task.score_metric_fns else self.uncalled_fn)
 
       all_metrics, _, _ = evaluator.evaluate(
-          compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn)
-      return all_metrics.result()
+          compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn,
+          step=42)
+      return all_metrics.result(), evaluator
 
   def test_evaluate_single_task_predict(self):
     task = get_mocked_task(
         predict_metric_fns=[_sequence_accuracy_metric], score_metric_fns=[])
-    all_metrics = self._evaluate_single_task(task)
+    all_metrics, _ = self._evaluate_single_task(task)
     self.assertDictClose(
         {"sequence_accuracy": 2.0 / 3 * 100}, all_metrics[task.name])
 
   def test_evaluate_single_task_score(self):
     task = get_mocked_task(
         predict_metric_fns=[], score_metric_fns=[_sum_scores_metric])
-    all_metrics = self._evaluate_single_task(task)
+    all_metrics, _ = self._evaluate_single_task(task)
     self.assertDictClose({"total_score": 1305}, all_metrics[task.name])
 
   def test_evaluate_single_task_both(self):
     task = get_mocked_task(
         predict_metric_fns=[_sequence_accuracy_metric],
         score_metric_fns=[_sum_scores_metric])
-    all_metrics = self._evaluate_single_task(task)
+    all_metrics, _ = self._evaluate_single_task(task)
     expected = {"sequence_accuracy": 2.0 / 3 * 100, "total_score": 1305}
     self.assertDictClose(expected, all_metrics[task.name])
+
+  def test_evaluate_single_task_with_loggers(self):
+    loggers = (mock.Mock(), mock.Mock())
+
+    task = get_mocked_task(
+        predict_metric_fns=[_sequence_accuracy_metric],
+        score_metric_fns=[_sum_scores_metric])
+    _, evaluator = self._evaluate_single_task(task, loggers=loggers)
+    metrics = {
+        "sequence_accuracy": evaluation.Scalar(2.0 / 3 * 100),
+        "total_score": evaluation.Scalar(1305)
+    }
+    for logger in loggers:
+      logger.assert_called_once_with(
+          task_name=task.name, step=42, metrics=metrics,
+          dataset=evaluator._cached_task_datasets[task.name],
+          targets=evaluator._cached_targets[task.name],
+          inferences={
+              "predictions": ["e5 e6", "e7", "e7"],
+              "scores": [2, 1, 3]
+          })
+
+  def test_initialize_loggers(self):
+    task_name = "initialize_loggers"
+    ds = tf.data.Dataset.from_tensors(
+        {"inputs": [7, 8], "targets": [3, 9], "targets_pretokenized": "ex 1"})
+    dataset_fn = lambda split, shuffle_files, seed=None: ds
+    register_dummy_task(
+        task_name,
+        dataset_fn=dataset_fn,
+        # `append_eos_after_trim` has an optional sequence_length arg
+        preprocessor=preprocessors.append_eos_after_trim,
+        metrics_fn=[_sequence_accuracy_metric])
+
+    feature_converter = mock.Mock(pack=False, TASK_FEATURES={})
+
+    logger_cls = (mock.Mock(), mock.Mock())
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        "'summary_dir' must be proviced to `Evaluator` if `logger_cls` is "
+        "non-empty."):
+      Evaluator(
+          mixture_or_task_name=task_name,
+          feature_converter=feature_converter,
+          logger_cls=logger_cls)
+
+    # Try again with `summary_dir`.
+    evaluator = Evaluator(
+        mixture_or_task_name=task_name,
+        feature_converter=feature_converter,
+        summary_dir="test_dir",
+        logger_cls=logger_cls)
+
+    self.assertLen(evaluator._loggers, 2)
+
+    for logger in logger_cls:
+      logger.assert_called_once_with(summary_dir="test_dir")
 
   def test_evaluate_non_string(self):
     task = get_mocked_task()
