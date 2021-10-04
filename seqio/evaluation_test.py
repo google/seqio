@@ -435,24 +435,24 @@ class EvaluationTest(tf.test.TestCase):
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
-        "'summary_dir' must be proviced to `Evaluator` if `logger_cls` is "
+        "'log_dir' must be proviced to `Evaluator` if `logger_cls` is "
         "non-empty."):
       Evaluator(
           mixture_or_task_name=task_name,
           feature_converter=feature_converter,
           logger_cls=logger_cls)
 
-    # Try again with `summary_dir`.
+    # Try again with `log_dir`.
     evaluator = Evaluator(
         mixture_or_task_name=task_name,
         feature_converter=feature_converter,
-        summary_dir="test_dir",
+        log_dir="test_dir",
         logger_cls=logger_cls)
 
     self.assertLen(evaluator._loggers, 2)
 
     for logger in logger_cls:
-      logger.assert_called_once_with(summary_dir="test_dir")
+      logger.assert_called_once_with(output_dir="test_dir")
 
   def test_evaluate_non_string(self):
     task = get_mocked_task()
@@ -988,9 +988,9 @@ class TensorBoardLoggerTest(tf.test.TestCase):
     self.logger(
         task_name="log_eval_task", step=1, metrics=task_metrics,
         dataset=tf.data.Dataset.range(0), inferences={}, targets=[])
-    task_summary_dir = os.path.join(self.logger.summary_dir, "log_eval_task")
+    task_output_dir = os.path.join(self.logger.output_dir, "log_eval_task")
     event_file = os.path.join(
-        task_summary_dir, tf.io.gfile.listdir(task_summary_dir)[0])
+        task_output_dir, tf.io.gfile.listdir(task_output_dir)[0])
     # First event is boilerplate
     serialized_events = list(tfds.as_numpy(
         tf.data.TFRecordDataset(event_file)))[1:]

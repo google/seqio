@@ -269,13 +269,13 @@ class Logger(abc.ABC):
   """Abstract base class for logging.
 
   Attributes:
-    summary_dir: a directory to save the logging results (e.g., TensorBoard
+    output_dir: a directory to save the logging results (e.g., TensorBoard
       summary) as well as the evaluation results (e.g., "inputs_pretokenized",
       "target_pretokenize" and "prediction").
   """
 
-  def __init__(self, summary_dir):
-    self.summary_dir = summary_dir
+  def __init__(self, output_dir):
+    self.output_dir = output_dir
 
   @abc.abstractmethod
   def __call__(self, task_name: str, step: int, metrics: Mapping[str, Metric],
@@ -339,7 +339,7 @@ class Evaluator:
                num_examples: Optional[int] = None,
                shuffle: bool = False,
                logger_cls: Sequence[Type[Logger]] = (),
-               summary_dir: Optional[str] = None):
+               log_dir: Optional[str] = None):
     """Evaluator constructor.
 
     Args:
@@ -368,8 +368,8 @@ class Evaluator:
         initialization (using `seed`) and the same subsample will be used on
         call to `evaluate`.
       logger_cls: a set of subclasses of `Logger` to write results with.
-      summary_dir: the directory to log summaries to. Required if `logger_cls`
-        is non-empty.
+      log_dir: the directory to log outputs to. Required if `logger_cls` is
+        non-empty.
 
     Raises:
       ValueError if `sequence_length` is None but a preprocessor depends on its
@@ -487,11 +487,11 @@ class Evaluator:
     self._model_feature_lengths = feature_converter.get_model_feature_lengths(
         sequence_length)
 
-    if logger_cls and not summary_dir:
+    if logger_cls and not log_dir:
       raise ValueError(
-          "'summary_dir' must be proviced to `Evaluator` if `logger_cls` is "
+          "'log_dir' must be proviced to `Evaluator` if `logger_cls` is "
           "non-empty.")
-    self._loggers = tuple(cls(summary_dir=summary_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
+    self._loggers = tuple(cls(output_dir=log_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
 
   def evaluate(self,
                *,
@@ -720,13 +720,13 @@ class Evaluator:
 class TensorBoardLogger(Logger):
   """A logger that writes metrics to TensorBoard summaries."""
 
-  def __init__(self, summary_dir: str):
+  def __init__(self, output_dir: str):
     """TensorBoardLogger initializer.
 
     Args:
-      summary_dir: The base directory where all logs will be written.
+      output_dir: The base directory where all logs will be written.
     """
-    super().__init__(summary_dir)
+    super().__init__(output_dir)
     self._summary_writers = {}
 
   def _get_summary_writer(self, task_name: str) -> tf.summary.SummaryWriter:
@@ -734,7 +734,7 @@ class TensorBoardLogger(Logger):
     if task_name not in self._summary_writers:
       with tf.compat.v1.Graph().as_default():
         self._summary_writers[task_name] = tf.compat.v1.summary.FileWriter(
-            os.path.join(self.summary_dir, task_name))
+            os.path.join(self.output_dir, task_name))
     return self._summary_writers[task_name]
 
   def __call__(self,
@@ -789,19 +789,19 @@ class JSONLogger(Logger):
 
   def __init__(
       self,
-      summary_dir: str,
+      output_dir: str,
       write_n_results: Optional[int] = None,
       json_encoder_cls: Type[json.JSONEncoder] = TensorAndNumpyEncoder):
     """JSONLogger constructor.
 
     Args:
-      summary_dir: The base directory where all logs will be written.
+      output_dir: The base directory where all logs will be written.
       write_n_results: number of scores/predictions to be written to the file at
         each step. If None, scores and predictions from all examples are
         written.
       json_encoder_cls: Class to use for serializing JSON to file.
     """
-    super().__init__(summary_dir)
+    super().__init__(output_dir)
     self._write_n_results = write_n_results
     self._json_encoder_cls = json_encoder_cls
 
@@ -817,7 +817,7 @@ class JSONLogger(Logger):
                       "A dummy value of -1 will be used.")
       step = -1
 
-    metrics_fname = os.path.join(self.summary_dir, f"{task_name}-metrics.jsonl")
+    metrics_fname = os.path.join(self.output_dir, f"{task_name}-metrics.jsonl")
 
     serializable_metrics = {}
     for metric_name, metric_value in metrics.items():
@@ -846,7 +846,7 @@ class JSONLogger(Logger):
       return
 
     write_tick = time.time()
-    inferences_fname = os.path.join(self.summary_dir,
+    inferences_fname = os.path.join(self.output_dir,
                                     f"{task_name}-{step}.jsonl")
     logging.info("Writing inferences to %s", inferences_fname)
     with tf.io.gfile.GFile(inferences_fname, "w") as f:
