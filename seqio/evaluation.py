@@ -69,7 +69,7 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
       else:
         # If the ndarray is larger than allowed, return a summary string
         # instead of the entire array.
-        first_five_str = str(obj.flatten().tolist()[:5])[1:-1]
+        first_five_str = str(obj.reshape([-1])[:5].tolist())[1:-1]
         return (
             f"{type(obj).__name__}(shape={obj.shape}, dtype={obj_dtype}); "
             f"first: {first_five_str} ...")
