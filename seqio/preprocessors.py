@@ -168,6 +168,7 @@ def append_eos_after_trim(
     dataset: tf.data.Dataset,
     output_features: OutputFeaturesType,
     sequence_length: Optional[SequenceLengthType] = None,
+    preserve_final_n_tokens_when_trimming: Optional[int] = None,
 ) -> tf.data.Dataset:
   """Trims output feature token sequences and then appends EOS.
 
@@ -186,6 +187,9 @@ def append_eos_after_trim(
     sequence_length: a mapping from output feature names to max lengths.
       If provided, output feature sequences will be trimmed to ensure they are
       not longer than this length once EOS is added.
+    preserve_final_n_tokens_when_trimming: an int, whether to preserve the
+      final n tokens when trimming the sequence to fit it into sequence_length
+      tokens.
 
   Returns:
     a tf.data.Dataset of tokenized examples with EOS added to specified output
@@ -198,7 +202,21 @@ def append_eos_after_trim(
     if (sequence_length is not None and
         sequence_length.get(key, None) is not None):
       max_length = sequence_length[key]
-      return tf.concat([value[:max_length-1], [eos_id]], axis=0)
+      if (preserve_final_n_tokens_when_trimming is not None and
+          preserve_final_n_tokens_when_trimming > 0):
+        # Compute the new length of the sequence excluding the EOS token.
+        trimmed_length = tf.minimum(max_length, tf.shape(value)[0] + 1)
+        # Can't preserve more tokens than the sequence length.
+        n_tokens_to_preserve = tf.minimum(
+            preserve_final_n_tokens_when_trimming, trimmed_length - 1)
+        # pylint: disable=invalid-unary-operand-type
+        return tf.concat(
+            [value[:trimmed_length-(n_tokens_to_preserve + 1)],
+             value[-n_tokens_to_preserve:],
+             [eos_id]], axis=0)
+        # pylint: enable=invalid-unary-operand-type
+      else:
+        return tf.concat([value[:max_length-1], [eos_id]], axis=0)
     else:
       return tf.concat([value, [eos_id]], axis=0)
 

@@ -195,6 +195,23 @@ class PreprocessorsTest(absltest.TestCase):
             'bows': [12, 13],
         })
 
+    # Trim to sequence lengths with preserve_final_n_tokens_when_trimming.
+    for correct_targets, tokens_to_keep in zip(
+        [[4, 5, 1], [4, 7, 1], [6, 7, 1], [6, 7, 1], [6, 7, 1], [6, 7, 1]],
+        [0, 1, 2, 3, 4, 5]):
+      assert_dataset(
+          preprocessors.append_eos_after_trim(
+              og_dataset,
+              output_features=output_features,
+              sequence_length=sequence_length,
+              preserve_final_n_tokens_when_trimming=tokens_to_keep),
+          {
+              'inputs': [1, 2, 3],
+              'targets': correct_targets,
+              'arrows': [8, 9, 10, 11, 1],
+              'bows': [12, 13],
+          })
+
     # Trim to sequence lengths (but with targets=None).
     sequence_length['targets'] = None
     assert_dataset(
