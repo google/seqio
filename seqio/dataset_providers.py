@@ -674,6 +674,13 @@ class CacheDatasetPlaceholder(object):
 # Return type should be Mapping[str, Union[evaluation.Metric, float]] but to
 # avoid circular package dependencies, we wildcard to `Any`.
 MetricFnCallable = Callable[..., Mapping[str, Any]]
+# Shuffle functions receive shuffle_buffer_size and seed as arguments.
+ShuffleFn = Callable[[tf.data.Dataset, int, Optional[int]], tf.data.Dataset]
+
+
+def default_task_shuffle_fn(ds: tf.data.Dataset, shuffle_buffer_size: int,
+                            seed: Optional[int]) -> tf.data.Dataset:
+  return ds.shuffle(shuffle_buffer_size, seed=seed)
 
 
 class Task(DatasetProviderBase):
@@ -687,7 +694,9 @@ class Task(DatasetProviderBase):
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
       metric_fns: Optional[Sequence[MetricFnCallable]] = None,
-      shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE):
+      shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE,
+      shuffle_fn: ShuffleFn = default_task_shuffle_fn,
+  ):
     """Task constructor.
 
     Args:
@@ -710,6 +719,7 @@ class Task(DatasetProviderBase):
         undefined or empty, no evaluation will occur on the task.
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
+      shuffle_fn: Shuffle function for shuffling dataset.
     """
     if not _VALID_TASK_NAME_REGEX.match(name):
       raise ValueError(
@@ -771,6 +781,7 @@ class Task(DatasetProviderBase):
     self._cache_dir = None
     self._stats = {}
     self._shuffle_buffer_size = shuffle_buffer_size
+    self._shuffle_fn = shuffle_fn
 
     self._output_features = collections.OrderedDict(
         sorted(list(output_features.items()))
@@ -1100,7 +1111,7 @@ class Task(DatasetProviderBase):
       shuffle_buffer_size = shuffle_buffer_size or self._shuffle_buffer_size
       # Shuffle before mixing since preprocessor can output multiple
       # (correlated) examples per input.
-      ds = ds.shuffle(shuffle_buffer_size, seed=seed)
+      ds = self._shuffle_fn(ds, shuffle_buffer_size, seed)
 
     return ds.prefetch(tf.data.experimental.AUTOTUNE)
 
