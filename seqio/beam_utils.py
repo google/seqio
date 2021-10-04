@@ -14,9 +14,12 @@
 
 """SeqIO Beam utilities."""
 
+import functools
 import importlib
 import json
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+import operator
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+
 from absl import logging
 import apache_beam as beam
 import apache_beam.metrics as metrics
@@ -214,7 +217,10 @@ class GetInfo(beam.PTransform):
         continue
       t = tf.constant(v)
       dtype = t.dtype.name
-      shape = [None] * len(t.shape)
+      shape = t.shape.as_list()
+      # Keep all the dimensions but the first if t is not a scalar.
+      if shape:
+        shape = [None] + shape[1:]
       feature_dict[k] = {"shape": shape, "dtype": dtype}
     return info
 
@@ -225,8 +231,44 @@ class GetInfo(beam.PTransform):
         | beam.Map(self._info_dict))
 
 
+class _CountTokens(beam.DoFn):
+  """Returns token counts for each feature."""
+
+  def __init__(self, output_features: Mapping[str, seqio.Feature]):
+    self._output_features = output_features
+
+  def setup(self):
+    # Certain vocabularies are lazy loaded. Since we are running under beam we
+    # try to do the loading only once in the setup phase.
+    for feat in self._output_features.values():
+      v = feat.vocabulary.eos_id
+      v = feat.vocabulary.unk_id
+      v = feat.vocabulary.pad_id
+      del v
+
+  def process(self, ex: Mapping[str, Any]) -> Iterable[Tuple[str, int]]:
+    for name, feat in self._output_features.items():
+      if (name in ex and isinstance(ex[name], np.ndarray) and
+          ex[name].dtype in (np.int32, np.int64)):
+        values = ex[name]
+        conditions = []
+        if feat.vocabulary.eos_id is not None:
+          conditions.append((values != feat.vocabulary.eos_id))
+        if feat.vocabulary.pad_id is not None:
+          conditions.append((values != feat.vocabulary.pad_id))
+
+        if conditions:
+          valid_tokens = functools.reduce(operator.and_, conditions)
+        else:
+          # Assumes all values are valid tokens.
+          valid_tokens = np.ones_like(values, dtype=bool)
+
+        num_tokens = int(np.sum(valid_tokens))
+        yield (f"{name}_tokens", num_tokens)
+
+
 class GetStats(beam.PTransform):
-  """Computes stastistics for dataset examples.
+  """Computes statistics for dataset examples.
 
   Expects a dictionary of string identifiers mapped to PCollections of examples.
   Returns a dictionary with statistics (number of examples, number of tokens)
@@ -243,19 +285,8 @@ class GetStats(beam.PTransform):
         | "key_example_counts" >> beam.Map(lambda x: ("examples", x))
         | "example_count_dict" >> beam.combiners.ToDict())
 
-    def _count_tokens(pcoll, feat):
-
-      def _count(ex):
-        if (feat in ex and isinstance(ex[feat], np.ndarray) and
-            ex[feat].dtype in (np.int32, np.int64)):
-          yield ("%s_tokens" % feat, int(sum(ex[feat] > 1)))
-
-      return pcoll | "key_%s_toks" % feat >> beam.FlatMap(_count)
-
-    token_counts = (
-        [_count_tokens(pcoll, feat)
-         for feat in self._output_features]
-        | "flatten_tokens" >> beam.Flatten())
+    token_counts = pcoll | "count_tokens" >> beam.ParDo(
+        _CountTokens(self._output_features))
     total_tokens = (
         token_counts
         | "sum_tokens" >> beam.CombinePerKey(sum)

@@ -170,10 +170,9 @@ def dict_to_tfexample(ex):
       v = [v]
     elif len(t.shape) == 1:
       v = list(v)
-    else:
-      raise ValueError(
-          "Unsupported shape (%s) for '%s' value: %s" %
-          (t.shape, k, v))
+    elif len(t.shape) >= 2:
+      t = tf.reshape(v, [-1])
+      v = np.array(v).flatten()
 
     if t.dtype == tf.string and len(t.shape) <= 1:
       feature_dict[k] = tf.train.Feature(

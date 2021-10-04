@@ -109,7 +109,12 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
     self.assertEqual(json.dumps(actual_json), json.dumps(data))
 
   def test_get_info(self):
-    input_examples = [{"targets": range(10), "inputs": "test"}]
+    input_examples = [{
+        "targets": range(10),
+        "inputs": "test",
+        "2d_shape": np.ones((1, 3), np.int32),
+        "3d_shape": np.ones((1, 2, 3), np.int32),
+    }]
     with TestPipeline() as p:
       pcoll = (p
                | beam.Create(input_examples)
@@ -127,7 +132,15 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
                   "inputs": {
                       "shape": [],
                       "dtype": "string"
-                  }
+                  },
+                  "2d_shape": {
+                      "shape": [None, 3],
+                      "dtype": "int32"
+                  },
+                  "3d_shape": {
+                      "shape": [None, 2, 3],
+                      "dtype": "int32",
+                  },
               },
               "seqio_version": seqio.__version__
           }]))

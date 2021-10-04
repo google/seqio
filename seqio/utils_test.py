@@ -123,16 +123,19 @@ class LazyTfdsLoaderTest(absltest.TestCase):
 class UtilsTest(parameterized.TestCase):
 
   def test_dict_to_tfexample(self):
-    tfe = utils.dict_to_tfexample({
+    features = {
         "inputs": "this is an input",
         "targets": "this is a target",
         "weight": 5.0,
         "idx1": np.array([1, 2], np.int32),
         "idx2": np.array([3, 4], np.int64),
         "is_correct": False,
-    })
+        "2d_shape": np.arange(3).reshape((1, 3)),
+        "3d_shape": np.arange(6).reshape((1, 2, 3)),
+    }
+    tfe = utils.dict_to_tfexample(features)
 
-    self.assertLen(tfe.features.feature, 6)
+    self.assertLen(tfe.features.feature, len(features))
     self.assertEqual(tfe.features.feature["inputs"].bytes_list.value,
                      [b"this is an input"])
     self.assertEqual(tfe.features.feature["targets"].bytes_list.value,
@@ -147,6 +150,12 @@ class UtilsTest(parameterized.TestCase):
     np.testing.assert_array_equal(
         tfe.features.feature["is_correct"].int64_list.value,
         np.array([0], np.int64))
+    np.testing.assert_array_equal(
+        tfe.features.feature["2d_shape"].int64_list.value,
+        np.arange(3).reshape((1, 3)).flatten())
+    np.testing.assert_array_equal(
+        tfe.features.feature["3d_shape"].int64_list.value,
+        np.arange(6).reshape((1, 2, 3)).flatten())
 
   def test_stateless_shuffle(self):
     value = np.arange(6)

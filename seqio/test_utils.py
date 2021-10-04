@@ -58,18 +58,42 @@ class _ProxyTest(absltest.TestCase):
 _pyunit_proxy = _ProxyTest()
 
 _FAKE_DATASET = {
-    "train": [
-        {"prefix": "this", "suffix": "is a test"},
-        {"prefix": "that", "suffix": "was a test"},
-        {"prefix": "those", "suffix": "were tests"}
-    ],
+    "train": [{
+        "prefix": "this",
+        "suffix": "is a test",
+        "2d_feature": ((1, 2, 3),),
+        "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+    }, {
+        "prefix": "that",
+        "suffix": "was a test",
+        "2d_feature": ((1, 2, 3),),
+        "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+    }, {
+        "prefix": "those",
+        "suffix": "were tests",
+        "2d_feature": ((1, 2, 3),),
+        "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+    }],
     "validation": [
         {
-            "idx": 0, "idxs": (100,), "id": "a", "ids": ("a1", "a2"),
-            "prefix": "this", "suffix": "is a validation"
-        }, {
-            "idx": 1, "idxs": (200, 201), "id": "b", "ids": ("b1",),
-            "prefix": "that", "suffix": "was another validation"
+            "idx": 0,
+            "idxs": (100,),
+            "id": "a",
+            "ids": ("a1", "a2"),
+            "prefix": "this",
+            "suffix": "is a validation",
+            "2d_feature": ((3, 2, 1),),
+            "3d_feature": (((6, 5, 4), (3, 2, 1)),),
+        },
+        {
+            "idx": 1,
+            "idxs": (200, 201),
+            "id": "b",
+            "ids": ("b1",),
+            "prefix": "that",
+            "suffix": "was another validation",
+            "2d_feature": ((3, 2, 1),),
+            "3d_feature": (((6, 5, 4), (3, 2, 1)),),
         },
     ]
 }
@@ -174,16 +198,88 @@ _FAKE_TOKEN_PREPROCESSED_DATASET = {
     ]
 }
 
+_FAKE_TOKEN_PREPROCESSED_NDFEATURES_DATASET = {
+    "train": [
+        {
+            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
+            "inputs_pretokenized": "complete: this",
+            "targets": (3, 8, 6, 3, 5, 10),
+            "targets_pretokenized": "is a test",
+            "2d_feature": ((1, 2, 3),),
+            "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+            "2d_feature_pretokenized": ((1, 2, 3),),
+            "3d_feature_pretokenized": (((1, 2, 3), (4, 5, 6)),),
+        },
+        {
+            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
+            "inputs_pretokenized": "complete: that",
+            "targets": (17, 5, 6, 3, 5, 10),
+            "targets_pretokenized": "was a test",
+            "2d_feature": ((1, 2, 3),),
+            "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+            "2d_feature_pretokenized": ((1, 2, 3),),
+            "3d_feature_pretokenized": (((1, 2, 3), (4, 5, 6)),),
+        },
+        {
+            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 7, 6, 4),
+            "inputs_pretokenized": "complete: those",
+            "targets": (17, 4, 23, 4, 10, 6),
+            "targets_pretokenized": "were tests",
+            "2d_feature": ((1, 2, 3),),
+            "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+            "2d_feature_pretokenized": ((1, 2, 3),),
+            "3d_feature_pretokenized": (((1, 2, 3), (4, 5, 6)),),
+        },
+    ],
+    "validation": [{
+        "idx": 0,
+        "idxs": (100,),
+        "id": "a",
+        "ids": ("a1", "a2"),
+        "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
+        "inputs_pretokenized": "complete: this",
+        "targets": (3, 8, 6, 3, 5, 3, 25, 5, 9, 8, 21, 18, 8, 7, 22),
+        "targets_pretokenized": "is a validation",
+        "2d_feature": ((3, 2, 1),),
+        "3d_feature": (((6, 5, 4), (3, 2, 1)),),
+        "2d_feature_pretokenized": ((3, 2, 1),),
+        "3d_feature_pretokenized": (((6, 5, 4), (3, 2, 1)),),
+    }, {
+        "idx": 1,
+        "idxs": (200, 201),
+        "id": "b",
+        "ids": ("b1",),
+        "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
+        "inputs_pretokenized": "complete: that",
+        "targets": (17, 5, 6, 3, 5, 22, 7, 24, 20, 4, 23, 3, 25, 5, 9, 8, 21,
+                    18, 8, 7, 22),
+        "targets_pretokenized": "was another validation",
+        "2d_feature": ((3, 2, 1),),
+        "3d_feature": (((6, 5, 4), (3, 2, 1)),),
+        "2d_feature_pretokenized": ((3, 2, 1),),
+        "3d_feature_pretokenized": (((6, 5, 4), (3, 2, 1)),),
+    }]
+}
+
 _FAKE_DATASETS = {
-    "input": _FAKE_DATASET,
-    "tokenized": _FAKE_TOKENIZED_DATASET,
-    "token_preprocessed": _FAKE_TOKEN_PREPROCESSED_DATASET
+    "input":
+        _FAKE_DATASET,
+    "tokenized":
+        _FAKE_TOKENIZED_DATASET,
+    "token_preprocessed":
+        _FAKE_TOKEN_PREPROCESSED_DATASET,
+    "token_preprocessed_ndfeatures":
+        _FAKE_TOKEN_PREPROCESSED_NDFEATURES_DATASET,
 }
 
 _DEFAULT_SEQUENCE_LENGTH = {"inputs": 13, "targets": 13}
 
 
-def get_fake_dataset(split, shuffle_files=False, seed=None, shard_info=None):
+def get_fake_dataset(split,
+                     shuffle_files=False,
+                     seed=None,
+                     shard_info=None,
+                     ndfeatures=False):
   """Returns a tf.data.Dataset with fake data."""
   del shuffle_files  # Unused, to be compatible with TFDS API.
   del seed
@@ -197,8 +293,17 @@ def get_fake_dataset(split, shuffle_files=False, seed=None, shard_info=None):
   if split == "validation":
     output_shapes.update({"idxs": [None], "ids": [None]})
 
-  ds = tf.data.Dataset.from_generator(
-      lambda: _FAKE_DATASET[split], output_types, output_shapes)
+  if ndfeatures:
+    # If we are using ndfeatures fake dataset add the info.
+    output_types.update({"2d_feature": tf.int32, "3d_feature": tf.int32})
+    output_shapes.update({"2d_feature": [None, 3], "3d_feature": [None, 2, 3]})
+
+  # Keep only defined features.
+  examples = list(
+      map(lambda ex: {k: ex[k] for k in output_types}, _FAKE_DATASET[split]))
+
+  ds = tf.data.Dataset.from_generator(lambda: examples, output_types,
+                                      output_shapes)
   if shard_info:
     ds = ds.shard(num_shards=shard_info.num_shards, index=shard_info.index)
   return ds
@@ -207,13 +312,19 @@ def get_fake_dataset(split, shuffle_files=False, seed=None, shard_info=None):
 def _get_comparable_examples_from_ds(ds):
   """Puts dataset into format that allows examples to be compared in Py2/3."""
   examples = []
+
+  def _to_tuple(v):
+    if isinstance(v, list):
+      return tuple(_to_tuple(i) for i in v)
+    else:
+      return v
   def _clean_value(v):
     if isinstance(v, bytes):
       return tf.compat.as_text(v)
     if isinstance(v, np.ndarray):
       if isinstance(v[0], bytes):
         return tuple(tf.compat.as_text(s) for s in v)
-      return tuple(v)
+      return _to_tuple(v.tolist())
     return v
 
   for ex in tfds.as_numpy(ds):
@@ -338,18 +449,26 @@ def assert_datasets_neq(dataset1, dataset2):
                              assert_datasets_eq, dataset1, dataset2)
 
 
-def _assert_compare_to_fake_dataset(
-    ds, split, features, sequence_length, token_preprocessed=False):
+def _assert_compare_to_fake_dataset(ds: tf.data.Dataset,
+                                    split: str,
+                                    features,
+                                    sequence_length: Optional[Mapping[str,
+                                                                      int]],
+                                    token_preprocessed: bool = False,
+                                    ndfeatures: bool = False):
   """Calls assertion to compare fake examples to actual dataaset."""
-  fake_examples = copy.deepcopy(_FAKE_DATASETS[
-      "token_preprocessed" if token_preprocessed else "tokenized"][split])
+  dataset = "token_preprocessed" if token_preprocessed else "tokenized"
+  dataset = dataset if not ndfeatures else "token_preprocessed_ndfeatures"
+  fake_examples = copy.deepcopy(_FAKE_DATASETS[dataset][split])
 
   for key, feat in features.items():
     for n, ex in enumerate(fake_examples):
-      if sequence_length:
-        fake_examples[n][key] = ex[key][:sequence_length[key] - feat.add_eos]
+      if sequence_length and key in sequence_length:
+        fake_examples[n][key] = ex[key][:sequence_length[key] -
+                                        int(feat.add_eos)]
       if feat.add_eos:
-        fake_examples[n][key] = fake_examples[n][key] + (1,)
+        fake_examples[n][key] = fake_examples[n][key] + (
+            feat.vocabulary.eos_id,)
 
   expected_output_shapes = {
       "inputs": [None], "targets": [None],
@@ -362,6 +481,20 @@ def _assert_compare_to_fake_dataset(
         {"id": [], "ids": [None], "idx": [], "idxs": [None]})
     expected_output_dtypes.update(
         {"id": tf.string, "ids": tf.string, "idx": tf.int64, "idxs": tf.int32})
+  if ndfeatures:
+    # If we are using ndfeatures fake dataset add the info.
+    expected_output_dtypes.update({
+        "2d_feature": tf.int32,
+        "3d_feature": tf.int32,
+        "2d_feature_pretokenized": tf.int32,
+        "3d_feature_pretokenized": tf.int32,
+    })
+    expected_output_shapes.update({
+        "2d_feature": [None, 3],
+        "3d_feature": [None, 2, 3],
+        "2d_feature_pretokenized": [None, 3],
+        "3d_feature_pretokenized": [None, 2, 3],
+    })
   # Override with Feature dtypes.
   for k, f in features.items():
     expected_output_dtypes[k] = f.dtype
@@ -1034,10 +1167,10 @@ class FakeTaskTest(absltest.TestCase):
       task_name,
       use_cached,
       token_preprocessed=False,
+      ndfeatures=False,
       splits=("train", "validation"),
       sequence_length=_DEFAULT_SEQUENCE_LENGTH,
-      num_shards=None
-  ):
+      num_shards=None):
     """Assert all splits for both tokenized datasets are correct."""
     task = TaskRegistry.get(task_name)
     for split in splits:
@@ -1058,6 +1191,7 @@ class FakeTaskTest(absltest.TestCase):
           task.output_features,
           sequence_length,
           token_preprocessed=token_preprocessed,
+          ndfeatures=ndfeatures,
       )
 
 

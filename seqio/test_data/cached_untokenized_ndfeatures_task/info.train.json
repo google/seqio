@@ -1,0 +1,29 @@
+{
+  "features": {
+    "2d_feature": {
+      "dtype": "int32",
+      "shape": [
+        null,
+        3
+      ]
+    },
+    "3d_feature": {
+      "dtype": "int32",
+      "shape": [
+        null,
+        2,
+        3
+      ]
+    },
+    "inputs": {
+      "dtype": "string",
+      "shape": []
+    },
+    "targets": {
+      "dtype": "string",
+      "shape": []
+    }
+  },
+  "num_shards": 1,
+  "seqio_version": "0.0.0"
+}

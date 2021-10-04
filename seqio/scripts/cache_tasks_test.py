@@ -14,6 +14,7 @@
 
 """Tests for seqio.scripts.cache_tasks_main."""
 
+import functools
 import os
 
 from absl.testing import absltest
@@ -34,6 +35,7 @@ class ProcessTaskBeamTest(test_utils.FakeTaskTest):
                         task_name,
                         expected_task_dir="cached_task",
                         token_preprocessed=False,
+                        ndfeatures=False,
                         num_shards=2):
     self.assertTrue(TaskRegistry.get("cached_task").cache_dir)
     task = TaskRegistry.get(task_name)
@@ -79,14 +81,16 @@ class ProcessTaskBeamTest(test_utils.FakeTaskTest):
       version = seqio.__version__
       expected_content = expected_content.replace(
           '"seqio_version": "0.0.0"', f'"seqio_version": "{version}"')
-      self.assertEqual(expected_content, actual_content)
+      self.assertEqual(expected_content, actual_content,
+                       f"Contents of {fname} mismath")
 
     # Check datasets.
     self.verify_task_matches_fake_datasets(
         task_name,
         use_cached=True,
         splits=task.splits,
-        token_preprocessed=token_preprocessed)
+        token_preprocessed=token_preprocessed,
+        ndfeatures=ndfeatures)
 
   def test_tfds_pipeline(self):
     self.validate_pipeline("tfds_task")
@@ -102,6 +106,43 @@ class ProcessTaskBeamTest(test_utils.FakeTaskTest):
 
   def test_tf_example_pipeline(self):
     self.validate_pipeline("tf_example_task")
+
+  def test_cache_before_tokenization_ndfeatures_pipeline(self):
+    self.add_task(
+        "task_tokenized_postcache_ndfeatures",
+        seqio.dataset_providers.FunctionDataSource(
+            dataset_fn=functools.partial(
+                test_utils.get_fake_dataset, ndfeatures=True),
+            splits=["train", "validation"]),
+        output_features={
+            "inputs":
+                seqio.Feature(test_utils.sentencepiece_vocab()),
+            "targets":
+                seqio.Feature(test_utils.sentencepiece_vocab()),
+            "2d_feature":
+                seqio.Feature(
+                    seqio.PassThroughVocabulary(1000, eos_id=0),
+                    add_eos=False,
+                    rank=2),
+            "3d_feature":
+                seqio.Feature(
+                    seqio.PassThroughVocabulary(1000, eos_id=0),
+                    add_eos=False,
+                    rank=3),
+        },
+        preprocessors=[
+            test_utils.test_text_preprocessor,
+            seqio.CacheDatasetPlaceholder(),
+            seqio.preprocessors.tokenize,
+            test_utils.token_preprocessor_no_sequence_length,
+            seqio.preprocessors.append_eos_after_trim,
+        ])
+    self.validate_pipeline(
+        "task_tokenized_postcache_ndfeatures",
+        expected_task_dir="cached_untokenized_ndfeatures_task",
+        num_shards=1,
+        token_preprocessed=True,
+        ndfeatures=True)
 
   def test_cache_before_tokenization_pipeline(self):
     self.add_task(
