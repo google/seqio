@@ -168,6 +168,7 @@ def append_eos_after_trim(
     dataset: tf.data.Dataset,
     output_features: OutputFeaturesType,
     sequence_length: Optional[SequenceLengthType] = None,
+    preserve_final_token_when_trimming: bool = False,
 ) -> tf.data.Dataset:
   """Trims output feature token sequences and then appends EOS.
 
@@ -186,6 +187,9 @@ def append_eos_after_trim(
     sequence_length: a mapping from output feature names to max lengths.
       If provided, output feature sequences will be trimmed to ensure they are
       not longer than this length once EOS is added.
+    preserve_final_token_when_trimming: a boolean, whether to preserve the
+      final token when trimming the sequence to fit it into sequence_length
+      tokens.
 
   Returns:
     a tf.data.Dataset of tokenized examples with EOS added to specified output
@@ -198,7 +202,12 @@ def append_eos_after_trim(
     if (sequence_length is not None and
         sequence_length.get(key, None) is not None):
       max_length = sequence_length[key]
-      return tf.concat([value[:max_length-1], [eos_id]], axis=0)
+      if preserve_final_token_when_trimming:
+        trimmed_length = tf.minimum(max_length, tf.shape(value)[0] + 1)
+        return tf.concat(
+            [value[:trimmed_length-2], [value[-1]], [eos_id]], axis=0)
+      else:
+        return tf.concat([value[:max_length-1], [eos_id]], axis=0)
     else:
       return tf.concat([value, [eos_id]], axis=0)
 
