@@ -46,11 +46,13 @@ MetricsAndOutputsType = Tuple[
     AllOutputTokensType,  # output_tokens
     AllOutputScoresType]  # output_scores
 
-_MAX_NDARRAY_SIZE_JSON = 32
-
 
 class TensorAndNumpyEncoder(json.JSONEncoder):
   """JSON Encoder to use when encoding dicts with tensors and numpy arrays."""
+
+  def __init__(self, *args, max_ndarray_size=32, **kwargs):
+    self.max_ndarray_size = max_ndarray_size
+    super().__init__(*args, **kwargs)
 
   def default(self, obj):
     if isinstance(obj, tf.Tensor):
@@ -64,7 +66,7 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
       if str(obj.dtype) == "bfloat16":
         # bfloat16 not supported, convert to float32.
         obj = obj.astype(np.float32)
-      if obj.size <= _MAX_NDARRAY_SIZE_JSON:
+      if obj.size <= self.max_ndarray_size:
         return obj.tolist()  # Convert arrays to lists of py-native types.
       else:
         # If the ndarray is larger than allowed, return a summary string
