@@ -19,11 +19,9 @@ from seqio.dataset_providers import *
 from seqio import evaluation
 from seqio import experimental
 from seqio.evaluation import Evaluator
-from seqio.evaluation import JSONLogger
-from seqio.evaluation import Logger
-from seqio.evaluation import TensorAndNumpyEncoder
-from seqio.evaluation import TensorBoardLogger
 from seqio.feature_converters import *
+from seqio.loggers import *
+from seqio import metrics
 from seqio import preprocessors
 import seqio.test_utils
 from seqio.utils import *

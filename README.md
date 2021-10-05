@@ -260,7 +260,7 @@ task in the [Advanced Postprocessing `Task`](#advanced-postprocessing-task) for 
 
 #### Metrics
 
-Metrics are functions that are passed (by the [Evaluator](#evaluator)) the fully-materialized list of postprocessed model outputs (or scores) and targets and return a mapping from string names to `Metric` objects containing their values. These are most commonly floating-point scalars, but may also be text, images, audio, histograms, etc (see [evaluation.py](https://github.com/google/seqio/tree/main/seqio/evaluation.py) for the full list).
+Metrics are functions that are passed (by the [Evaluator](#evaluator)) the fully-materialized list of postprocessed model outputs (or scores) and targets and return a mapping from string names to `MetricValue` objects containing their values. These are most commonly floating-point scalars, but may also be text, images, audio, histograms, etc (see [metrics.py](https://github.com/google/seqio/tree/main/seqio/metrics.py) for the full list).
 
 The first argument of a metric function must always be called `targets`. If the second argument of a metric function is called `predictions`, it will be passed the decoded and detokenized model prediction. If it is called `scores`, it will be passed a list of log-likelihood scores for each example.
 
@@ -311,7 +311,7 @@ The args must be named `targets` and `scores`.
 ```py
 def perplexity(targets: Sequence[str], scores: Sequence[int]):
   return {
-    "perplexity": seqio.evaluation.Scalar(np.exp(np.mean(scores)))
+    "perplexity": seqio.metrics.Scalar(np.exp(np.mean(scores)))
   }
 ```
 
@@ -927,7 +927,7 @@ The metric function `tqa_metric` is defined as:
 def tqa_metric(
   targets: Sequence[Sequence[str]],
   predictions: Sequence[str]
-) -> Mapping[str, seqio.Metric]:
+) -> Mapping[str, seqio.metrics.MetricValueValue]:
   """Computes official TriviaQA metrics.
 
   Args:
@@ -961,6 +961,6 @@ def tqa_metric(
       for pred, ground_truths in zip(predictions, targets)
   ])
   return {
-      "exact_match": seqio.evaluation.Scalar(em),
+      "exact_match": seqio.metrics.Scalar(em),
   }
 ```
