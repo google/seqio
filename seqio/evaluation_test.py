@@ -1039,7 +1039,7 @@ class JSONLoggerTest(tf.test.TestCase):
       self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
+    with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1071,7 +1071,7 @@ class JSONLoggerTest(tf.test.TestCase):
       self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
+    with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1098,7 +1098,7 @@ class JSONLoggerTest(tf.test.TestCase):
       self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
+    with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1131,7 +1131,7 @@ class JSONLoggerTest(tf.test.TestCase):
       self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
+    with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1166,7 +1166,7 @@ class JSONLoggerTest(tf.test.TestCase):
       self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
+    with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1199,7 +1199,7 @@ class JSONLoggerTest(tf.test.TestCase):
       self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
+    with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1231,7 +1231,7 @@ class JSONLoggerTest(tf.test.TestCase):
       self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
+    with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
@@ -1270,7 +1270,7 @@ class JSONLoggerTest(tf.test.TestCase):
       self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
 
     # Read the written jsonl file.
-    with open(os.path.join(tmp_dir, "test-42.jsonl")) as f:
+    with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{

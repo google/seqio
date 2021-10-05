@@ -830,24 +830,25 @@ class JSONLogger(Logger):
             "Skipping JSON logging of non-serializable metric '%s' of type %s.",
             metric_name, type(metric_value))
 
-    logging.info("Appending metrics to %s", metrics_fname)
-    # We simulate an atomic append for filesystems that do not suppport
-    # mode="a".
-    file_contents = ""
-    if tf.io.gfile.exists(metrics_fname):
-      with tf.io.gfile.GFile(metrics_fname, "r") as f:
-        file_contents = f.read()
-    with tf.io.gfile.GFile(metrics_fname + ".tmp", "w") as f:
-      f.write(file_contents)
-      f.write(json.dumps({"step": step, **serializable_metrics}) + "\n")
-    tf.io.gfile.rename(metrics_fname + ".tmp", metrics_fname, overwrite=True)
+    if metrics:
+      logging.info("Appending metrics to %s", metrics_fname)
+      # We simulate an atomic append for filesystems that do not suppport
+      # mode="a".
+      file_contents = ""
+      if tf.io.gfile.exists(metrics_fname):
+        with tf.io.gfile.GFile(metrics_fname, "r") as f:
+          file_contents = f.read()
+      with tf.io.gfile.GFile(metrics_fname + ".tmp", "w") as f:
+        f.write(file_contents)
+        f.write(json.dumps({"step": step, **serializable_metrics}) + "\n")
+      tf.io.gfile.rename(metrics_fname + ".tmp", metrics_fname, overwrite=True)
 
     if self._write_n_results == 0:
       return
 
     write_tick = time.time()
     inferences_fname = os.path.join(self.output_dir,
-                                    f"{task_name}-{step}.jsonl")
+                                    f"{task_name}-{step:06}.jsonl")
     logging.info("Writing inferences to %s", inferences_fname)
     with tf.io.gfile.GFile(inferences_fname, "w") as f:
       examples_with_scores = itertools.zip_longest(
