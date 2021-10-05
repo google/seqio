@@ -433,7 +433,7 @@ class EvaluationTest(tf.test.TestCase):
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
-        "'log_dir' must be proviced to `Evaluator` if `logger_cls` is "
+        "'log_dir' must be provided to `Evaluator` if `logger_cls` is "
         "non-empty."):
       Evaluator(
           mixture_or_task_name=task_name,

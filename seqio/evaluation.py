@@ -360,7 +360,7 @@ class Evaluator:
 
     if logger_cls and not log_dir:
       raise ValueError(
-          "'log_dir' must be proviced to `Evaluator` if `logger_cls` is "
+          "'log_dir' must be provided to `Evaluator` if `logger_cls` is "
           "non-empty.")
     self._loggers = tuple(cls(output_dir=log_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
 
