@@ -175,7 +175,8 @@ def get_targets_and_examples(
     tasks: Sequence[Task],
     dataset_fn: Callable[[Task], tf.data.Dataset],
     sequence_dims: Mapping[str, int],
-    num_examples: Optional[int] = None
+    num_examples: Optional[int] = None,
+    use_memory_cache: bool = True
 ) -> Tuple[
     Mapping[str, Any],
     Mapping[str, tf.data.Dataset],
@@ -188,6 +189,8 @@ def get_targets_and_examples(
     sequence_dims: dict of feature names to their sequence dimension.
     num_examples: an optional maximum number of examples to take from the
       beginning of each task dataset.
+    use_memory_cache: whether to use tf.data.Dataset#cache. may cause
+      memory issues for large datasets.
   Returns:
     cached_targets: unpreprocessed targets for each task
     cached_task_datasets: cached datasets for each task, with cardinality set
@@ -207,7 +210,8 @@ def get_targets_and_examples(
     ds = dataset_fn(task)
     if num_examples:
       ds = ds.take(num_examples)
-    ds = ds.cache()
+    if use_memory_cache:
+      ds = ds.cache()
 
     targets = []
 
@@ -339,7 +343,8 @@ class Evaluator:
                num_examples: Optional[int] = None,
                shuffle: bool = False,
                logger_cls: Sequence[Type[Logger]] = (),
-               log_dir: Optional[str] = None):
+               log_dir: Optional[str] = None,
+               use_memory_cache: bool = True):
     """Evaluator constructor.
 
     Args:
@@ -370,6 +375,8 @@ class Evaluator:
       logger_cls: a set of subclasses of `Logger` to write results with.
       log_dir: the directory to log outputs to. Required if `logger_cls` is
         non-empty.
+      use_memory_cache: whether to use tf.data.Dataset#cache. may cause
+        memory issues for large datasets.
 
     Raises:
       ValueError if `sequence_length` is None but a preprocessor depends on its
@@ -430,7 +437,8 @@ class Evaluator:
             tasks=self._eval_tasks,
             dataset_fn=dataset_fn,
             sequence_dims=sequence_dims,
-            num_examples=num_examples))
+            num_examples=num_examples,
+            use_memory_cache=use_memory_cache))
 
     if sequence_length is None:
       logging.info("Setting sequence lengths to %s", max_lengths)
