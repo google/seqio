@@ -599,6 +599,42 @@ class EncDecFeatureConverter(FeatureConverter):
       "decoder_positions": tf.int32
   }
 
+  def convert_example(
+      self, features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
+    """Convert a single example to EncDec features."""
+
+    # targets_segment_id is present only for a packed dataset.
+    decoder_input_tokens = autoregressive_inputs(
+        features["targets"],
+        sequence_id=features.get("targets_segment_ids", None))
+
+    d = {
+        "encoder_input_tokens": features["inputs"],
+        "decoder_target_tokens": features["targets"],
+        "decoder_input_tokens": decoder_input_tokens,
+        # Loss is computed for all but the padding positions.
+        "decoder_loss_weights": non_padding_position(features["targets"])
+    }
+
+    if self.pack:
+      d["encoder_segment_ids"] = features["inputs_segment_ids"]
+      d["decoder_segment_ids"] = features["targets_segment_ids"]
+      d["encoder_positions"] = features["inputs_positions"]
+      d["decoder_positions"] = features["targets_positions"]
+
+    return d
+
+  def convert_tensor_features(
+      self, features: Mapping[str, tf.Tensor],
+      task_feature_lengths: Mapping[str, int]) -> Mapping[str, tf.Tensor]:
+    if self.pack:
+      # TODO(zhonglinhan): refactor util.trim_and_pack_dataset for tensors.
+      raise NotImplementedError("trim_and_pack for tensor is not implemented.")
+    else:
+      features = utils.trim_and_pad_tensor(
+          features, feature_lengths=task_feature_lengths)
+    return self.convert_example(features)
+
   def _convert_features(
       self, ds: tf.data.Dataset,
       task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
@@ -625,30 +661,9 @@ class EncDecFeatureConverter(FeatureConverter):
       ds: the converted dataset.
     """
 
-    def convert_example(
-        features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
-      # targets_segment_id is present only for a packed dataset.
-      decoder_input_tokens = autoregressive_inputs(
-          features["targets"],
-          sequence_id=features.get("targets_segment_ids", None))
-
-      d = {"encoder_input_tokens": features["inputs"],
-           "decoder_target_tokens": features["targets"],
-           "decoder_input_tokens": decoder_input_tokens,
-           # Loss is computed for all but the padding positions.
-           "decoder_loss_weights": non_padding_position(features["targets"])}
-
-      if self.pack:
-        d["encoder_segment_ids"] = features["inputs_segment_ids"]
-        d["decoder_segment_ids"] = features["targets_segment_ids"]
-        d["encoder_positions"] = features["inputs_positions"]
-        d["decoder_positions"] = features["targets_positions"]
-
-      return d
-
     ds = self._pack_or_pad(ds, task_feature_lengths)
     return ds.map(
-        convert_example, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        self.convert_example, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
   def get_model_feature_lengths(
       self, task_feature_lengths: Mapping[str, int]) -> Mapping[str, int]:

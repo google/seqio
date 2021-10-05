@@ -14,9 +14,11 @@
 
 """Preprocessors for SeqIO Tasks."""
 
+import functools
 from typing import Mapping, Optional
 
 from seqio import dataset_providers
+from seqio import tensor_preprocessors
 from seqio import utils
 import tensorflow.compat.v2 as tf
 
@@ -76,30 +78,18 @@ def tokenize(
     a tf.data.Dataset
   """
 
+  tokenize_tensor_fn = functools.partial(
+      tensor_preprocessors.tokenize_tensor,
+      output_features=output_features,
+      with_eos=with_eos)
+
   def _tokenize(features):
     ret = {}
     for k, v in features.items():
       if k in output_features:
         if copy_pretokenized:
           ret[f'{k}_pretokenized'] = v
-        vocab = output_features[k].vocabulary
-        v = vocab.encode_tf(v)
-        if with_eos and output_features[k].add_eos:
-          # Expand dims here so that the below code can work with 1-d tensors.
-          v = tf.expand_dims(v, 0)
-          # Make sure we keep tensor as ragged to allow for uneven concat.
-          if isinstance(v, tf.Tensor):
-            v = tf.RaggedTensor.from_tensor(v)
-
-          # Append eos to the last item of every sequence.
-          eos_shape = tf.concat([v.bounding_shape()[:-2], [1, 1]], axis=0)
-          eos_id = tf.broadcast_to(vocab.eos_id, eos_shape)
-          last_in_sequence = tf.concat([v[..., -1:, :], eos_id], axis=-1)
-          # Concat back the newly modified final sequence item.
-          v = tf.concat([v[..., :-1, :], last_in_sequence], axis=-2)
-          # Un-expand outer dimension.
-          v = v[0]
-
+        v = tokenize_tensor_fn(k, v)
       ret[k] = v
     return ret
 
@@ -152,15 +142,11 @@ def append_eos(
     a tf.data.Dataset of tokenized examples with EOS added to specified output
     features.
   """
-  def _maybe_add_eos(key: str, value: tf.Tensor) -> tf.Tensor:
-    if key not in output_features or not output_features[key].add_eos:
-      return value
-    else:
-      eos_id = output_features[key].vocabulary.eos_id
-      return tf.concat([value, [eos_id]], axis=0)
+  maybe_add_eos_fn = functools.partial(
+      tensor_preprocessors.maybe_add_eos, output_features=output_features)
 
   return dataset.map(
-      lambda ex: {k: _maybe_add_eos(k, v) for k, v in ex.items()},
+      lambda ex: {k: maybe_add_eos_fn(k, v) for k, v in ex.items()},
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
 
@@ -191,17 +177,12 @@ def append_eos_after_trim(
     a tf.data.Dataset of tokenized examples with EOS added to specified output
     features.
   """
-  def _maybe_add_eos_and_trim(key: str, value: tf.Tensor) -> tf.Tensor:
-    if key not in output_features or not output_features[key].add_eos:
-      return value
-    eos_id = output_features[key].vocabulary.eos_id
-    if (sequence_length is not None and
-        sequence_length.get(key, None) is not None):
-      max_length = sequence_length[key]
-      return tf.concat([value[:max_length-1], [eos_id]], axis=0)
-    else:
-      return tf.concat([value, [eos_id]], axis=0)
+
+  maybe_add_eos_and_trim_fn = functools.partial(
+      tensor_preprocessors.maybe_add_eos_and_trim,
+      output_features=output_features,
+      sequence_length=sequence_length)
 
   return dataset.map(
-      lambda ex: {k: _maybe_add_eos_and_trim(k, v) for k, v in ex.items()},
+      lambda ex: {k: maybe_add_eos_and_trim_fn(k, v) for k, v in ex.items()},
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
