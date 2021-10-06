@@ -14,12 +14,12 @@
 
 """Preprocessors for SeqIO Tasks."""
 
-from typing import Mapping, Optional
+import functools
+from typing import Dict, Mapping, Optional
 
 from seqio import dataset_providers
 from seqio import utils
 import tensorflow.compat.v2 as tf
-
 
 OutputFeaturesType = Mapping[str, dataset_providers.Feature]
 SequenceLengthType = Mapping[str, int]
@@ -39,6 +39,7 @@ def rekey(x, key_map=None):
   Args:
     x: an example to process.
     key_map: dictionary mapping new keys to original keys
+
   Returns:
     A preprocessed example with the format listed above.
   """
@@ -50,12 +51,10 @@ def rekey(x, key_map=None):
   return x
 
 
-def tokenize(
-    dataset: tf.data.Dataset,
-    output_features: OutputFeaturesType,
-    copy_pretokenized: bool = True,
-    with_eos: bool = False
-) -> tf.data.Dataset:
+def tokenize(dataset: tf.data.Dataset,
+             output_features: OutputFeaturesType,
+             copy_pretokenized: bool = True,
+             with_eos: bool = False) -> tf.data.Dataset:
   """Encode output features with specified vocabularies.
 
   Passes through other features unchanged. Optionally passes through copy
@@ -75,36 +74,63 @@ def tokenize(
   Returns:
     a tf.data.Dataset
   """
+  tokenize_fn = functools.partial(
+      tokenize_impl,
+      output_features=output_features,
+      copy_pretokenized=copy_pretokenized,
+      with_eos=with_eos)
+  return utils.map_over_dataset(fn=tokenize_fn)(dataset)
 
-  def _tokenize(features):
-    ret = {}
-    for k, v in features.items():
-      if k in output_features:
-        if copy_pretokenized:
-          ret[f'{k}_pretokenized'] = v
-        vocab = output_features[k].vocabulary
-        v = vocab.encode_tf(v)
-        if with_eos and output_features[k].add_eos:
-          # Expand dims here so that the below code can work with 1-d tensors.
-          v = tf.expand_dims(v, 0)
-          # Make sure we keep tensor as ragged to allow for uneven concat.
-          if isinstance(v, tf.Tensor):
-            v = tf.RaggedTensor.from_tensor(v)
 
-          # Append eos to the last item of every sequence.
-          eos_shape = tf.concat([v.bounding_shape()[:-2], [1, 1]], axis=0)
-          eos_id = tf.broadcast_to(vocab.eos_id, eos_shape)
-          last_in_sequence = tf.concat([v[..., -1:, :], eos_id], axis=-1)
-          # Concat back the newly modified final sequence item.
-          v = tf.concat([v[..., :-1, :], last_in_sequence], axis=-2)
-          # Un-expand outer dimension.
-          v = v[0]
+def tokenize_impl(features: Mapping[str, tf.Tensor],
+                  output_features: OutputFeaturesType,
+                  copy_pretokenized: bool = True,
+                  with_eos: bool = False) -> Mapping[str, tf.Tensor]:
+  """Encode output features with specified vocabularies.
 
-      ret[k] = v
-    return ret
+  Passes through other features unchanged. Optionally passes through copy
+  of original features with "_pretokenized" suffix added to the key.
 
-  return dataset.map(
-      _tokenize, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+  When `with_eos` is True and input features are ranked > 1, then an EOS is
+  appended only to the last item of each 1-D sequence.
+
+  Args:
+    features: a string-keyed dict of tensors to tokenize.
+    output_features: a dict of Feature objects; their vocabulary attribute will
+      be used to tokenize the specified features.
+    copy_pretokenized: bool, whether to pass through copies of original features
+      with "_pretokenized" suffix added to the key.
+    with_eos: bool, whether to append EOS to the end of the sequence.
+
+  Returns:
+    a string-keyed dict of Tensors
+  """
+
+  ret = {}
+  for k, v in features.items():
+    if k in output_features:
+      if copy_pretokenized:
+        ret[f'{k}_pretokenized'] = v
+      vocab = output_features[k].vocabulary
+      v = vocab.encode_tf(v)
+      if with_eos and output_features[k].add_eos:
+        # Expand dims here so that the below code can work with 1-d tensors.
+        v = tf.expand_dims(v, 0)
+        # Make sure we keep tensor as ragged to allow for uneven concat.
+        if isinstance(v, tf.Tensor):
+          v = tf.RaggedTensor.from_tensor(v)
+
+        # Append eos to the last item of every sequence.
+        eos_shape = tf.concat([v.bounding_shape()[:-2], [1, 1]], axis=0)
+        eos_id = tf.broadcast_to(vocab.eos_id, eos_shape)
+        last_in_sequence = tf.concat([v[..., -1:, :], eos_id], axis=-1)
+        # Concat back the newly modified final sequence item.
+        v = tf.concat([v[..., :-1, :], last_in_sequence], axis=-2)
+        # Un-expand outer dimension.
+        v = v[0]
+
+    ret[k] = v
+  return ret
 
 
 def tokenize_and_append_eos(
@@ -152,6 +178,7 @@ def append_eos(
     a tf.data.Dataset of tokenized examples with EOS added to specified output
     features.
   """
+
   def _maybe_add_eos(key: str, value: tf.Tensor) -> tf.Tensor:
     if key not in output_features or not output_features[key].add_eos:
       return value
@@ -183,25 +210,57 @@ def append_eos_after_trim(
   Args:
     dataset: a tf.data.Dataset of tokenized examples to preprocess.
     output_features: a mapping of output feature names to Feature objects.
-    sequence_length: a mapping from output feature names to max lengths.
-      If provided, output feature sequences will be trimmed to ensure they are
-      not longer than this length once EOS is added.
+    sequence_length: a mapping from output feature names to max lengths. If
+      provided, output feature sequences will be trimmed to ensure they are not
+      longer than this length once EOS is added.
 
   Returns:
     a tf.data.Dataset of tokenized examples with EOS added to specified output
     features.
   """
-  def _maybe_add_eos_and_trim(key: str, value: tf.Tensor) -> tf.Tensor:
-    if key not in output_features or not output_features[key].add_eos:
-      return value
-    eos_id = output_features[key].vocabulary.eos_id
-    if (sequence_length is not None and
-        sequence_length.get(key, None) is not None):
-      max_length = sequence_length[key]
-      return tf.concat([value[:max_length-1], [eos_id]], axis=0)
-    else:
-      return tf.concat([value, [eos_id]], axis=0)
+  trim_fn = functools.partial(
+      append_eos_after_trim_impl,
+      output_features=output_features,
+      sequence_length=sequence_length)
+  return utils.map_over_dataset(fn=trim_fn)(dataset)
 
-  return dataset.map(
-      lambda ex: {k: _maybe_add_eos_and_trim(k, v) for k, v in ex.items()},
-      num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+def append_eos_after_trim_impl(
+    features: Dict[str, tf.Tensor],
+    output_features: OutputFeaturesType,
+    sequence_length: Optional[SequenceLengthType] = None
+) -> Dict[str, tf.Tensor]:
+  """Trims output feature token sequences and then appends EOS.
+
+  Respects the `add_eos` field of the seqio.Features in `output_features`.
+  Truncates features before adding the EOS to ensure they fit in the max length
+  specified by `sequence_length` once the EOS is added. If `sequence_length` is
+  None, no trimming is performed.
+
+  Note that sequences are automatically trimmed at the end of the Task pipeline,
+  so unless you want the features to always end in EOS, use `append_eos`
+  instead.
+
+  Args:
+    features: a dict of tokenized examples to preprocess.
+    output_features: a mapping of output feature names to Feature objects.
+    sequence_length: a mapping from output feature names to max lengths. If
+      provided, output feature sequences will be trimmed to ensure they are not
+      longer than this length once EOS is added.
+
+  Returns:
+    a tf.data.Dataset of tokenized examples with EOS added to specified output
+    features.
+  """
+  for key, value in features.items():
+    if key not in output_features or not output_features[key].add_eos:
+      pass
+    else:
+      eos_id = output_features[key].vocabulary.eos_id
+      if (sequence_length is not None and
+          sequence_length.get(key, None) is not None):
+        max_length = sequence_length[key]
+        features[key] = tf.concat([value[:max_length - 1], [eos_id]], axis=-1)
+      else:
+        features[key] = tf.concat([value, [eos_id]], axis=-1)
+  return features
