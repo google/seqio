@@ -23,6 +23,7 @@ from unittest import mock
 import numpy as np
 from seqio import dataset_providers
 from seqio import evaluation
+from seqio import metrics as metrics_lib
 from seqio import preprocessors
 from seqio import test_utils
 from seqio import utils
@@ -402,8 +403,8 @@ class EvaluationTest(tf.test.TestCase):
         score_metric_fns=[_sum_scores_metric])
     _, evaluator = self._evaluate_single_task(task, loggers=loggers)
     metrics = {
-        "sequence_accuracy": evaluation.Scalar(2.0 / 3 * 100),
-        "total_score": evaluation.Scalar(1305)
+        "sequence_accuracy": metrics_lib.Scalar(2.0 / 3 * 100),
+        "total_score": metrics_lib.Scalar(1305)
     }
     for logger in loggers:
       logger.assert_called_once_with(

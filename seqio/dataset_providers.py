@@ -30,6 +30,7 @@ from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional, S
 from absl import logging
 import numpy as np
 from packaging import version
+from seqio import metrics as metrics_lib
 from seqio import utils
 from seqio.feature_converters import FeatureConverter
 from seqio.vocabularies import PassThroughVocabulary
@@ -670,10 +671,8 @@ class CacheDatasetPlaceholder(object):
 
 # ================================ Tasks =======================================
 
-
-# Return type should be Mapping[str, Union[evaluation.Metric, float]] but to
-# avoid circular package dependencies, we wildcard to `Any`.
-MetricFnCallable = Callable[..., Mapping[str, Any]]
+MetricFnCallable = Callable[..., Mapping[str, Union[metrics_lib.MetricValue,
+                                                    float]]]
 
 
 class Task(DatasetProviderBase):

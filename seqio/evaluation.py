@@ -42,14 +42,6 @@ MetricsAndOutputsType = Tuple[
     AllOutputTokensType,  # output_tokens
     AllOutputScoresType]  # output_scores
 
-# TODO(adarob): Remove mappings once clients are updated to metrics module.
-Metric = metrics_lib.MetricValue
-Histogram = metrics_lib.Histogram
-Scalar = metrics_lib.Scalar
-Image = metrics_lib.Image
-Audio = metrics_lib.Audio
-Text = metrics_lib.Text
-
 
 def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
   """Get tasks that have the specified split and a metric function."""
@@ -554,7 +546,8 @@ class Evaluator:
         all_metrics[task.name][k] = v
 
       metrics = {
-          k: Scalar(v) if not isinstance(v, metrics_lib.MetricValue) else v
+          k: metrics_lib.Scalar(v)
+             if not isinstance(v, metrics_lib.MetricValue) else v
           for k, v in all_metrics[task.name].items()
       }
       for logger in self.loggers:

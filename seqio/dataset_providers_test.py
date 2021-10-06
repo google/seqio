@@ -22,8 +22,8 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 from absl.testing import absltest
 from absl.testing import parameterized
 from seqio import dataset_providers
-from seqio import evaluation
 from seqio import feature_converters
+from seqio import metrics as metrics_lib
 from seqio import preprocessors
 from seqio import test_utils
 from seqio import utils
@@ -170,7 +170,7 @@ class TasksTest(test_utils.FakeTaskTest):
         targets: Sequence[Mapping[str,
                                   Any]], predictions: Sequence[Mapping[str,
                                                                        Any]]
-    ) -> Mapping[str, evaluation.Metric]:
+    ) -> Mapping[str, metrics_lib.MetricValue]:
       return {}
 
     valid_task_with_types = TaskRegistry.add(
