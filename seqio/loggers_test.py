@@ -177,7 +177,8 @@ class JSONLoggerTest(tf.test.TestCase):
 
     logger = loggers.JSONLogger(tmp_dir)
     logger(task_name="test", step=42,
-           metrics={"accuracy": metrics_lib.Scalar(100)}, dataset=task_dataset,
+           metrics={"accuracy": metrics_lib.Scalar(np.float32(100))},
+           dataset=task_dataset,
            inferences=inferences, targets=targets)
 
     # Validate the metrics file.

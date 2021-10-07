@@ -229,7 +229,12 @@ class JSONLogger(Logger):
           file_contents = f.read()
       with tf.io.gfile.GFile(metrics_fname + ".tmp", "w") as f:
         f.write(file_contents)
-        f.write(json.dumps({"step": step, **serializable_metrics}) + "\n")
+        f.write(
+            json.dumps({
+                "step": step,
+                **serializable_metrics
+            }, cls=self._json_encoder_cls))
+        f.write("\n")
       tf.io.gfile.rename(metrics_fname + ".tmp", metrics_fname, overwrite=True)
 
     if self._write_n_results == 0:
