@@ -1278,6 +1278,7 @@ class Mixture(DatasetProviderBase):
       num_epochs: Optional[int] = None,
       copy_pretokenized: bool = False,
       compute_stats_empirically: bool = False,
+      passthrough_features: Optional[Sequence[str]] = None
   ) -> tf.data.Dataset:
     """Returns the dataset of mixed tasks using the object-specified rates.
 
@@ -1300,6 +1301,9 @@ class Mixture(DatasetProviderBase):
       copy_pretokenized: bool, whether to pass through copies of pretokenized
         features a "_pretokenized" suffix added to the key.
       compute_stats_empirically: a boolean - does not work on TPU
+      passthrough_features: a list of additional features that will be kept
+        after the feature filtering. If set to be None, then only the
+        output_features defined for the mixture will be kept.
     """
     self._check_compatible_features()
     tasks = []
@@ -1318,8 +1322,12 @@ class Mixture(DatasetProviderBase):
       output_feature_keys.update(
           {f + "_pretokenized" for f in output_feature_keys})
 
+    if passthrough_features:
+      output_feature_keys.update(passthrough_features)
+
     def filter_features(ex):
       return {k: v for k, v in ex.items() if k in output_feature_keys}
+
     datasets = [
         task.get_dataset(  # pylint:disable=g-complex-comprehension
             sequence_length,

@@ -819,6 +819,42 @@ class MixturesTest(test_utils.FakeTaskTest):
     res = sum(int(item["inputs"][0]) for item in mix_ds.as_numpy_iterator())
     self.assertEqual(res, 2481)
 
+  def test_get_dataset_passthrough_features(self):
+
+    @utils.map_over_dataset
+    def _constant_feature_preprocessor(unused_x, val):
+      return {
+          "targets": tf.constant([val], tf.int32),
+          "inputs": tf.constant([val], tf.int32),
+          "feature": tf.constant([val], tf.int32),
+      }
+
+    self.add_task(
+        "two_task",
+        self.function_source,
+        preprocessors=(functools.partial(_constant_feature_preprocessor,
+                                         val=2),))
+
+    self.add_task(
+        "three_task",
+        self.function_source,
+        preprocessors=(functools.partial(_constant_feature_preprocessor,
+                                         val=3),))
+
+    MixtureRegistry.add("test_mix", [("two_task", 1), ("three_task", 1)])
+
+    sequence_length = {"inputs": 2, "targets": 2}
+    passthrough_features = ["feature"]
+    mix_ds = MixtureRegistry.get("test_mix").get_dataset(
+        sequence_length,
+        "train",
+        seed=13,
+        passthrough_features=passthrough_features).take(1000)
+
+    # output features are defined as "inputs" and "targets" by default.
+    res = sum(int(item["feature"][0]) for item in mix_ds.as_numpy_iterator())
+    self.assertEqual(res, 2481)
+
   def test_copy_pretokenized(self):
     @utils.map_over_dataset
     def _constant_preprocessor(unused_x, val):
