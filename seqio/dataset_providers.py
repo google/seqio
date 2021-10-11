@@ -55,7 +55,8 @@ class Feature:
   """A container for attributes of output features of data providers."""
   vocabulary: Vocabulary
   add_eos: bool = True
-  required: bool = True
+  required: bool = True  # This means "required for training"
+  required_for_eval: Optional[bool] = None  # defaults to the `required` value
   dtype: tf.DType = tf.int32
   rank: int = 1
 
@@ -199,10 +200,21 @@ class DataSource(DatasetProviderBase):
   def __init__(
       self,
       splits: Iterable[str],
-      num_input_examples: Optional[Mapping[str, int]] = None):
+      num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True):
     self._splits = tuple(splits)
     self._num_input_examples = (
         dict(num_input_examples) if num_input_examples is not None else None)
+    self._caching_permitted = caching_permitted
+
+  @property
+  def caching_permitted(self) -> bool:
+    """Indicates whether this data source may be cached.
+
+    Caching may be prohibited for the sake of data versioning rigor or as a
+    matter of policy for certain datasets.
+    """
+    return self._caching_permitted
 
   @property
   def splits(self) -> Sequence[str]:
@@ -281,7 +293,8 @@ class FunctionDataSource(DataSource):
       self,
       dataset_fn: DatasetFnCallable,
       splits: Iterable[str],
-      num_input_examples: Optional[Mapping[str, int]] = None
+      num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """FunctionDataSource constructor.
 
@@ -291,16 +304,25 @@ class FunctionDataSource(DataSource):
         `tf.data.Dataset`.
       splits: an iterable of applicable string split names.
       num_input_examples: dict or None, an optional dictionary mapping split
-          to its size in number of input examples (before preprocessing). The
-          `num_input_examples` method will return None if not provided.
+        to its size in number of input examples (before preprocessing). The
+        `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
     _validate_args(dataset_fn, ["split", "shuffle_files"])
     self._dataset_fn = dataset_fn
-    super().__init__(splits=splits, num_input_examples=num_input_examples)
+    super().__init__(
+        splits=splits,
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
   @property
   def supports_arbitrary_sharding(self) -> bool:
     return False
+
+  @property
+  def caching_permitted(self) -> bool:
+    return self._caching_permitted
 
   def get_dataset(
       self,
@@ -332,7 +354,8 @@ class TfdsDataSource(DataSource):
       self,
       tfds_name: str,
       tfds_data_dir: Optional[str] = None,
-      splits: Optional[Union[Iterable[str], Mapping[str, str]]] = None
+      splits: Optional[Union[Iterable[str], Mapping[str, str]]] = None,
+      caching_permitted: bool = True
     ):
     """TfdsTask constructor.
 
@@ -345,6 +368,8 @@ class TfdsDataSource(DataSource):
         allowable canonical splits (e.g., 'validation') to TFDS splits or slices
         (e.g., 'train[':1%']), or None. The default, None, uses all available
           splits from the TFDS dataset info.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
     if ":" not in tfds_name:
       raise ValueError("TFDS name must contain a version number, got: %s" %
@@ -360,7 +385,7 @@ class TfdsDataSource(DataSource):
 
     # If splits are not provided, we pass an empty tuple and use the lazy
     # lookup in the `splits` property.
-    super().__init__(splits=splits or ())
+    super().__init__(splits=splits or (), caching_permitted=caching_permitted)
 
   @property
   def splits(self):
@@ -405,6 +430,7 @@ class FileDataSource(DataSource):
       read_file_fn: Callable[[tf.data.Dataset], tf.data.Dataset],
       split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
       num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """FileDataSource constructor.
 
@@ -416,12 +442,15 @@ class FileDataSource(DataSource):
       num_input_examples: dict or None, an optional dictionary mapping split
         to its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
     self._split_to_filepattern = split_to_filepattern
     self._reader = read_file_fn
     super().__init__(
         splits=split_to_filepattern.keys(),
-        num_input_examples=num_input_examples)
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
   @property
   def supports_arbitrary_sharding(self) -> bool:
@@ -471,6 +500,7 @@ class TextLineDataSource(FileDataSource):
       split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
       skip_header_lines: int = 0,
       num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """TextLineDataSource constructor.
 
@@ -482,6 +512,8 @@ class TextLineDataSource(FileDataSource):
       num_input_examples: dict or None, an optional dictionary mapping split to
         its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
     # Used during caching.
     self._skip_header_lines = skip_header_lines
@@ -492,7 +524,8 @@ class TextLineDataSource(FileDataSource):
     super().__init__(
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
-        num_input_examples=num_input_examples)
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
 
 class TFExampleDataSource(FileDataSource):
@@ -505,6 +538,7 @@ class TFExampleDataSource(FileDataSource):
                                               tf.io.VarLenFeature]],
       reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
       num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """TFExampleDataSource constructor.
 
@@ -518,6 +552,8 @@ class TFExampleDataSource(FileDataSource):
       num_input_examples: dict or None, an optional dictionary mapping split to
         its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
 
     def parse_fn(*args):
@@ -531,7 +567,8 @@ class TFExampleDataSource(FileDataSource):
     super().__init__(
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
-        num_input_examples=num_input_examples)
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
 
 class ProtoDataSource(FileDataSource):
@@ -543,6 +580,7 @@ class ProtoDataSource(FileDataSource):
       decode_proto_fn: DecodeFnType,
       reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
       num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """ProtoDataSource constructor.
 
@@ -555,6 +593,8 @@ class ProtoDataSource(FileDataSource):
       num_input_examples: dict or None, an optional dictionary mapping split to
         its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
 
     def read_file_fn(filepattern: Union[str, Iterable[str]]):
@@ -564,7 +604,8 @@ class ProtoDataSource(FileDataSource):
     super().__init__(
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
-        num_input_examples=num_input_examples)
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
 
 # ========================== Offline Caching Helpers ===========================
@@ -671,8 +712,17 @@ class CacheDatasetPlaceholder(object):
 
 # ================================ Tasks =======================================
 
-MetricFnCallable = Callable[..., Mapping[str, Union[metrics_lib.MetricValue,
+# Arguments are (targets, predictions).
+# Return type should be Mapping[str, Union[evaluation.Metric, float]] but to
+# avoid circular package dependencies, we wildcard to `Any`.
+TargetedMetricFnCallable = Callable[[Iterable[Any], Iterable[Any]],
+                                    Mapping[str, Union[metrics_lib.MetricValue,
+                                                       float]]]
+TargetlessMetricFnCallable = Callable[[Iterable[Any]],
+                                      Mapping[str,
+                                              Union[metrics_lib.MetricValue,
                                                     float]]]
+MetricFnCallable = Union[TargetedMetricFnCallable, TargetlessMetricFnCallable]
 
 
 class Task(DatasetProviderBase):
@@ -704,9 +754,12 @@ class Task(DatasetProviderBase):
       postprocess_fn: callable, an optional function that receives decoded model
         outputs and converts them to a form that is ready for evaluation using
         the metric functions in `metric_fns`.
-      metric_fns: list(callable), an optional list of metric functions with the
-        signature `metric_fn(targets, predictions)` to use during evaluation. If
-        undefined or empty, no evaluation will occur on the task.
+      metric_fns: list(callable), an optional list of metric functions to use
+        during evaluation.  These may have any of the signatures:
+          * `metric_fn(targets, predictions)`
+          * `metric_fn(targets, scores)`
+          * `metric_fn(predictions)`
+          * `metric_fn(scores)`
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
     """
@@ -718,6 +771,8 @@ class Task(DatasetProviderBase):
     metric_fns = metric_fns or []
     self._predict_metric_fns = []
     self._score_metric_fns = []
+    self._predict_targetless_metric_fns = []
+    self._score_targetless_metric_fns = []
     for metric_fn in metric_fns:
       pos_args = tuple(
           key for key, param in inspect.signature(metric_fn).parameters.items()
@@ -727,10 +782,15 @@ class Task(DatasetProviderBase):
         self._score_metric_fns.append(metric_fn)
       elif pos_args == ("targets", "predictions"):
         self._predict_metric_fns.append(metric_fn)
+      elif pos_args == ("scores",):
+        self._score_targetless_metric_fns.append(metric_fn)
+      elif pos_args == ("predictions",):
+        self._predict_targetless_metric_fns.append(metric_fn)
       else:
         raise ValueError(
             "Metric functions must have positional arguments matching either "
-            "('targets', 'predictions') or ('targets', 'scores'). "
+            "('targets', 'predictions') or ('targets', 'scores') "
+            "or ('predictions',) or ('scores',). "
             f"Got: {pos_args}")
 
     self._name = name
@@ -748,6 +808,11 @@ class Task(DatasetProviderBase):
           f"preprocessing pipeline. Found {len(cache_step_idxs)} in '{name}'.")
     cache_step_idx = cache_step_idxs[0] if cache_step_idxs else None
     if cache_step_idx is not None:
+      if not source.caching_permitted:
+        raise ValueError(
+            f"Caching was requested for '{name}', but the underlying data "
+            "source prohibits caching. Please remove `CacheDatasetPlaceholder` "
+            "and try again.")
       for prep in preprocessors[:cache_step_idx]:
         prep_args = inspect.signature(prep).parameters.keys()
         if "sequence_length" in prep_args:
@@ -782,7 +847,9 @@ class Task(DatasetProviderBase):
   @property
   def metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of all metric functions."""
-    return self._predict_metric_fns + self._score_metric_fns
+    return (self._predict_metric_fns + self._score_metric_fns +
+            self._predict_targetless_metric_fns +
+            self._score_targetless_metric_fns)
 
   @property
   def score_metric_fns(self) -> Sequence[MetricFnCallable]:
@@ -795,8 +862,58 @@ class Task(DatasetProviderBase):
     return self._predict_metric_fns
 
   @property
+  def score_targetless_metric_fns(self) -> Sequence[TargetlessMetricFnCallable]:
+    """List of targetless metric functions that use log likelihood scores."""
+    return self._score_targetless_metric_fns
+
+  @property
+  def predict_targetless_metric_fns(
+      self) -> Sequence[TargetlessMetricFnCallable]:
+    """List of targetless metric functions that use model predictions."""
+    return self._predict_targetless_metric_fns
+
+  @property
   def output_features(self) -> Mapping[str, Feature]:
     return self._output_features
+
+  @property
+  def prediction_vocabulary(self) -> Optional[Vocabulary]:
+    """Return the vocabulary (if any) for decoding predictions.
+
+    This obtains the vocabulary for decoding predictions from the "targets"
+    element of output_features.
+
+    If the metrics to be computed are of the "targetless" variety, it may
+    nonetheless be necessary to include the "targets" element in
+    output_features, simply to carry the vocabulary.  In this case the "targets"
+    feature should set `required_for_eval=False`, since the test data need not
+    actually contain such a column.
+
+    Including the vocabulary in this way communicates "this is what you must do
+    at training time, in order to be able to run this eval later"-- i.e. this is
+    the vocabulary that will be used to decode the predictions in the course of
+    evaluation, and so the model must provide tokens using this vocabulary.
+
+    Returns:
+      The vocabulary for decoding predictions, as provided by the "targets"
+      element of output_features.  If no such element exists, that is taken to
+      mean that the predictions require no further decoding--i.e., any required
+      decoding should be considered part of the model.  In that case, no
+      vocabulary is returned here.
+    """
+    try:
+      return self._output_features["targets"].vocabulary
+    except KeyError:
+      # The dataset has no "targets" column; ok.
+      #
+      # In this case we can still compute targetless metrics, assuming that the
+      # predictions provided by the model require no further decoding.
+      #
+      # Note we do not use PassThroughVocabulary here, because that requires
+      # that the predictions are integers, which they may not be.  This is not
+      # just an issue of typing: the use of any "vocabulary" at all, even the
+      # passthrough one, suggests that there must be integer tokens.
+      return None
 
   @property
   def splits(self) -> Sequence[str]:
@@ -837,13 +954,16 @@ class Task(DatasetProviderBase):
       dataset = prep_fn(dataset, **kwargs)
     return dataset
 
-  def _validate_preprocessing(
-      self, dataset: tf.data.Dataset
-    ) -> tf.data.Dataset:
+  def _validate_preprocessing(self,
+                              dataset: tf.data.Dataset,
+                              is_eval: bool = False) -> tf.data.Dataset:
     """Validates preprocessed dataset, raising Exceptions if needed.
 
     Args:
       dataset: a tf.data.Dataset to validate.
+      is_eval: a bool indicating whether to validate in "eval mode" or the
+        default "training mode".  These may differ in that different features
+        are required.
 
     Returns:
       a validated tf.data.Dataset.
@@ -851,10 +971,16 @@ class Task(DatasetProviderBase):
     actual_specs = dataset.element_spec
     for feat, feat_spec in self.output_features.items():
       if feat not in actual_specs:
-        if feat_spec.required:
-          raise ValueError(
-              "Task dataset is missing expected output feature after "
-              f"preprocessing: {feat}")
+        # In eval mode, use `feat_spec.required_for_eval` if it is explicitly
+        # provided; else fall back to `feat_spec.required`
+        required = ((is_eval and feat_spec.required_for_eval is not None and
+                     feat_spec.required_for_eval) or
+                    (is_eval and feat_spec.required_for_eval is None and
+                     feat_spec.required)) or (not is_eval and
+                                              feat_spec.required)
+        if required:
+          raise ValueError("Task dataset is missing expected output "
+                           f"feature after preprocessing: {feat}")
         else:
           # It's ok that this feature does not exist.
           continue
@@ -1031,6 +1157,8 @@ class Task(DatasetProviderBase):
     Returns:
       A tf.data.Dataset.
     """
+    is_eval = split != tfds.Split.TRAIN
+
     if use_cached and not self.supports_caching:
       logging.warning(
           "Task '%s' does not support caching. Switching to on-the-fly "
@@ -1088,7 +1216,7 @@ class Task(DatasetProviderBase):
     # Post cache processing.
     ds = self.preprocess_postcache(
         ds, sequence_length=sequence_length, seed=seed)
-    ds = self._validate_preprocessing(ds)
+    ds = self._validate_preprocessing(ds, is_eval=is_eval)
     ds = self._trim_output_features(ds, sequence_length=sequence_length)
 
     if shuffle:

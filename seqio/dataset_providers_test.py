@@ -114,22 +114,37 @@ class TasksTest(test_utils.FakeTaskTest):
     def predict_metric_fn(targets, predictions):
       return {}
 
-    valid_task = add_task(
-        "valid_metrics", metric_fns=[score_metric_fn, predict_metric_fn])
+    def score_targetless_metric_fn(scores):
+      return {}
 
-    self.assertSameElements(
-        [score_metric_fn, predict_metric_fn], valid_task.metric_fns)
-    self.assertSameElements(
-        [score_metric_fn], valid_task.score_metric_fns)
-    self.assertSameElements(
-        [predict_metric_fn], valid_task.predict_metric_fns)
+    def predict_targetless_metric_fn(predictions):
+      return {}
+
+    valid_task = add_task(
+        "valid_metrics",
+        metric_fns=[
+            score_metric_fn, predict_metric_fn, score_targetless_metric_fn,
+            predict_targetless_metric_fn
+        ])
+
+    self.assertSameElements([
+        score_metric_fn, predict_metric_fn, score_targetless_metric_fn,
+        predict_targetless_metric_fn
+    ], valid_task.metric_fns)
+    self.assertSameElements([score_metric_fn], valid_task.score_metric_fns)
+    self.assertSameElements([predict_metric_fn], valid_task.predict_metric_fns)
+    self.assertSameElements([score_targetless_metric_fn],
+                            valid_task.score_targetless_metric_fns)
+    self.assertSameElements([predict_targetless_metric_fn],
+                            valid_task.predict_targetless_metric_fns)
 
     def extra_arg_metric_fn(targets, predictions, extra_param):
       return {}
 
     expected_error_message_prefix = (
         "Metric functions must have positional arguments matching either "
-        "('targets', 'predictions') or ('targets', 'scores'). Got: ")
+        "('targets', 'predictions') or ('targets', 'scores') "
+        "or ('predictions',) or ('scores',). Got: ")
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
@@ -340,6 +355,27 @@ class TasksTest(test_utils.FakeTaskTest):
         "directories."):
       task.get_dataset({"inputs": 512, "targets": 512}, use_cached=True)
 
+  def test_datasource_prohibits_caching(self):
+    function_source_no_cache = dataset_providers.FunctionDataSource(
+        dataset_fn=test_utils.get_fake_dataset,
+        splits=["train", "validation"],
+        caching_permitted=False)
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        "Caching was requested for 'prohibits_cache', but the underlying data "
+        "source prohibits caching. Please remove `CacheDatasetPlaceholder` and "
+        "try again."
+    ):
+      dataset_providers.Task(
+          "prohibits_cache",
+          output_features=self.DEFAULT_OUTPUT_FEATURES,
+          source=function_source_no_cache,
+          preprocessors=[
+              dataset_providers.CacheDatasetPlaceholder(required=True),
+              preprocessors.tokenize,
+          ])
+
   def test_cache_exists(self):
     self.assertTrue(self.cached_task.cache_dir)
     self.cached_task.assert_cached()
@@ -426,19 +462,20 @@ class TasksTest(test_utils.FakeTaskTest):
         "inputs":
             dataset_providers.Feature(vocabulary=default_vocab, required=False),
         "targets":
-            dataset_providers.Feature(vocabulary=default_vocab, required=True),
+            dataset_providers.Feature(
+                vocabulary=default_vocab,
+                required=True,
+                required_for_eval=False),
         "inputs_rank2":
             dataset_providers.Feature(
                 vocabulary=vocabularies.PassThroughVocabulary(5),
                 required=False,
                 rank=2),
         "continuous_features":
-            dataset_providers.ContinuousFeature(
-                required=False,
-                rank=2)
+            dataset_providers.ContinuousFeature(required=False, rank=2)
     }
 
-    def _materialize(output):
+    def _materialize(output, split="train"):
       task = dataset_providers.Task(
           "feature_validation_task",
           self.function_source,
@@ -448,7 +485,7 @@ class TasksTest(test_utils.FakeTaskTest):
       )
       list(
           task.get_dataset(
-              {"inputs": 13, "targets": 13, "inputs_rank2": 13}, "train",
+              {"inputs": 13, "targets": 13, "inputs_rank2": 13}, split,
               use_cached=False
           ).as_numpy_iterator()
       )
@@ -462,6 +499,9 @@ class TasksTest(test_utils.FakeTaskTest):
         "Task dataset is missing expected output feature after preprocessing: "
         "targets"):
       _materialize({"inputs": [0]})
+
+    # The same feature may not be required for eval, so this is OK
+    _materialize({"inputs": [0]}, split="validation")
 
     # Wrong type.
     with self.assertRaisesWithLiteralMatch(

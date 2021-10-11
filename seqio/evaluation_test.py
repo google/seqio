@@ -17,7 +17,7 @@
 
 import concurrent
 import functools
-from typing import Callable, Sequence, Mapping, Optional, Tuple
+from typing import Callable, Sequence, Mapping, Optional, Tuple, Iterable
 from unittest import mock
 
 import numpy as np
@@ -61,6 +61,14 @@ def _sum_scores_metric(targets, scores):
   return {"total_score": (np.array(scores) * np.array(weights)).sum()}
 
 
+def _sum_scores_targetless_metric(scores: Iterable[float]):
+  return {"total_score_targetless": np.array(scores).sum()}
+
+
+def _concat_predictions_targetless_metric(predictions: Iterable[str]):
+  return {"concat_predictions_targetless": ", ".join(predictions)}
+
+
 def register_dummy_task(
     task_name: str,
     dataset_fn: Callable[[str, bool, Optional[int]], tf.data.Dataset],
@@ -86,12 +94,19 @@ def register_dummy_task(
 def get_mocked_task(
     name: str = "mocked_test",
     predict_metric_fns: Sequence[Callable] = (_sequence_accuracy_metric,),
-    score_metric_fns: Sequence[Callable] = ()) -> mock.Mock:
+    score_metric_fns: Sequence[Callable] = (),
+    predict_targetless_metric_fns: Sequence[Callable] = (),
+    score_targetless_metric_fns: Sequence[Callable] = ()
+) -> mock.Mock:
   task = mock.Mock()
   task.name = name
   task.score_metric_fns = list(score_metric_fns)
   task.predict_metric_fns = list(predict_metric_fns)
   task.metric_fns = list(predict_metric_fns) + list(score_metric_fns)
+  task.score_targetless_metric_fns = list(score_targetless_metric_fns)
+  task.predict_targetless_metric_fns = list(predict_targetless_metric_fns)
+  task.targetless_metric_fns = list(predict_targetless_metric_fns) + list(
+      score_targetless_metric_fns)
   # Identity postprocess function
   task.postprocess_fn = lambda d, example, is_target: d
 
@@ -118,6 +133,30 @@ def _task_from_tensor_slices(name, tensor_slices, label_classes):
       output_features={"inputs": dataset_providers.Feature(mock.Mock()),
                        "targets": dataset_providers.Feature(mock.Mock())}
   )
+
+
+def get_targetless_mocked_task(
+    name: str = "targetless_mocked_test",
+    predict_metric_fns: Sequence[Callable] = (_sequence_accuracy_metric,),
+    score_metric_fns: Sequence[Callable] = (),
+    predict_targetless_metric_fns: Sequence[Callable] = (),
+    score_targetless_metric_fns: Sequence[Callable] = ()
+) -> mock.Mock:
+  task = mock.Mock()
+  task.name = name
+  task.score_metric_fns = list(score_metric_fns)
+  task.predict_metric_fns = list(predict_metric_fns)
+  task.metric_fns = list(predict_metric_fns) + list(score_metric_fns)
+  task.score_targetless_metric_fns = list(score_targetless_metric_fns)
+  task.predict_targetless_metric_fns = list(predict_targetless_metric_fns)
+  task.targetless_metric_fns = list(predict_targetless_metric_fns) + list(
+      score_targetless_metric_fns)
+  # Identity postprocess function
+  task.postprocess_fn = lambda d, example, is_target: d
+
+  # Note no "targets" feature, so there will be no vocab and thus no decoding.
+  task.output_features = {}
+  return task
 
 
 class EvaluationTest(tf.test.TestCase):
@@ -335,7 +374,8 @@ class EvaluationTest(tf.test.TestCase):
 
   def _evaluate_single_task(self, task, loggers=()):
     id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
-    mock_vocab = task.output_features["targets"].vocabulary
+    mock_vocab = task.prediction_vocabulary
+
     # Define a dummy decoding logic.
     mock_vocab.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
 
@@ -358,16 +398,18 @@ class EvaluationTest(tf.test.TestCase):
           model_feature_lengths: Optional[Mapping[str, int]] = None
       ) -> Sequence[Tuple[int, Sequence[int]]]:
         del ds, model_feature_lengths
-        return ([(0, [5, 6]), (1, [7]),
-                 (2, [7])] if task.predict_metric_fns else self.uncalled_fn)
+        return ([(0, [5, 6]), (1, [7]), (2, [7])] if
+                (task.predict_metric_fns or
+                 task.predict_targetless_metric_fns) else self.uncalled_fn)
 
       def score_fn(
           ds: tf.data.Dataset,
           model_feature_lengths: Optional[Mapping[str, int]] = None
       ) -> Sequence[Tuple[int, float]]:
         del ds, model_feature_lengths
-        return ([(1, 1), (0, 2),
-                 (2, 3)] if task.score_metric_fns else self.uncalled_fn)
+        return ([(1, 1), (0, 2), (2, 3)] if
+                (task.score_metric_fns or
+                 task.score_targetless_metric_fns) else self.uncalled_fn)
 
       all_metrics, _, _ = evaluator.evaluate(
           compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn,
@@ -453,9 +495,37 @@ class EvaluationTest(tf.test.TestCase):
     for logger in logger_cls:
       logger.assert_called_once_with(output_dir="test_dir")
 
+  def test_evaluate_single_task_all(self):
+    task = get_mocked_task(
+        predict_metric_fns=[_sequence_accuracy_metric],
+        score_metric_fns=[_sum_scores_metric],
+        predict_targetless_metric_fns=[_concat_predictions_targetless_metric],
+        score_targetless_metric_fns=[_sum_scores_targetless_metric])
+    all_metrics, _ = self._evaluate_single_task(task)
+    expected = {
+        "sequence_accuracy": 2.0 / 3 * 100,
+        "total_score": 1305,
+        "total_score_targetless": 6,
+        "concat_predictions_targetless": "e5 e6, e7, e7",
+    }
+    self.assertDictClose(expected, all_metrics[task.name])
+
+  def test_evaluate_targetless_single_task_all(self):
+    task = get_targetless_mocked_task(
+        predict_metric_fns=[],
+        score_metric_fns=[],
+        predict_targetless_metric_fns=[_concat_predictions_targetless_metric],
+        score_targetless_metric_fns=[_sum_scores_targetless_metric])
+    all_metrics, _ = self._evaluate_single_task(task)
+    expected = {
+        "total_score_targetless": 6,
+        "concat_predictions_targetless": "e5 e6, e7, e7",
+    }
+    self.assertDictClose(expected, all_metrics[task.name])
+
   def test_evaluate_non_string(self):
     task = get_mocked_task()
-    mock_vocab = task.output_features["targets"].vocabulary
+    mock_vocab = task.prediction_vocabulary
     # Identity decode function
     mock_vocab.decode = lambda ids: ids
 
@@ -498,7 +568,7 @@ class EvaluationTest(tf.test.TestCase):
         label_classes=["e5", "e6", "e7"])
 
     id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
-    mock_vocab = task.output_features["targets"].vocabulary
+    mock_vocab = task.prediction_vocabulary
     mock_vocab.decode = lambda ids: id_to_vocab[ids[0]]
 
     def mock_init(self):
@@ -536,7 +606,7 @@ class EvaluationTest(tf.test.TestCase):
     task1 = get_mocked_task(
         name="task1",
         score_metric_fns=[_sum_scores_metric])
-    mock_vocab1 = task1.output_features["targets"].vocabulary
+    mock_vocab1 = task1.prediction_vocabulary
     mock_vocab1.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
 
     task2 = get_mocked_task(
@@ -546,7 +616,7 @@ class EvaluationTest(tf.test.TestCase):
     task2.postprocess_fn = functools.partial(
         _string_label_to_class_id_postprocessor,
         label_classes=["e5", "e6", "e7"])
-    mock_vocab2 = task2.output_features["targets"].vocabulary
+    mock_vocab2 = task2.prediction_vocabulary
     mock_vocab2.decode = lambda ids: id_to_vocab[ids[0]]
 
     mock_ds1 = tf.data.Dataset.range(2)
@@ -858,7 +928,7 @@ class EvaluationTest(tf.test.TestCase):
   def test_order_preservation(self):
     task = get_mocked_task()
     id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
-    mock_vocab = task.output_features["targets"].vocabulary
+    mock_vocab = task.prediction_vocabulary
     mock_vocab.decode = lambda ids: id_to_vocab[ids[0]]
 
     ds = tf.data.Dataset.from_tensor_slices([[5], [6], [7]])
