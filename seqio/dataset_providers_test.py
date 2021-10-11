@@ -340,6 +340,27 @@ class TasksTest(test_utils.FakeTaskTest):
         "directories."):
       task.get_dataset({"inputs": 512, "targets": 512}, use_cached=True)
 
+  def test_datasource_prohibits_caching(self):
+    function_source_no_cache = dataset_providers.FunctionDataSource(
+        dataset_fn=test_utils.get_fake_dataset,
+        splits=["train", "validation"],
+        caching_permitted=False)
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        "Caching was requested for 'prohibits_cache', but the underlying data "
+        "source prohibits caching. Please remove `CacheDatasetPlaceholder` and "
+        "try again."
+    ):
+      dataset_providers.Task(
+          "prohibits_cache",
+          output_features=self.DEFAULT_OUTPUT_FEATURES,
+          source=function_source_no_cache,
+          preprocessors=[
+              dataset_providers.CacheDatasetPlaceholder(required=True),
+              preprocessors.tokenize,
+          ])
+
   def test_cache_exists(self):
     self.assertTrue(self.cached_task.cache_dir)
     self.cached_task.assert_cached()

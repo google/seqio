@@ -199,10 +199,21 @@ class DataSource(DatasetProviderBase):
   def __init__(
       self,
       splits: Iterable[str],
-      num_input_examples: Optional[Mapping[str, int]] = None):
+      num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True):
     self._splits = tuple(splits)
     self._num_input_examples = (
         dict(num_input_examples) if num_input_examples is not None else None)
+    self._caching_permitted = caching_permitted
+
+  @property
+  def caching_permitted(self) -> bool:
+    """Indicates whether this data source may be cached.
+
+    Caching may be prohibited for the sake of data versioning rigor or as a
+    matter of policy for certain datasets.
+    """
+    return self._caching_permitted
 
   @property
   def splits(self) -> Sequence[str]:
@@ -281,7 +292,8 @@ class FunctionDataSource(DataSource):
       self,
       dataset_fn: DatasetFnCallable,
       splits: Iterable[str],
-      num_input_examples: Optional[Mapping[str, int]] = None
+      num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """FunctionDataSource constructor.
 
@@ -291,12 +303,17 @@ class FunctionDataSource(DataSource):
         `tf.data.Dataset`.
       splits: an iterable of applicable string split names.
       num_input_examples: dict or None, an optional dictionary mapping split
-          to its size in number of input examples (before preprocessing). The
-          `num_input_examples` method will return None if not provided.
+        to its size in number of input examples (before preprocessing). The
+        `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
     _validate_args(dataset_fn, ["split", "shuffle_files"])
     self._dataset_fn = dataset_fn
-    super().__init__(splits=splits, num_input_examples=num_input_examples)
+    super().__init__(
+        splits=splits,
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
   @property
   def supports_arbitrary_sharding(self) -> bool:
@@ -332,7 +349,8 @@ class TfdsDataSource(DataSource):
       self,
       tfds_name: str,
       tfds_data_dir: Optional[str] = None,
-      splits: Optional[Union[Iterable[str], Mapping[str, str]]] = None
+      splits: Optional[Union[Iterable[str], Mapping[str, str]]] = None,
+      caching_permitted: bool = True
     ):
     """TfdsTask constructor.
 
@@ -345,6 +363,8 @@ class TfdsDataSource(DataSource):
         allowable canonical splits (e.g., 'validation') to TFDS splits or slices
         (e.g., 'train[':1%']), or None. The default, None, uses all available
           splits from the TFDS dataset info.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
     if ":" not in tfds_name:
       raise ValueError("TFDS name must contain a version number, got: %s" %
@@ -360,7 +380,7 @@ class TfdsDataSource(DataSource):
 
     # If splits are not provided, we pass an empty tuple and use the lazy
     # lookup in the `splits` property.
-    super().__init__(splits=splits or ())
+    super().__init__(splits=splits or (), caching_permitted=caching_permitted)
 
   @property
   def splits(self):
@@ -405,6 +425,7 @@ class FileDataSource(DataSource):
       read_file_fn: Callable[[tf.data.Dataset], tf.data.Dataset],
       split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
       num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """FileDataSource constructor.
 
@@ -416,12 +437,15 @@ class FileDataSource(DataSource):
       num_input_examples: dict or None, an optional dictionary mapping split
         to its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
     self._split_to_filepattern = split_to_filepattern
     self._reader = read_file_fn
     super().__init__(
         splits=split_to_filepattern.keys(),
-        num_input_examples=num_input_examples)
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
   @property
   def supports_arbitrary_sharding(self) -> bool:
@@ -471,6 +495,7 @@ class TextLineDataSource(FileDataSource):
       split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
       skip_header_lines: int = 0,
       num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """TextLineDataSource constructor.
 
@@ -482,6 +507,8 @@ class TextLineDataSource(FileDataSource):
       num_input_examples: dict or None, an optional dictionary mapping split to
         its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
     # Used during caching.
     self._skip_header_lines = skip_header_lines
@@ -492,7 +519,8 @@ class TextLineDataSource(FileDataSource):
     super().__init__(
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
-        num_input_examples=num_input_examples)
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
 
 class TFExampleDataSource(FileDataSource):
@@ -505,6 +533,7 @@ class TFExampleDataSource(FileDataSource):
                                               tf.io.VarLenFeature]],
       reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
       num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """TFExampleDataSource constructor.
 
@@ -518,6 +547,8 @@ class TFExampleDataSource(FileDataSource):
       num_input_examples: dict or None, an optional dictionary mapping split to
         its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
 
     def parse_fn(*args):
@@ -531,7 +562,8 @@ class TFExampleDataSource(FileDataSource):
     super().__init__(
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
-        num_input_examples=num_input_examples)
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
 
 class ProtoDataSource(FileDataSource):
@@ -543,6 +575,7 @@ class ProtoDataSource(FileDataSource):
       decode_proto_fn: DecodeFnType,
       reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
       num_input_examples: Optional[Mapping[str, int]] = None,
+      caching_permitted: bool = True
   ):
     """ProtoDataSource constructor.
 
@@ -555,6 +588,8 @@ class ProtoDataSource(FileDataSource):
       num_input_examples: dict or None, an optional dictionary mapping split to
         its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
+      caching_permitted: indicates whether this data source may be cached.
+        Default True.
     """
 
     def read_file_fn(filepattern: Union[str, Iterable[str]]):
@@ -564,7 +599,8 @@ class ProtoDataSource(FileDataSource):
     super().__init__(
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
-        num_input_examples=num_input_examples)
+        num_input_examples=num_input_examples,
+        caching_permitted=caching_permitted)
 
 
 # ========================== Offline Caching Helpers ===========================
@@ -748,6 +784,11 @@ class Task(DatasetProviderBase):
           f"preprocessing pipeline. Found {len(cache_step_idxs)} in '{name}'.")
     cache_step_idx = cache_step_idxs[0] if cache_step_idxs else None
     if cache_step_idx is not None:
+      if not source.caching_permitted:
+        raise ValueError(
+            f"Caching was requested for '{name}', but the underlying data "
+            "source prohibits caching. Please remove `CacheDatasetPlaceholder` "
+            "and try again.")
       for prep in preprocessors[:cache_step_idx]:
         prep_args = inspect.signature(prep).parameters.keys()
         if "sequence_length" in prep_args:
