@@ -62,11 +62,140 @@ class Logger(abc.ABC):
     ...
 
 
+class PyLoggingLogger(Logger):
+  """A logger that writes metrics using the standard Python log."""
+
+  def __init__(self, output_dir: str, level: int = logging.INFO):
+    self._level = level
+    super().__init__(output_dir)
+
+  def __call__(self, task_name: str, step: int,
+               metrics: Mapping[str, metrics_lib.MetricValue],
+               dataset: tf.data.Dataset, inferences: Mapping[str,
+                                                             Sequence[Any]],
+               targets: Sequence[Any]) -> None:
+    del dataset
+    del inferences
+    del targets
+    for metric_name, metric_value in metrics.items():
+      if isinstance(metric_value, metrics_lib.Scalar):
+        strvalue = f"{metric_value.value:.3f}"
+      elif isinstance(metric_value, metrics_lib.Text):
+        strvalue = metric_value.textdata
+      else:
+        strvalue = f"unloggable type {type(metric_value)}"
+      logging.info("%s/%s at step %d: %s", task_name, metric_name, step,
+                   strvalue)
+
+
 class TensorBoardLogger(Logger):
   """A logger that writes metrics to TensorBoard summaries."""
 
   def __init__(self, output_dir: str):
     """TensorBoardLogger initializer.
+
+    Args:
+      output_dir: The base directory where all logs will be written.
+    """
+    super().__init__(output_dir)
+    self._summary_writers = {}
+
+  def _get_summary_writer(self, summary_dir: str) -> tf.summary.SummaryWriter:
+    """Get or create a summary writer for a specific task.
+
+    Args:
+      summary_dir: The task we are getting the writer for.
+
+    Returns:
+      The summary writer associated with the directory.
+    """
+    if summary_dir not in self._summary_writers:
+      self._summary_writers[summary_dir] = tf.summary.create_file_writer(
+          summary_dir, flush_millis=120)
+    return self._summary_writers[summary_dir]
+
+  def _write_metric(self, tag: str, value: metrics_lib.MetricValue, step: int,
+                    writer: tf.summary.SummaryWriter):
+    """Log a metric value to tensorboard, dispatched on value type."""
+    if isinstance(value, metrics_lib.Scalar):
+      value: metrics_lib.Scalar = value
+      value = float(np.array(value.value))
+      with writer.as_default():
+        tf.summary.scalar(name=tag, data=value, step=step)
+    elif isinstance(value, metrics_lib.Image):
+      value: metrics_lib.Image = value
+      image = tf.convert_to_tensor(value.image)
+      with writer.as_default():
+        tf.summary.image(
+            name=tag, data=image, step=step, max_outputs=value.max_outputs)
+    elif isinstance(value, metrics_lib.Audio):
+      value: metrics_lib.Audio = value
+      audio = tf.convert_to_tensor(value.audiodata, dtype=tf.float32)
+      with writer.as_default():
+        tf.summary.audio(
+            name=tag,
+            data=audio,
+            sample_rate=value.sample_rate,
+            step=step,
+            max_outputs=value.max_outputs,
+            encoding="wav")
+    elif isinstance(value, metrics_lib.Histogram):
+      value: metrics_lib.Histogram = value
+      values = np.array(value.values)
+      with writer.as_default():
+        tf.summary.histogram(
+            name=tag, data=values, step=step, buckets=value.bins)
+    elif isinstance(value, metrics_lib.Text):
+      value: metrics_lib.Text = value
+      if not isinstance(value.textdata, (str, bytes)):
+        raise ValueError("`textdata` should be of the type `str` or `bytes`.")
+      with writer.as_default():
+        tf.summary.text(name=tag, data=tf.constant(value.textdata), step=step)
+    else:
+      raise TypeError(
+          f"Value type not understood, got '{type(value).__name__}'.")
+
+  def __call__(self, task_name: str, step: int,
+               metrics: Mapping[str, metrics_lib.MetricValue],
+               dataset: tf.data.Dataset, inferences: Mapping[str,
+                                                             Sequence[Any]],
+               targets: Sequence[Any]) -> None:
+    """Log metrics to tensorboard.
+
+    Args:
+      task_name: The name of the task these datapoints are relevant to.
+      step: The timestep to place this datapoint at.
+      metrics: A mapping from series names to numeric datapoints to be added to
+        that series.
+      dataset: The Task dataset, which is unused by this logger.
+      inferences: The model outputs, which are unused by this logger.
+      targets: The postprocessed targets, which are unused by this logger.
+    """
+    del dataset
+    del inferences
+    del targets
+    if step is None:
+      logging.warning("Step number for the logging session is not provided. "
+                      "A dummy value of -1 will be used.")
+      step = -1
+
+    writer = self._get_summary_writer(os.path.join(self.output_dir, task_name))
+    for metric_name, metric_value in metrics.items():
+      # We prefix the tag with "eval/" for backward compatibility.
+      # TODO(adarob): Find a way to remove this or make it an option.
+      self._write_metric(
+          tag=f"eval/{metric_name}",
+          value=metric_value,
+          step=step,
+          writer=writer)
+    writer.flush()
+
+
+class TensorBoardLoggerV1(Logger):
+  """A logger that writes metrics to TensorBoard summaries in TF1."""
+
+  def __init__(self, output_dir: str):
+    """TensorBoardLoggerV1 initializer.
 
     Args:
       output_dir: The base directory where all logs will be written.

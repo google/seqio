@@ -15,7 +15,7 @@
 """MetricValue objects to wrap results being returned by metric funcitons."""
 
 import dataclasses
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 
@@ -32,13 +32,13 @@ class MetricValue:
 @dataclasses.dataclass
 class Scalar(MetricValue):
   """The default tensorflow value, used for creating time series graphs."""
-  value: float
+  value: Union[int, float]
 
 
 @dataclasses.dataclass
 class Text(MetricValue):
   """Text to output to tensorboard, markdown is rendered by tensorboard."""
-  textdata: str
+  textdata: Union[str, bytes]
 
 
 @dataclasses.dataclass

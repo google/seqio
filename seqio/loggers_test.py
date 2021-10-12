@@ -28,11 +28,11 @@ import tensorflow_datasets as tfds
 tf.compat.v1.enable_eager_execution()
 
 
-class TensorBoardLoggerTest(tf.test.TestCase):
+class TensorBoardLoggerTestV1(tf.test.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.logger = loggers.TensorBoardLogger(self.create_tempdir().full_path)
+    self.logger = loggers.TensorBoardLoggerV1(self.create_tempdir().full_path)
 
   def test_logging(self):
     task_metrics = {
@@ -61,6 +61,125 @@ class TensorBoardLoggerTest(tf.test.TestCase):
     self.assertEqual(tag_rouge2, "eval/rouge2")
     self.assertAlmostEqual(rouge1, 50, places=4)
     self.assertAlmostEqual(rouge2, 100, places=4)
+
+
+class TensorBoardLoggerTest(tf.test.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.logger = loggers.TensorBoardLogger(self.create_tempdir().full_path)
+
+  def _log_and_read(self, metrics):
+    self.logger(
+        task_name="log_eval_task",
+        step=1,
+        metrics=metrics,
+        dataset=tf.data.Dataset.range(0),
+        inferences={},
+        targets=[])
+    task_summary_dir = os.path.join(self.logger.output_dir, "log_eval_task")
+    event_file = os.path.join(task_summary_dir,
+                              tf.io.gfile.listdir(task_summary_dir)[0])
+    logged_metrics = {}
+    plugin = {}
+    for event_str in tfds.as_numpy(tf.data.TFRecordDataset(event_file).skip(1)):
+      tf.compat.v1.logging.info(tf.compat.v1.Event.FromString(event_str))
+      value = tf.compat.v1.Event.FromString(event_str).summary.value[0]
+      logged_metrics[value.tag] = tf.make_ndarray(value.tensor)
+      plugin[value.tag] = value.metadata.plugin_data.plugin_name
+    return logged_metrics, plugin
+
+  def test_log_scalar(self):
+    task_metrics = {
+        "rouge1": metrics_lib.Scalar(50),
+        "rouge2": metrics_lib.Scalar(np.float32(100)),
+    }
+    logged_metrics, plugins = self._log_and_read(task_metrics)
+    self.assertDictEqual(plugins, {
+        "eval/rouge1": "scalars",
+        "eval/rouge2": "scalars"
+    })
+    self.assertDictEqual(logged_metrics, {
+        "eval/rouge1": 50.0,
+        "eval/rouge2": 100.0
+    })
+
+  def test_log_text(self):
+    task_metrics = {
+        "str_sample": metrics_lib.Text("test1"),
+        "bytes_sample": metrics_lib.Text(b"test2"),
+    }
+    logged_metrics, plugins = self._log_and_read(task_metrics)
+    self.assertDictEqual(plugins, {
+        "eval/str_sample": "text",
+        "eval/bytes_sample": "text"
+    })
+    self.assertDictEqual(
+        logged_metrics, {
+            "eval/str_sample": np.array(b"test1"),
+            "eval/bytes_sample": np.array(b"test2")
+        })
+
+  def test_log_image(self):
+    task_metrics = {
+        "1image":
+            metrics_lib.Image(np.arange(36).reshape((1, 3, 4, 3))),
+        "3image":
+            metrics_lib.Image(
+                np.arange(108).reshape((3, 3, 4, 3)), max_outputs=2),
+    }
+    logged_metrics, plugins = self._log_and_read(task_metrics)
+    self.assertDictEqual(plugins, {
+        "eval/1image": "images",
+        "eval/3image": "images"
+    })
+    self.assertLen(logged_metrics, 2)
+    # All images have shape (3, 4):
+    for res in logged_metrics.values():
+      self.assertAllEqual(res[0:2], np.array([b"4", b"3"]))
+    # 1 input, 1 output.
+    self.assertLen(logged_metrics["eval/1image"][2:], 1)
+    # 3 inputs, 2 outputs.
+    self.assertLen(logged_metrics["eval/3image"][2:], 2)
+
+  def test_log_histogram(self):
+    task_metrics = {
+        "1d": metrics_lib.Histogram(np.arange(10), bins=2),
+    }
+    logged_metrics, plugins = self._log_and_read(task_metrics)
+    self.assertDictEqual(plugins, {
+        "eval/1d": "histograms",
+    })
+    self.assertSameElements(logged_metrics, ["eval/1d"])
+    self.assertAllEqual(logged_metrics["eval/1d"],
+                        np.array([[0., 4.5, 5.], [4.5, 9., 5.]]))
+
+  def test_log_audio(self):
+    task_metrics = {
+        "1mono":
+            metrics_lib.Audio(
+                np.linspace(-1, 1, 10).reshape((1, 10, 1)), max_outputs=2),
+        "3mono":
+            metrics_lib.Audio(
+                np.linspace(-1, 1, 30).reshape((3, 10, 1)), max_outputs=2),
+        "1stereo":
+            metrics_lib.Audio(
+                np.linspace(-1, 1, 20).reshape((1, 10, 2)), max_outputs=2),
+    }
+    logged_metrics, plugins = self._log_and_read(task_metrics)
+    self.assertDictEqual(plugins, {
+        "eval/1mono": "audio",
+        "eval/3mono": "audio",
+        "eval/1stereo": "audio"
+    })
+    self.assertSameElements(logged_metrics,
+                            ["eval/1mono", "eval/3mono", "eval/1stereo"])
+    # 1 input, 1 output.
+    self.assertLen(logged_metrics["eval/1mono"], 1)
+    # 3 inputs, 2 outputs.
+    self.assertLen(logged_metrics["eval/3mono"], 2)
+    # 1 input, 1 output.
+    self.assertLen(logged_metrics["eval/1stereo"], 1)
 
 
 class JSONLoggerTest(tf.test.TestCase):
