@@ -96,6 +96,11 @@ def run_pipeline(pipeline,
   task_names = [
       t for t in seqio.TaskRegistry.names()
       if included_regex.match(t) and not excluded_regex.match(t)]
+  if not task_names:
+    logging.warning("No tasks have been selected from the task registry. "
+                    "Please make sure that the tasks you want cached exist in "
+                    "the task registry and haven't been excluded by the "
+                    "--excluded_tasks flag.")
   for task_name in task_names:
     task = seqio.TaskRegistry.get(task_name)
     if not task.supports_caching:
