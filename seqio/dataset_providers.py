@@ -1014,7 +1014,7 @@ class Task(DatasetProviderBase):
   def requires_caching(self) -> bool:
     """Whether or not this task requires offline caching."""
     return (self._cache_step_idx is not None and
-            self.preprocessors[self._cache_step_idx].required)
+            self.preprocessors[self._cache_step_idx].required)  # pytype: disable=attribute-error  # bind-properties
 
   def assert_cached(self) -> None:
     """Raises an assertion error if cached dataset does not exist."""
