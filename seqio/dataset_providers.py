@@ -350,7 +350,8 @@ class TfdsDataSource(DataSource):
       tfds_name: str,
       tfds_data_dir: Optional[str] = None,
       splits: Optional[Union[Iterable[str], Mapping[str, str]]] = None,
-      caching_permitted: bool = True
+      caching_permitted: bool = True,
+      decoders: Optional[tfds.typing.TreeDict[tfds.decode.Decoder]] = None,
     ):
     """TfdsTask constructor.
 
@@ -365,6 +366,8 @@ class TfdsDataSource(DataSource):
           splits from the TFDS dataset info.
       caching_permitted: indicates whether this data source may be cached.
         Default True.
+      decoders: dict (optional), mapping from features to tfds.decode.Decoders,
+        such as tfds.decode.SkipDecoding() for skipping image byte decoding
     """
     if ":" not in tfds_name:
       raise ValueError("TFDS name must contain a version number, got: %s" %
@@ -376,7 +379,8 @@ class TfdsDataSource(DataSource):
     self._tfds_dataset = utils.LazyTfdsLoader(
         tfds_name,
         data_dir=tfds_data_dir,
-        split_map=splits if isinstance(splits, dict) else None)
+        split_map=splits if isinstance(splits, dict) else None,
+        decoders=decoders)
 
     # If splits are not provided, we pass an empty tuple and use the lazy
     # lookup in the `splits` property.

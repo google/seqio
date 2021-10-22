@@ -61,7 +61,7 @@ class LazyTfdsLoader(object):
 
   _MEMOIZED_BUILDERS = {}
 
-  def __init__(self, name, data_dir=None, split_map=None):
+  def __init__(self, name, data_dir=None, split_map=None, decoders=None):
     """LazyTfdsLoader constructor.
 
     Args:
@@ -70,10 +70,13 @@ class LazyTfdsLoader(object):
       split_map: dict (optional), mapping from canonical splits
         (e.g., 'validation') to TFDS splits or slices
         (e.g., 'train[':1%']).
+      decoders: dict (optional), mapping from features to tfds.decode.Decoders,
+        such as tfds.decode.SkipDecoding() for skipping image byte decoding
     """
     self._name = name
     self._data_dir = data_dir
     self._split_map = split_map
+    self._decoders = decoders
 
   @property
   def name(self):
@@ -138,7 +141,8 @@ class LazyTfdsLoader(object):
             shuffle_seed=seed,
             skip_prefetch=True,
             input_context=input_context
-        )
+        ),
+        decoders=self._decoders
     )
 
   def load_shard(self, file_instruction, shuffle_files=False, seed=None):

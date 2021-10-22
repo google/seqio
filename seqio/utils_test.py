@@ -105,7 +105,8 @@ class LazyTfdsLoaderTest(absltest.TestCase):
         shuffle_files=False,
         download=True,
         try_gcs=True,
-        read_config=AnyArg())
+        read_config=AnyArg(),
+        decoders=None)
 
     # test .size()
     self.assertEqual(420, ds.size(split="train"))
