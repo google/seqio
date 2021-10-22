@@ -21,6 +21,7 @@ Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 import abc
 import collections
 import dataclasses
+import functools
 import inspect
 import json
 import os
@@ -258,6 +259,14 @@ class DataSource(DatasetProviderBase):
     return self._num_input_examples[split]
 
 
+def _get_name(function):
+  """Returns the name of a (possibly partially applied) function."""
+  if isinstance(function, functools.partial):
+    return function.func.__name__
+  else:
+    return function.__name__
+
+
 def _validate_args(fn, expected_pos_args):
   """Ensure function has exactly expected positional args."""
   argspec = inspect.getfullargspec(fn)
@@ -266,14 +275,14 @@ def _validate_args(fn, expected_pos_args):
   if actual_args[:len(expected_pos_args)] != expected_pos_args:
     raise ValueError(
         "'%s' must have positional args %s, got: %s" % (
-            fn.__name__, expected_pos_args, actual_args))
+            _get_name(fn), expected_pos_args, actual_args))
   actual_pos_args = tuple(
       argspec.args[:-len(argspec.defaults)]
       if argspec.defaults else argspec.args)
   if actual_pos_args != expected_pos_args[:len(actual_pos_args)]:
     raise ValueError(
         "'%s' may only have positional args %s, got: %s" % (
-            fn.__name__, expected_pos_args, actual_pos_args))
+            _get_name(fn), expected_pos_args, actual_pos_args))
 
 
 class DatasetFnCallable(typing_extensions.Protocol):
@@ -797,12 +806,12 @@ class Task(DatasetProviderBase):
         prep_args = inspect.signature(prep).parameters.keys()
         if "sequence_length" in prep_args:
           raise ValueError(
-              f"'{prep.__name__}' has a `sequence_length` argument but occurs "
+              f"'{_get_name(prep)}' has a `sequence_length` argument but occurs "
               f"before `CacheDatasetPlaceholder` in '{name}'. This is not "
               "allowed since the sequence length is specified at run time.")
         if "seed" in prep_args or "seeds" in prep_args:
           raise logging.warning(  # pylint:disable=logging-format-interpolation
-              f"'{prep.__name__}' has a `seed(s)` argument but occurs before "
+              f"'{_get_name(prep)}' has a `seed(s)` argument but occurs before "
               f"`CacheDatasetPlaceholder` in '{name}'. This is not recommended "
               "since the same samples will be used each epoch when reading "
               "from the cache.")
