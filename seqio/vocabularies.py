@@ -163,14 +163,10 @@ class PassThroughVocabulary(Vocabulary):
     return ids
 
   def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
-    if isinstance(s, tf.Tensor):
-      return s
-    return tf.constant(s)
+    return s
 
   def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
-    if isinstance(ids, tf.Tensor):
-      return ids
-    return tf.constant(ids)
+    return ids
 
   @property
   def eos_id(self) -> Optional[int]:
