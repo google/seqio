@@ -151,6 +151,10 @@ class TensorBoardLogger(Logger):
         raise ValueError("`textdata` should be of the type `str` or `bytes`.")
       with writer.as_default():
         tf.summary.text(name=tag, data=tf.constant(value.textdata), step=step)
+    elif isinstance(value, metrics_lib.Generic):
+      with writer.as_default():
+        tf.summary.write(
+            tag=tag, tensor=value.tensor, metadata=value.metadata, step=step)
     else:
       raise TypeError(
           f"Value type not understood, got '{type(value).__name__}'.")

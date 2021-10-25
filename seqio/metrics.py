@@ -18,6 +18,7 @@ import dataclasses
 from typing import Optional, Union
 
 import numpy as np
+import tensorflow.compat.v2 as tf
 
 
 @dataclasses.dataclass
@@ -71,3 +72,10 @@ class Histogram(MetricValue):
   """A histogram to output to tensorboard."""
   values: np.ndarray
   bins: Optional[int] = None
+
+
+@dataclasses.dataclass
+class Generic(MetricValue):
+  """A raw tensor to output to tensorboard."""
+  tensor: np.ndarray
+  metadata: tf.compat.v1.SummaryMetadata

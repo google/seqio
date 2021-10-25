@@ -181,6 +181,20 @@ class TensorBoardLoggerTest(tf.test.TestCase):
     # 1 input, 1 output.
     self.assertLen(logged_metrics["eval/1stereo"], 1)
 
+  def test_log_generic(self):
+    task_metrics = {
+        "foo":
+            metrics_lib.Generic(
+                tensor=np.array([1, 2, 3, 4, 5]),
+                metadata=tf.compat.v1.SummaryMetadata(
+                    plugin_data=tf.compat.v1.SummaryMetadata.PluginData(
+                        plugin_name="frobber")))
+    }
+    logged_metrics, plugins = self._log_and_read(task_metrics)
+    self.assertDictEqual(plugins, {"eval/foo": "frobber"})
+    self.assertSameElements(logged_metrics, ["eval/foo"])
+    self.assertAllEqual(logged_metrics["eval/foo"], [1, 2, 3, 4, 5])
+
 
 class JSONLoggerTest(tf.test.TestCase):
 
