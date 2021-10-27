@@ -488,7 +488,7 @@ class FileDataSource(DataSource):
       files_ds = files_ds.shard(shard_info.num_shards, shard_info.index)
 
     if shuffle:
-      files_ds = files_ds.shuffle(buffer_size=16, seed=seed)
+      files_ds = files_ds.shuffle(buffer_size=len(files), seed=seed)
 
     return files_ds.interleave(
         self._reader,
