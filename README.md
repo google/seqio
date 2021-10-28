@@ -506,7 +506,6 @@ dataset: tf.data.Dataset = seqio.get_dataset(
     mixture_or_task_name="wmt_t2t_ende_v003",
     task_feature_lengths={"inputs": 32, "targets": 32},
     dataset_split="train",
-    pack=True,
     shuffle=True,
     feature_converter=seqio.EncDecFeatureConverter(pack=True)
 )
@@ -566,7 +565,6 @@ dataset: tf.data.Dataset = seqio.get_dataset(
     mixture_or_task_name="standard_lm",
     task_feature_lengths={"targets": 32},
     dataset_split="train",
-    pack=True,
     shuffle=True,
     feature_converter=seqio.LMFeatureConverter(pack=True)
 )
@@ -686,7 +684,6 @@ dataset: tf.data.Dataset = seqio.get_dataset(
     mixture_or_task_name="wmt_t2t_ende_v003",
     task_feature_lengths={"inputs": 32, "targets": 32},
     dataset_split="train",
-    pack=True,
     shuffle=True,
     feature_converter=seqio.PrefixLMFeatureConverter(
         pack=True,
@@ -762,7 +759,6 @@ dataset: tf.data.Dataset = seqio.get_dataset(
     mixture_or_task_name="some mlm task",
     task_feature_lengths={"inputs": 32, "targets": 32},
     dataset_split="train",
-    pack=True,
     shuffle=True,
     feature_converter=seqio.EncoderFeatureConverter(
         pack=True,
