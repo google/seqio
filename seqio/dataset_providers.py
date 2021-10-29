@@ -1529,7 +1529,7 @@ def get_mixture_or_task(task_or_mixture_name):
   else:
     raise ValueError(
         "No Task or Mixture found with name '%s'. Available:\n - %s" %
-        (task_or_mixture_name, "\n - ".join(sorted(tasks))))
+        (task_or_mixture_name, "\n - ".join(sorted(mixtures) + sorted(tasks))))
 
 
 def get_subtasks(task_or_mixture):
