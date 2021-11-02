@@ -30,7 +30,7 @@ jobs:
           now=$(date +'%Y%m%d') 
           sed -i "$ s/.$/\.dev$now'/" seqio/version.py
           sed -i "/name=/s/'.*'/'seqio-nightly'/" setup.py
-          sed -i "/url=/s/'.*'/'https://github.com/google/seqio/tree/nightly'/"
+          sed -i "/url=/s/'.*'/'https:\/\/github.com\/google\/seqio\/tree\/nightly'/" setup.py
           git add *
           git commit -m "Updated nightly version"
           git push --force
