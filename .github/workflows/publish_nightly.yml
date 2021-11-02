@@ -1,0 +1,62 @@
+# This script takes a nightly snapshot of the master branch and uploads it to pypi
+
+name: publish_nightly
+# Run nightly
+on:
+#   schedule:
+#   - cron: "0 7 * * *"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checks-out repository under $GITHUB_WORKSPACE, so job can access it
+      - uses: actions/checkout@v2
+
+      # Overwrites the nightly branch with master. Replaces prod seqio strings.
+      # Pushes new nightly      
+      - name: Merge master branch into nightly branch and update package info
+        run: |
+          git config user.email "joshnewlan@google.com"
+          git config user.name "Josh Newlan"
+          git fetch
+          git checkout nightly
+          git reset --hard master
+          now=$(date +'%Y%m%d') 
+          sed -i "$ s/.$/\.dev$now'/" seqio/version.py
+          sed -i "/name=/s/'.*'/'seqio-nightly'/" setup.py
+          sed -i "/url=/s/'.*'/'https://github.com/google/seqio/tree/nightly'/"
+          git add *
+          git commit -m "Updated nightly version"
+          git push --force
+      
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
+
+      - name: Install pypa/build
+        run: >-
+          python -m
+          pip install
+          build
+          --user
+
+      - name: Build a binary wheel and a source tarball
+        run: >-
+          python -m
+          build
+          --sdist
+          --wheel
+          --outdir dist/
+          
+      - name: Publish distribution to Test PyPI
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
