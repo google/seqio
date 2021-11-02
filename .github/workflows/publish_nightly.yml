@@ -1,4 +1,4 @@
-# This script takes a nightly snapshot of the master branch and uploads it to pypi
+# This script takes a nightly snapshot of the main branch and uploads it to pypi
 
 name: publish_nightly
 # Run nightly
@@ -18,15 +18,15 @@ jobs:
       # Checks-out repository under $GITHUB_WORKSPACE, so job can access it
       - uses: actions/checkout@v2
 
-      # Overwrites the nightly branch with master. Replaces prod seqio strings.
+      # Overwrites the nightly branch with main branch. Replaces prod seqio strings.
       # Pushes new nightly      
-      - name: Merge master branch into nightly branch and update package info
+      - name: Merge main branch into nightly branch and update package info
         run: |
           git config user.email "joshnewlan@google.com"
           git config user.name "Josh Newlan"
           git fetch
           git checkout nightly
-          git reset --hard master
+          git reset --hard main
           now=$(date +'%Y%m%d') 
           sed -i "$ s/.$/\.dev$now'/" seqio/version.py
           sed -i "/name=/s/'.*'/'seqio-nightly'/" setup.py
