@@ -23,6 +23,7 @@ inspect_tasks_main \
 """
 import ast
 import importlib
+import pprint
 import re
 
 from absl import app
@@ -70,20 +71,9 @@ def _inspect_task_or_mixture(task_or_mixture):
           use_cached=False,
           shuffle=False,
       )
-
       print(f"* Split: {split} *")
-      print("  Features: Tensor Types | Dtype")
-      for k, v in iter(dataset).get_next().items():
-        print(f"  {k}: {type(v)} | {v.dtype}")
-
-      if input(
-          "Press any key to see examples for this splits. Press 'c' to skip to next split."
-      ) == "c":
-        continue
-
       for example in dataset:
-        for k, v in example.items():
-          print(f"    {k}: {v}")
+        pprint.pprint(example, indent=2)
         if input(
             "Press any key for next example. Press 'c' to skip to next split."
         ) == "c":
