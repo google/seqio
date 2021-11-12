@@ -257,10 +257,12 @@ def append_eos_after_trim_impl(
       pass
     else:
       eos_id = output_features[key].vocabulary.eos_id
+      rank = tf.rank(value)
+      eos_array = tf.ones(tf.ones((rank,), tf.int32), dtype=value.dtype) * eos_id
       if (sequence_length is not None and
           sequence_length.get(key, None) is not None):
         max_length = sequence_length[key]
-        features[key] = tf.concat([value[:max_length - 1], [eos_id]], axis=-1)
+        features[key] = tf.concat([value[:max_length - 1], eos_array], axis=-1)
       else:
-        features[key] = tf.concat([value, [eos_id]], axis=-1)
+        features[key] = tf.concat([value, eos_array], axis=-1)
   return features
