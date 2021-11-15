@@ -108,10 +108,10 @@ def _check_lengths(ds: tf.data.Dataset, expected_lengths: Mapping[str, int],
     ds: a tf.data.Dataset to be checked.
     expected_lengths: a mapping from a feature name to an expected length.
     sequence_axis_mapping: a mapping from feature name to its sequence
-        dimension.
+      dimension.
     strict: if true, the length of each feature should exactly match the
-      expected length whereas false condition allows the length to be less
-      than or equal to the expected length.
+      expected length whereas false condition allows the length to be less than
+      or equal to the expected length.
     error_label: a label used to indicate the validation stage
 
   Returns:
@@ -161,12 +161,16 @@ def _shift_right_by_one(tensor: tf.Tensor, axis: int = -1) -> tf.Tensor:
   if not tensor.dtype.is_integer:
     raise ValueError("Only integer types are supported.")
 
+  if tensor.shape.rank != 1:
+    raise ValueError(
+        "Only 1-dimensional tensor is supported. Got rank {tensor.shape.rank}.")
+
   # tf.roll wraps around the axis.
   rolled = tf.roll(tensor, shift=1, axis=axis)
 
   # Zero out the first position by multiplying with [0, 1, 1, ..., 1].
   reverse_onehot = tf.one_hot(0,
-                              depth=tensor.shape[axis],
+                              depth=tf.size(tensor),
                               on_value=0,
                               off_value=1,
                               dtype=tensor.dtype)
@@ -1179,3 +1183,116 @@ class EncoderFeatureConverter(FeatureConverter):
   @property
   def mask_id(self):
     return self._mask_id
+
+
+class PrepackedPrefixLMFeatureConverter(PrefixLMFeatureConverter):
+  """FC for decoder-only architecture with pre-packed prefix lm objective."""
+
+  TASK_FEATURES = {
+      "inputs_1": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "inputs_2": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "targets_1": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "targets_2": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+  MODEL_FEATURES = {
+      "decoder_target_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_input_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_loss_weights": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_causal_attention": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+
+  def __init__(self,
+               loss_on_targets_only: bool = True,
+               **kwargs) -> None:
+    self._loss_on_targets_only = loss_on_targets_only
+    if "pack" in kwargs and kwargs["pack"]:
+      raise ValueError(
+          "Packing is not supported in. The dataset passed to the feature "
+          "converter should handle the packing.")
+    super().__init__(**kwargs)
+
+  def _convert_features(
+      self, ds: tf.data.Dataset,
+      task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+
+    def rekey(ds, key_map):
+      def rekey_example(x):
+        return {new_key: x[old_key] for new_key, old_key in key_map.items()}
+      return ds.map(rekey_example)
+
+    ds_1 = rekey(ds, {"inputs": "inputs_1", "targets": "targets_1"})
+    ds_2 = rekey(ds, {"inputs": "inputs_2", "targets": "targets_2"})
+    # Only the value is used and the key is ignored.
+    task_feature_lengths_1 = {"concat": task_feature_lengths["inputs_1"]}
+    task_feature_lengths_2 = {"concat": task_feature_lengths["inputs_2"]}
+
+    ds_1 = super()._convert_features(ds_1, task_feature_lengths_1)
+    ds_2 = super()._convert_features(ds_2, task_feature_lengths_2)
+
+    ds = tf.data.Dataset.zip((ds_1, ds_2))
+    def concat(ds):
+      def concat_example(ex1, ex2):
+        return {key: tf.concat((ex1[key], ex2[key]), axis=0) for key in ex1}
+      return ds.map(concat_example)
+
+    return concat(ds)
+
+  # TODO(hwchung): override __call__ so that we can skip the validations for #
+  # now. Maybe we should add a few validations.
+  def __call__(self, ds: tf.data.Dataset,
+               task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+    return self._convert_features(ds, task_feature_lengths)
+
+
+class PrepackedEncDecPrefixLMFeatureConverter(EncDecFeatureConverter):
+  """FC for encoder-decoder architecture with pre-packed prefix lm objective."""
+
+  def __init__(self, **kwargs) -> None:
+    if "pack" in kwargs and kwargs["pack"]:
+      raise ValueError(
+          "Packing is not supported in. The dataset passed to the feature "
+          "converter should handle the packing.")
+    super().__init__(**kwargs)
+
+  def _convert_features(
+      self, ds: tf.data.Dataset,
+      task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+
+    def rekey(ds, key_map):
+      def rekey_example(x):
+        return {new_key: x[old_key] for new_key, old_key in key_map.items()}
+      return ds.map(rekey_example)
+
+    ds_1 = rekey(ds, {"inputs": "inputs_1", "targets": "targets_1"})
+    ds_2 = rekey(ds, {"inputs": "inputs_2", "targets": "targets_2"})
+
+    ds = tf.data.Dataset.zip((ds_1, ds_2))
+
+    def concat(ds):
+      def concat_example(ex1, ex2):
+        ex = {key: tf.concat((ex1[key], ex2[key]), axis=0) for key in ex1}
+        ex["targets_segment_ids"] = tf.concat([
+            tf.fill([tf.size(ex1["targets"])], 1),
+            tf.fill([tf.size(ex2["targets"])], 2)
+        ],
+                                              axis=0)
+        return ex
+      return ds.map(concat_example)
+
+    concat_ds = concat(ds)
+    concat_task_fetaure_lengths = {
+        "inputs":
+            task_feature_lengths["inputs_1"],
+        "targets":
+            task_feature_lengths["targets_1"],
+        "target_segment_ids":
+            task_feature_lengths["inputs_1"] + task_feature_lengths["targets_1"]
+    }
+
+    return super()._convert_features(concat_ds, concat_task_fetaure_lengths)
+
+  # TODO(hwchung): override __call__ so that we can skip the validations for #
+  # now. Maybe we should add a few validations.
+  def __call__(self, ds: tf.data.Dataset,
+               task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+    return self._convert_features(ds, task_feature_lengths)

@@ -875,5 +875,75 @@ class EncoderFeatureConverterTest(FeatureConvertersTest):
     converter(ds, input_lengths)
 
 
+class PrepackedFeatureConverters(tf.test.TestCase):
+
+  def test_prefix_lm_architecture(self):
+    # total length of each example is 8, with the combined lengths 16.
+    # example 1's split point is 3, i.e., inputs length of example 2 is 5
+    x = [{
+        "inputs_1": [7, 8, 6],
+        "targets_1": [5, 4, 6, 7, 8],
+        "inputs_2": [9, 8, 9, 3, 4],
+        "targets_2": [9, 7, 5]
+    }]
+    ds = create_default_dataset(
+        x, feature_names=["inputs_1", "targets_1", "inputs_2", "targets_2"])
+
+    # Maybe check len(inputs_1) + len(targets_1) =
+    # task_feature_lengths['inputs_1'] = task_feature_lengths['targets_1']
+    task_feature_lengths = {
+        "inputs_1": 8,
+        "targets_1": 8,
+        "inputs_2": 8,
+        "targets_2": 8
+    }
+    converter = feature_converters.PrepackedPrefixLMFeatureConverter(pack=False)
+    converted_ds = converter(ds, task_feature_lengths)
+    expected = [{
+        "decoder_target_tokens": [
+            7, 8, 6, 5, 4, 6, 7, 8, 9, 8, 9, 3, 4, 9, 7, 5
+        ],
+        "decoder_input_tokens": [
+            0, 7, 8, 6, 5, 4, 6, 7, 0, 9, 8, 9, 3, 4, 9, 7
+        ],
+        "decoder_loss_weights": [
+            0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1
+        ],
+        "decoder_causal_attention": [
+            1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0
+        ]
+    }]
+    assert_dataset(converted_ds, expected)
+
+  def test_enc_dec_architecture(self):
+    # total length of each example is 8, with the combined lengths 16.
+    # example 1's split point is 3, i.e., inputs length of example 2 is 5
+    x = [{
+        "inputs_1": [7, 8, 6],
+        "targets_1": [5, 4, 6, 7, 8],
+        "inputs_2": [9, 8, 9, 3, 4],
+        "targets_2": [9, 7, 5]
+    }]
+    ds = create_default_dataset(
+        x, feature_names=["inputs_1", "targets_1", "inputs_2", "targets_2"])
+
+    task_feature_lengths = {
+        "inputs_1": 8,
+        "targets_1": 8,
+        "inputs_2": 8,
+        "targets_2": 8
+    }
+    converter = feature_converters.PrepackedEncDecPrefixLMFeatureConverter(
+        pack=False)
+    converted_ds = converter(ds, task_feature_lengths)
+    expected = {
+        "encoder_input_tokens": [7, 8, 6, 9, 8, 9, 3, 4],
+        "decoder_target_tokens": [5, 4, 6, 7, 8, 9, 7, 5],
+        "decoder_input_tokens": [0, 5, 4, 6, 7, 0, 9, 7],
+        "decoder_loss_weights": [1, 1, 1, 1, 1, 1, 1, 1],
+    }
+    assert_dataset(converted_ds, expected)
+
+
 if __name__ == "__main__":
   tf.test.main()
