@@ -875,5 +875,24 @@ class EncoderFeatureConverterTest(FeatureConvertersTest):
     converter(ds, input_lengths)
 
 
+class PassThroughFeatureConverterTest(tf.test.TestCase):
+
+  def test_equivalence(self):
+    x = [{
+        "decoder_target_tokens": [7, 8, 5, 1, 3, 9, 1, 8, 4, 9, 3, 1, 4, 1, 0],
+        "decoder_input_tokens": [0, 7, 8, 5, 1, 3, 9, 0, 8, 4, 9, 3, 1, 4, 0],
+        "decoder_loss_weights": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    }]
+    ds = create_default_dataset(
+        x,
+        feature_names=[
+            "decoder_target_tokens", "decoder_input_tokens",
+            "decoder_loss_weights"
+        ])
+    converter = feature_converters.PassThroughFeatureConverter()
+    converted_ds = converter(ds, task_feature_lengths={})
+    test_utils.assert_datasets_eq(converted_ds, ds)
+
+
 if __name__ == "__main__":
   tf.test.main()

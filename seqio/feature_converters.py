@@ -1179,3 +1179,24 @@ class EncoderFeatureConverter(FeatureConverter):
   @property
   def mask_id(self):
     return self._mask_id
+
+
+class PassThroughFeatureConverter(FeatureConverter):
+  """This feature converter pass through the dataset without any processing."""
+
+  def __init__(self, **unused_kwargs):  # pylint: disable=super-init-not-called
+    pass
+
+  def __call__(self, ds: tf.data.Dataset,
+               task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+    del task_feature_lengths
+    return ds
+
+  def _convert_features(self, ds: tf.data.Dataset,
+                        task_feature_lengths: Mapping[str, int]):
+    """This method is required to be overridden but unused."""
+    pass
+
+  def get_model_feature_lengths(self, task_feature_lengths: Mapping[str, int]):
+    """This method is required to be overridden but unused."""
+    pass
