@@ -153,10 +153,21 @@ class PreprocessorsTest(absltest.TestCase):
         })
 
   def test_append_eos(self):
+    # Features for this test:
+    #    name     |   shape   | add_eos | seq_length
+    #    ---------+-----------+---------+-----------
+    #    inputs   |       [3] |   False |         4
+    #    targets  |       [4] |    True |         3
+    #    arrows   |       [4] |    True |         5
+    #    strings  |    [3, 2] |    True |         3
+    #    feathers | [3, None] |    True |         4
+    #    bows     |       [2] |     n/a |         1
     og_dataset = tf.data.Dataset.from_tensors({
         'inputs': [1, 2, 3],
         'targets': [4, 5, 6, 7],
         'arrows': [8, 9, 10, 11],
+        'strings': [[14, 15], [16, 17], [18, 19]],
+        'feathers': tf.ragged.constant([[20, 21], [], [22, 23, 24, 25, 26]]),
         'bows': [12, 13],
     })
     vocab = test_utils.sentencepiece_vocab()
@@ -164,21 +175,26 @@ class PreprocessorsTest(absltest.TestCase):
         'inputs': Feature(vocab, add_eos=False),
         'targets': Feature(vocab, add_eos=True),
         'arrows': Feature(vocab, add_eos=True),
+        'strings': Feature(vocab, add_eos=True),
+        'feathers': Feature(vocab, add_eos=True),
     }
     sequence_length = {
         'inputs': 4,
         'targets': 3,
         'arrows': 5,
-        'bows': 1
+        'strings': 3,
+        'feathers': 4,
+        'bows': 1  # note: ignored, since bows is not in output_features.
     }
 
     # Add eos only.
     assert_dataset(
-        preprocessors.append_eos(og_dataset, output_features),
-        {
+        preprocessors.append_eos(og_dataset, output_features), {
             'inputs': [1, 2, 3],
             'targets': [4, 5, 6, 7, 1],
             'arrows': [8, 9, 10, 11, 1],
+            'strings': [[14, 15, 1], [16, 17, 1], [18, 19, 1]],
+            'feathers': [[20, 21, 1], [1], [22, 23, 24, 25, 26, 1]],
             'bows': [12, 13],
         })
 
@@ -187,13 +203,14 @@ class PreprocessorsTest(absltest.TestCase):
         preprocessors.append_eos_after_trim(
             og_dataset,
             output_features=output_features,
-            sequence_length=sequence_length),
-        {
-            'inputs': [1, 2, 3],
-            'targets': [4, 5, 1],
-            'arrows': [8, 9, 10, 11, 1],
-            'bows': [12, 13],
-        })
+            sequence_length=sequence_length), {
+                'inputs': [1, 2, 3],
+                'targets': [4, 5, 1],
+                'arrows': [8, 9, 10, 11, 1],
+                'strings': [[14, 15, 1], [16, 17, 1], [18, 19, 1]],
+                'feathers': [[20, 21, 1], [1], [22, 23, 24, 1]],
+                'bows': [12, 13],
+            })
 
     # Trim to sequence lengths (but with targets=None).
     sequence_length['targets'] = None
@@ -201,25 +218,45 @@ class PreprocessorsTest(absltest.TestCase):
         preprocessors.append_eos_after_trim(
             og_dataset,
             output_features=output_features,
-            sequence_length=sequence_length),
-        {
-            'inputs': [1, 2, 3],
-            'targets': [4, 5, 6, 7, 1],
-            'arrows': [8, 9, 10, 11, 1],
-            'bows': [12, 13],
-        })
+            sequence_length=sequence_length), {
+                'inputs': [1, 2, 3],
+                'targets': [4, 5, 6, 7, 1],
+                'arrows': [8, 9, 10, 11, 1],
+                'strings': [[14, 15, 1], [16, 17, 1], [18, 19, 1]],
+                'feathers': [[20, 21, 1], [1], [22, 23, 24, 1]],
+                'bows': [12, 13],
+            })
 
     # Don't trim to sequence lengths.
     assert_dataset(
         preprocessors.append_eos_after_trim(
-            og_dataset,
-            output_features=output_features),
-        {
-            'inputs': [1, 2, 3],
-            'targets': [4, 5, 6, 7, 1],
-            'arrows': [8, 9, 10, 11, 1],
-            'bows': [12, 13],
-        })
+            og_dataset, output_features=output_features), {
+                'inputs': [1, 2, 3],
+                'targets': [4, 5, 6, 7, 1],
+                'arrows': [8, 9, 10, 11, 1],
+                'strings': [[14, 15, 1], [16, 17, 1], [18, 19, 1]],
+                'feathers': [[20, 21, 1], [1], [22, 23, 24, 25, 26, 1]],
+                'bows': [12, 13],
+            })
+
+  def test_append_to_innermost_axis(self):
+    test_cases = [
+        ([1, 2, 3], -1, [1, 2, 3, -1]),
+        ([[1, 2], [3, 4]], -1, [[1, 2, -1], [3, 4, -1]]),
+        (tf.ragged.constant([[1, 2], [3]]), -1, [[1, 2, -1], [3, -1]]),
+        (tf.ragged.constant([[[1, 2], [3]], [[4, 5, 6]]]), -1,
+         [[[1, 2, -1], [3, -1]], [[4, 5, 6, -1]]]),
+        (tf.ragged.constant([[[1, 2], [3, 4]], [[5, 6]]], ragged_rank=1), -1,
+         [[[1, 2, -1], [3, 4, -1]], [[5, 6, -1]]]),
+    ]
+    for (tensor, scalar, expected) in test_cases:
+      with self.subTest(f'({tensor}, {scalar}) -> {expected}'):
+        actual = preprocessors._append_to_innermost_axis(tensor, scalar)
+        if isinstance(actual, tf.RaggedTensor):
+          actual = actual.to_list()
+        else:
+          actual = actual.numpy().tolist()
+        self.assertEqual(actual, expected)
 
   def test_rekey(self):
     og_dataset = tf.data.Dataset.from_tensors({
