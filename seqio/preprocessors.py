@@ -184,7 +184,7 @@ def append_eos(
       return value
     else:
       eos_id = output_features[key].vocabulary.eos_id
-      return tf.concat([value, [eos_id]], axis=0)
+      return _append_to_innermost_axis(value, eos_id)
 
   return dataset.map(
       lambda ex: {k: _maybe_add_eos(k, v) for k, v in ex.items()},
@@ -260,7 +260,41 @@ def append_eos_after_trim_impl(
       if (sequence_length is not None and
           sequence_length.get(key, None) is not None):
         max_length = sequence_length[key]
-        features[key] = tf.concat([value[:max_length - 1], [eos_id]], axis=-1)
-      else:
-        features[key] = tf.concat([value, [eos_id]], axis=-1)
+        value = value[..., :max_length - 1]
+
+      features[key] = _append_to_innermost_axis(value, eos_id)
   return features
+
+
+def _append_to_innermost_axis(tensor: tf.Tensor,
+                              scalar: tf.Tensor) -> tf.Tensor:
+  """Appends `scalar` to each slice in the innermost axis of `tensor`.
+
+  >>> _append_to_innermost_axis([1, 2, 3], -1)
+  [1, 2, 3, -1]
+  >>> _append_to_innermost_axis([[1, 2], [3, 4]], -1)
+  [[1, 2, -1], [3, 4, -1]]
+  >>> _append_to_innermost_axis(tf.ragged.constant([[1, 2], [3]]), -1)
+  [[1, 2, -1], [3, -1]]
+
+  Args:
+    tensor: The tensor that should have a value appended.
+    scalar: The value to append.
+
+  Returns:
+    A copy of `tensor` with `scalar` appended to each slice along
+    the innermost axis.
+  """
+  if isinstance(tensor, tf.RaggedTensor):
+    if tensor.shape.rank > 2:
+      return tensor.with_values(
+          _append_to_innermost_axis(tensor.values, scalar))
+    else:
+      return tf.concat([tensor, tf.fill([tensor.nrows(), 1], scalar)], axis=1)
+  else:
+    ndims = tf.rank(tensor)
+    paddings = tf.concat(
+        [tf.zeros((ndims - 1, 2), dtype=tf.int32),
+         tf.constant([[0, 1]])],
+        axis=0)
+    return tf.pad(tensor, paddings=paddings, constant_values=scalar)
