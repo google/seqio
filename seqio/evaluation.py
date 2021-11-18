@@ -36,11 +36,18 @@ FeatureConverter = feature_converters.FeatureConverter
 
 AllOutputTokensType = Mapping[str, Sequence[Sequence[int]]]
 AllOutputScoresType = Mapping[str, Sequence[float]]
-AllMetricsType = Mapping[str, Sequence[Mapping[str, Any]]]
-MetricsAndOutputsType = Tuple[
-    concurrent.futures.Future,  # metrics
-    AllOutputTokensType,  # output_tokens
-    AllOutputScoresType]  # output_scores
+AllMetricsType = Mapping[str, Mapping[str, Any]]
+
+
+class AllMetricsFuture(typing_extensions.Protocol):
+
+  def result(self) -> AllMetricsType:
+    ...
+
+
+MetricsAndOutputsType = Tuple[AllMetricsFuture,  # metrics
+                              AllOutputTokensType,  # output_tokens
+                              AllOutputScoresType]  # output_scores
 
 
 def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
