@@ -88,6 +88,11 @@ from seqio import utils
 import tensorflow.compat.v2 as tf
 
 
+# TODO(hwchung): remove this.
+# pointer for backward compatilbility.
+autoregressive_inputs = utils.make_autoregressive_inputs
+
+
 def _check_lengths(ds: tf.data.Dataset, expected_lengths: Mapping[str, int],
                    sequence_axis_mapping: Mapping[str, int], strict: bool,
                    error_label: str) -> tf.data.Dataset:
@@ -153,80 +158,6 @@ def non_padding_position(tensor: tf.Tensor,
                          pad_id: int = 0) -> tf.Tensor:
   """Return a tensor with 1 on non-padding and 0 on padding positions."""
   return tf.cast(tf.not_equal(tensor, pad_id), dtype=dtype)
-
-
-def _shift_right_by_one(tensor: tf.Tensor, axis: int = -1) -> tf.Tensor:
-  """Shift the 1d input tensor to the right by one position without wrapping."""
-
-  if not tensor.dtype.is_integer:
-    raise ValueError("Only integer types are supported.")
-
-  # tf.roll wraps around the axis.
-  rolled = tf.roll(tensor, shift=1, axis=axis)
-
-  # Zero out the first position by multiplying with [0, 1, 1, ..., 1].
-  reverse_onehot = tf.one_hot(0,
-                              depth=tensor.shape[axis],
-                              on_value=0,
-                              off_value=1,
-                              dtype=tensor.dtype)
-
-  return rolled * reverse_onehot
-
-
-def autoregressive_inputs(
-    targets: tf.Tensor,
-    sequence_id: tf.Tensor = None,
-    output_dtype: tf.dtypes.DType = tf.int32) -> tf.Tensor:
-  """Generate inputs for an autoregressive model, by shifting the targets.
-
-  Modified from mesh_tensorflow.transformer.transformer.autoregressive_inputs.
-
-  For the first element of each sequence, the returned input id is 0.
-
-  For a "packed" dataset, also pass the sequence_id tensor, which aligns
-  with the targets tensor and contains different values for different
-  concatenated examples.
-
-  Example for a packed dataset:
-
-  ```
-        targets = [3, 8, 1, 9, 1, 5, 4, 1, 0, 0]
-    sequence_id = [1, 1, 1, 2, 2, 3, 3, 3, 0, 0]
-         inputs = [0, 3, 8, 0, 9, 0, 5, 4, 0, 0]
-                            |     |        |
-                            These positions are set to 0 if sequence_id is not
-                            None.
-  ```
-
-  Args:
-    targets: a tf.int32 tensor with shape [length].
-    sequence_id: an optional tensor with the same shape as targets.
-    output_dtype: an optional output data type.
-
-  Returns:
-    a tensor with dtype tf.int32 and the same shape as targets.
-  """
-  if not targets.dtype.is_integer:
-    raise ValueError("The targets should be integer-valued tensors.")
-
-  if sequence_id is not None and not sequence_id.dtype.is_integer:
-    raise ValueError(
-        "The sequence_id should be integer-valued tensors for a packed dataset."
-    )
-
-  inputs = _shift_right_by_one(targets)
-  if inputs.dtype != output_dtype:
-    inputs = tf.cast(inputs, output_dtype)
-
-  # We should have a 0 at the beginning of each sequence rather than the
-  # shifted EOS (e.g. 1) from the previous sequence.
-  if sequence_id is not None:
-    not_first_in_sequence = tf.equal(
-        sequence_id,
-        _shift_right_by_one(sequence_id))
-    inputs *= tf.cast(not_first_in_sequence, output_dtype)
-  return inputs
 
 
 def _check_exact_match(expected_features: Sequence[str],
@@ -628,7 +559,7 @@ class EncDecFeatureConverter(FeatureConverter):
     def convert_example(
         features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
       # targets_segment_id is present only for a packed dataset.
-      decoder_input_tokens = autoregressive_inputs(
+      decoder_input_tokens = utils.make_autoregressive_inputs(
           features["targets"],
           sequence_id=features.get("targets_segment_ids", None))
 
@@ -713,7 +644,7 @@ class LMFeatureConverter(FeatureConverter):
       self, features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
     """Convert an LM example into an example with model features."""
     # targets_segment_id is present only for a packed dataset.
-    decoder_input_tokens = autoregressive_inputs(
+    decoder_input_tokens = utils.make_autoregressive_inputs(
         features["targets"],
         sequence_id=features.get("targets_segment_ids", None))
 

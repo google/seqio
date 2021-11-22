@@ -121,7 +121,7 @@ class LazyTfdsLoaderTest(absltest.TestCase):
       ds.files(split="test")
 
 
-class UtilsTest(parameterized.TestCase):
+class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_dict_to_tfexample(self):
     features = {
@@ -328,6 +328,56 @@ class UtilsTest(parameterized.TestCase):
     }]
     assert_dataset(
         packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
+
+  def test_shift_right_by_one(self):
+    x = tf.constant([3, 8, 1, 0, 0])
+    shifted = utils._shift_right_by_one(x)
+    expected = [0, 3, 8, 1, 0]
+    actual = self.evaluate(shifted)
+    self.assertAllEqual(actual, expected)
+
+  def test_shift_right_by_one_nonzero_last_position(self):
+    x = tf.constant([3, 8, 8, 9, 4])
+    shifted = utils._shift_right_by_one(x)
+    expected = [0, 3, 8, 8, 9]
+    actual = self.evaluate(shifted)
+    self.assertAllEqual(actual, expected)
+
+  def test_autoregressive_inputs_unpacked(self):
+    x = tf.constant([3, 8, 9, 5, 1, 0, 0])
+    autoreg_inputs = utils.make_autoregressive_inputs(x)
+    actual = self.evaluate(autoreg_inputs)
+    expected = [0, 3, 8, 9, 5, 1, 0]
+    self.assertAllEqual(actual, expected)
+
+  def test_autoregressive_inputs_packed(self):
+    x = tf.constant([3, 8, 1, 9, 1, 5, 4, 1, 0, 0])
+    sequence_id = tf.constant([1, 1, 1, 2, 2, 3, 3, 3, 0, 0])
+    autoreg_inputs = utils.make_autoregressive_inputs(
+        x, sequence_id=sequence_id)
+    actual = self.evaluate(autoreg_inputs)
+    expected = [0, 3, 8, 0, 9, 0, 5, 4, 0, 0]
+    self.assertAllEqual(actual, expected)
+
+  def test_autoregressive_inputs_packed_non_eos(self):
+    # In the correct input format, x[4] should have been 1 (EOS).
+    x = tf.constant([3, 8, 1, 9, 6, 5, 4, 1, 0, 0])
+    # sequence_id is correctly formatted.
+    sequence_id = tf.constant([1, 1, 1, 2, 2, 3, 3, 3, 0, 0])
+    autoreg_inputs = utils.make_autoregressive_inputs(
+        x, sequence_id=sequence_id)
+    actual = self.evaluate(autoreg_inputs)
+    # The incorrect x[4] should not affect the output as long as the sequence_id
+    # is correct.
+    expected = [0, 3, 8, 0, 9, 0, 5, 4, 0, 0]
+    self.assertAllEqual(actual, expected)
+
+  def test_autoregressive_inputs_different_dtypes(self):
+    x = tf.constant([3, 8, 1, 9, 1, 5, 4, 1, 0, 0])
+    sequence_id = tf.constant([1, 1, 1, 2, 2, 3, 3, 3, 0, 0], tf.int32)
+    autoreg_inputs = utils.make_autoregressive_inputs(
+        x, sequence_id=sequence_id, output_dtype=tf.int64)
+    self.assertEqual(autoreg_inputs.dtype, tf.int64)
 
 
 class MixtureRateTest(test_utils.FakeTaskTest):

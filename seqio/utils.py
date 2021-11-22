@@ -67,8 +67,8 @@ class LazyTfdsLoader(object):
     Args:
       name: str, the name of the TFDS dataset.
       data_dir: str (optional), directory to read/write TFDS data.
-      split_map: dict (optional), mapping from canonical splits
-        (e.g., 'validation') to TFDS splits or slices
+      split_map: dict (optional), mapping from canonical splits (e.g.,
+        'validation') to TFDS splits or slices
         (e.g., 'train[':1%']).
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
         such as tfds.decode.SkipDecoding() for skipping image byte decoding
@@ -233,6 +233,7 @@ def trim_and_pad_dataset(
     dataset: tf.data.Dataset, the dataset to trimp/pad examples in.
     feature_lengths: map from feature key to final length. Other features will
       be returned unchanged.
+
   Returns:
     Trimmed/padded tf.data.Dataset.
   """
@@ -403,6 +404,7 @@ def _pack_with_tf_ops(
 
     Args:
       x: a single example
+
     Returns:
       a tf.data.Dataset
     """
@@ -556,6 +558,81 @@ def _pack_with_custom_ops(
       custom_pack_batch, num_parallel_calls=tf.data.experimental.AUTOTUNE)
   dataset = dataset.unbatch()
   return dataset
+
+
+def _shift_right_by_one(tensor: tf.Tensor, axis: int = -1) -> tf.Tensor:
+  """Shift the 1d input tensor to the right by one position without wrapping."""
+
+  if not tensor.dtype.is_integer:
+    raise ValueError("Only integer types are supported.")
+
+  if tensor.shape.rank != 1:
+    raise ValueError(
+        "Only 1-dimensional tensor is supported. Got rank {tensor.shape.rank}.")
+
+  # tf.roll wraps around the axis.
+  rolled = tf.roll(tensor, shift=1, axis=axis)
+
+  # Zero out the first position by multiplying with [0, 1, 1, ..., 1].
+  reverse_onehot = tf.one_hot(
+      0, depth=tf.size(tensor), on_value=0, off_value=1, dtype=tensor.dtype)
+
+  return rolled * reverse_onehot
+
+
+def make_autoregressive_inputs(
+    targets: tf.Tensor,
+    sequence_id: tf.Tensor = None,
+    output_dtype: tf.dtypes.DType = tf.int32) -> tf.Tensor:
+  """Generate inputs for an autoregressive model, by shifting the targets.
+
+  Modified from mesh_tensorflow.transformer.transformer.autoregressive_inputs.
+
+  For the first element of each sequence, the returned input id is 0.
+
+  For a "packed" dataset, also pass the sequence_id tensor, which aligns
+  with the targets tensor and contains different values for different
+  concatenated examples.
+
+  Example for a packed dataset:
+
+  ```
+        targets = [3, 8, 1, 9, 1, 5, 4, 1, 0, 0]
+    sequence_id = [1, 1, 1, 2, 2, 3, 3, 3, 0, 0]
+         inputs = [0, 3, 8, 0, 9, 0, 5, 4, 0, 0]
+                            |     |        |
+                            These positions are set to 0 if sequence_id is not
+                            None.
+  ```
+
+  Args:
+    targets: a tf.int32 tensor with shape [length].
+    sequence_id: an optional tensor with the same shape as targets.
+    output_dtype: an optional output data type.
+
+  Returns:
+    a tensor with dtype tf.int32 and the same shape as targets.
+  """
+  if not targets.dtype.is_integer:
+    raise ValueError("The targets should be integer-valued tensors.")
+
+  if sequence_id is not None and not sequence_id.dtype.is_integer:
+    raise ValueError(
+        "The sequence_id should be integer-valued tensors for a packed dataset."
+    )
+
+  inputs = _shift_right_by_one(targets)
+  if inputs.dtype != output_dtype:
+    inputs = tf.cast(inputs, output_dtype)
+
+  # We should have a 0 at the beginning of each sequence rather than the
+  # shifted EOS (e.g. 1) from the previous sequence.
+  if sequence_id is not None:
+    not_first_in_sequence = tf.equal(
+        sequence_id,
+        _shift_right_by_one(sequence_id))
+    inputs *= tf.cast(not_first_in_sequence, output_dtype)
+  return inputs
 
 
 # ========================= Mixing Rate Functions ==============================
