@@ -810,11 +810,11 @@ class Task(DatasetProviderBase):
               f"before `CacheDatasetPlaceholder` in '{name}'. This is not "
               "allowed since the sequence length is specified at run time.")
         if "seed" in prep_args or "seeds" in prep_args:
-          raise logging.warning(  # pylint:disable=logging-format-interpolation
-              f"'{_get_name(prep)}' has a `seed(s)` argument but occurs before "
-              f"`CacheDatasetPlaceholder` in '{name}'. This is not recommended "
+          logging.warning(
+              "'%s' has a `seed(s)` argument but occurs before "
+              "`CacheDatasetPlaceholder` in '%s'. This is not recommended "
               "since the same samples will be used each epoch when reading "
-              "from the cache.")
+              "from the cache.", _get_name(prep), name)
     self._cache_step_idx = cache_step_idx
     self._preprocessors = preprocessors
 
