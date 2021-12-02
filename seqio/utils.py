@@ -568,7 +568,7 @@ def _shift_right_by_one(tensor: tf.Tensor, axis: int = -1) -> tf.Tensor:
 
   if tensor.shape.rank != 1:
     raise ValueError(
-        "Only 1-dimensional tensor is supported. Got rank {tensor.shape.rank}.")
+        f"Only 1-dimensional tensor is supported. Got rank {tensor.shape.rank}.")
 
   # tf.roll wraps around the axis.
   rolled = tf.roll(tensor, shift=1, axis=axis)
