@@ -233,27 +233,39 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertIsNone(utils._NEXT_MAP_SEED)
 
   def test_trim_and_pad_dataset(self):
-    x = [{"inputs": [7, 8, 5, 6, 1], "targets": [3, 9, 1], "idx": [0]},
-         {"inputs": [8, 4, 9, 3, 5, 7, 9, 1], "targets": [4, 1], "idx": [1, 2]}]
-    ds = create_default_dataset(x, feature_names=("inputs", "targets", "idx"))
+    x = [{
+        "inputs": [7, 8, 5, 6, 1],
+        "targets": [[3, 0.5], [9, 0], [1, 2]],
+        "idx": [0]
+    }, {
+        "inputs": [8, 4, 9, 3, 5, 7, 9, 5],
+        "targets": [[4, 1.2], [1, 1]],
+        "idx": [1, 2]
+    }]
+    ds = ds = tf.data.Dataset.from_generator(
+        lambda: x,
+        output_signature={
+            "inputs": tf.TensorSpec([None], tf.int32),
+            "targets": tf.TensorSpec([None, None], tf.float32),
+            "idx": tf.TensorSpec([None], tf.int32)
+        })
     padded_ds = utils.trim_and_pad_dataset(
         ds,
         feature_lengths={"inputs": 7, "targets": 3})
     expected = [
         {
             "inputs": [7, 8, 5, 6, 1, 0, 0],
-            "targets": [3, 9, 1],
+            "targets": [[3, 0.5], [9, 0], [1, 2]],
             "idx": [0],
         },
         {
-            # EOS is trimmed
             "inputs": [8, 4, 9, 3, 5, 7, 9],
-            "targets": [4, 1, 0],
+            "targets": [[4, 1.2], [1, 1], [0, 0]],
             "idx": [1, 2],
         }
     ]
     assert_dataset(
-        padded_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
+        padded_ds, expected, {"inputs": tf.int32, "targets": tf.float32})
 
   _PACK_PARAMETERS = ({"use_custom_ops": False},)
 
@@ -329,26 +341,21 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     assert_dataset(
         packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
 
-  def test_shift_right_by_one(self):
-    x = tf.constant([3, 8, 1, 0, 0])
-    shifted = utils._shift_right_by_one(x)
-    expected = [0, 3, 8, 1, 0]
-    actual = self.evaluate(shifted)
-    self.assertAllEqual(actual, expected)
-
-  def test_shift_right_by_one_nonzero_last_position(self):
-    x = tf.constant([3, 8, 8, 9, 4])
-    shifted = utils._shift_right_by_one(x)
-    expected = [0, 3, 8, 8, 9]
-    actual = self.evaluate(shifted)
-    self.assertAllEqual(actual, expected)
-
   def test_autoregressive_inputs_unpacked(self):
     x = tf.constant([3, 8, 9, 5, 1, 0, 0])
     autoreg_inputs = utils.make_autoregressive_inputs(x)
     actual = self.evaluate(autoreg_inputs)
     expected = [0, 3, 8, 9, 5, 1, 0]
     self.assertAllEqual(actual, expected)
+    self.assertEqual(actual.dtype, np.int32)
+
+  def test_autoregressive_inputs_unpacked_2d(self):
+    x = tf.constant([[3, 8, 1, 0, 0], [9, 5, 2, 0, 6]])
+    autoreg_inputs = utils.make_autoregressive_inputs(x)
+    actual = self.evaluate(autoreg_inputs)
+    expected = [[0, 0, 0, 0, 0], [3, 8, 1, 0, 0]]
+    self.assertAllEqual(actual, expected)
+    self.assertEqual(actual.dtype, np.int32)
 
   def test_autoregressive_inputs_packed(self):
     x = tf.constant([3, 8, 1, 9, 1, 5, 4, 1, 0, 0])
@@ -358,6 +365,16 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     actual = self.evaluate(autoreg_inputs)
     expected = [0, 3, 8, 0, 9, 0, 5, 4, 0, 0]
     self.assertAllEqual(actual, expected)
+    self.assertEqual(actual.dtype, np.int32)
+
+  def test_autoregressive_inputs_packed_2d(self):
+    x = tf.constant([[3, 8, 1, 0, 0], [9, 5, 2, 0, 6]])
+    sequence_id = tf.constant([1, 2])
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        "Only 1-D sequences are supported with packing. "
+        "Got a packed 2-D sequence."):
+      utils.make_autoregressive_inputs(x, sequence_id=sequence_id)
 
   def test_autoregressive_inputs_packed_non_eos(self):
     # In the correct input format, x[4] should have been 1 (EOS).
@@ -371,13 +388,19 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     # is correct.
     expected = [0, 3, 8, 0, 9, 0, 5, 4, 0, 0]
     self.assertAllEqual(actual, expected)
+    self.assertEqual(actual.dtype, np.int32)
 
   def test_autoregressive_inputs_different_dtypes(self):
-    x = tf.constant([3, 8, 1, 9, 1, 5, 4, 1, 0, 0])
+    x = tf.constant([3, 8, 1, 9.9, 1, 5, 4, 1, 0, 0])
     sequence_id = tf.constant([1, 1, 1, 2, 2, 3, 3, 3, 0, 0], tf.int32)
     autoreg_inputs = utils.make_autoregressive_inputs(
-        x, sequence_id=sequence_id, output_dtype=tf.int64)
-    self.assertEqual(autoreg_inputs.dtype, tf.int64)
+        x, sequence_id=sequence_id, output_dtype=tf.float32)
+    actual = self.evaluate(autoreg_inputs)
+    # The incorrect x[4] should not affect the output as long as the sequence_id
+    # is correct.
+    expected = [0, 3, 8, 0, 9.9, 0, 5, 4, 0, 0]
+    self.assertAllClose(actual, expected)
+    self.assertEqual(actual.dtype, np.float32)
 
 
 class MixtureRateTest(test_utils.FakeTaskTest):

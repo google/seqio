@@ -408,8 +408,12 @@ def assert_dataset(
       if (isinstance(actual_value, tf.RaggedTensor) or
           isinstance(actual_value, tf.compat.v1.ragged.RaggedTensorValue)):
         actual_value = actual_value.to_list()
-      np.testing.assert_array_equal(
-          actual_value, _maybe_as_bytes(expected_dict[key]), key)
+      if isinstance(actual_value, np.ndarray) and np.issubdtype(
+          actual_value.dtype, np.floating):
+        np.testing.assert_allclose(actual_value, expected_dict[key])
+      else:
+        np.testing.assert_array_equal(
+            actual_value, _maybe_as_bytes(expected_dict[key]), key)
 
   for actual_ex, expected_ex in zip(actual, expected):
     _compare_dict(actual_ex, expected_ex)

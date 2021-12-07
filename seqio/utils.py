@@ -560,31 +560,28 @@ def _pack_with_custom_ops(
   return dataset
 
 
-def _shift_right_by_one(tensor: tf.Tensor, axis: int = -1) -> tf.Tensor:
-  """Shift the 1d input tensor to the right by one position without wrapping."""
+def _shift_right_by_one(tensor: tf.Tensor) -> tf.Tensor:
+  """Shift the input tensor to the right by one position without wrapping."""
 
-  if not tensor.dtype.is_integer:
-    raise ValueError("Only integer types are supported.")
-
-  if tensor.shape.rank != 1:
-    raise ValueError(
-        f"Only 1-dimensional tensor is supported. Got rank {tensor.shape.rank}."
-    )
-
+  if not (tensor.dtype.is_integer or tensor.dtype.is_floating):
+    raise ValueError(f"Only numeric types are supported. Got: {tensor.dtype}")
   # tf.roll wraps around the axis.
-  rolled = tf.roll(tensor, shift=1, axis=axis)
+  rolled = tf.roll(tensor, shift=1, axis=0)
 
   # Zero out the first position by multiplying with [0, 1, 1, ..., 1].
-  reverse_onehot = tf.one_hot(
-      0, depth=tf.size(tensor), on_value=0, off_value=1, dtype=tensor.dtype)
+  depth = tf.shape(tensor)[0]
+  mask = tf.one_hot(0, depth=depth, on_value=0, off_value=1, dtype=tensor.dtype)
 
-  return rolled * reverse_onehot
+  # Expand dims of mask to broadcast to rolled.
+  dim_expansion = [slice(None, None)] + [None] * (len(rolled.shape)-1)
+  mask = mask[dim_expansion]
+  return rolled * mask
 
 
 def make_autoregressive_inputs(
     targets: tf.Tensor,
     sequence_id: tf.Tensor = None,
-    output_dtype: tf.dtypes.DType = tf.int32) -> tf.Tensor:
+    output_dtype: Optional[tf.dtypes.DType] = None) -> tf.Tensor:
   """Generate inputs for an autoregressive model, by shifting the targets.
 
   Modified from mesh_tensorflow.transformer.transformer.autoregressive_inputs.
@@ -614,13 +611,14 @@ def make_autoregressive_inputs(
   Returns:
     a tensor with dtype tf.int32 and the same shape as targets.
   """
-  if not targets.dtype.is_integer:
-    raise ValueError("The targets should be integer-valued tensors.")
-
+  output_dtype = output_dtype or targets.dtype
   if sequence_id is not None and not sequence_id.dtype.is_integer:
     raise ValueError(
         "The sequence_id should be integer-valued tensors for a packed dataset."
     )
+  if sequence_id is not None and len(targets.shape) > 1:
+    raise ValueError("Only 1-D sequences are supported with packing. Got a "
+                     f"packed {len(targets.shape)}-D sequence.")
 
   inputs = _shift_right_by_one(targets)
   if inputs.dtype != output_dtype:
