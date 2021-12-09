@@ -311,8 +311,8 @@ class FunctionDataSource(DataSource):
         shuffle_files)' (and optionally the variable `seed`) that returns a
         `tf.data.Dataset`.
       splits: an iterable of applicable string split names.
-      num_input_examples: dict or None, an optional dictionary mapping split
-        to its size in number of input examples (before preprocessing). The
+      num_input_examples: dict or None, an optional dictionary mapping split to
+        its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
       caching_permitted: indicates whether this data source may be cached.
         Default True.
@@ -438,7 +438,8 @@ class FileDataSource(DataSource):
       read_file_fn: Callable[[tf.data.Dataset], tf.data.Dataset],
       split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
       num_input_examples: Optional[Mapping[str, int]] = None,
-      caching_permitted: bool = True
+      caching_permitted: bool = True,
+      file_shuffle_buffer_size: Optional[int] = 16
   ):
     """FileDataSource constructor.
 
@@ -447,14 +448,18 @@ class FileDataSource(DataSource):
         `tf.data.Dataset` of file paths, e.g., `tf.data.TFRecordDataset`.
       split_to_filepattern: a mapping from split names to filepatterns to be
         expanded with glob.
-      num_input_examples: dict or None, an optional dictionary mapping split
-        to its size in number of input examples (before preprocessing). The
+      num_input_examples: dict or None, an optional dictionary mapping split to
+        its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
       caching_permitted: indicates whether this data source may be cached.
         Default True.
+      file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
+        None, the number of files is used as buffer size for a perfect shuffle
+        (this is recommended).
     """
     self._split_to_filepattern = split_to_filepattern
     self._reader = read_file_fn
+    self._file_shuffle_buffer_size = file_shuffle_buffer_size
     super().__init__(
         splits=split_to_filepattern.keys(),
         num_input_examples=num_input_examples,
@@ -488,7 +493,9 @@ class FileDataSource(DataSource):
       files_ds = files_ds.shard(shard_info.num_shards, shard_info.index)
 
     if shuffle:
-      files_ds = files_ds.shuffle(buffer_size=16, seed=seed)
+      file_shuffle_buffer_size = self._file_shuffle_buffer_size or len(files)
+      files_ds = files_ds.shuffle(
+          buffer_size=file_shuffle_buffer_size, seed=seed)
 
     return files_ds.interleave(
         self._reader,
@@ -508,7 +515,8 @@ class TextLineDataSource(FileDataSource):
       split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
       skip_header_lines: int = 0,
       num_input_examples: Optional[Mapping[str, int]] = None,
-      caching_permitted: bool = True
+      caching_permitted: bool = True,
+      file_shuffle_buffer_size: Optional[int] = 16
   ):
     """TextLineDataSource constructor.
 
@@ -522,6 +530,9 @@ class TextLineDataSource(FileDataSource):
         `num_input_examples` method will return None if not provided.
       caching_permitted: indicates whether this data source may be cached.
         Default True.
+      file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
+        None, the number of files is used as buffer size for a perfect shuffle
+        (this is recommended).
     """
     # Used during caching.
     self._skip_header_lines = skip_header_lines
@@ -533,21 +544,21 @@ class TextLineDataSource(FileDataSource):
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
         num_input_examples=num_input_examples,
-        caching_permitted=caching_permitted)
+        caching_permitted=caching_permitted,
+        file_shuffle_buffer_size=file_shuffle_buffer_size)
 
 
 class TFExampleDataSource(FileDataSource):
   """A `FileDataSource` that reads files of tf.train.Example protos as input."""
 
-  def __init__(
-      self,
-      split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
-      feature_description: Mapping[str, Union[tf.io.FixedLenFeature,
-                                              tf.io.VarLenFeature]],
-      reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
-      num_input_examples: Optional[Mapping[str, int]] = None,
-      caching_permitted: bool = True
-  ):
+  def __init__(self,
+               split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
+               feature_description: Mapping[str, Union[tf.io.FixedLenFeature,
+                                                       tf.io.VarLenFeature]],
+               reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
+               num_input_examples: Optional[Mapping[str, int]] = None,
+               caching_permitted: bool = True,
+               file_shuffle_buffer_size: Optional[int] = 16):
     """TFExampleDataSource constructor.
 
     Args:
@@ -562,6 +573,9 @@ class TFExampleDataSource(FileDataSource):
         `num_input_examples` method will return None if not provided.
       caching_permitted: indicates whether this data source may be cached.
         Default True.
+      file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
+        None, the number of files is used as buffer size for a perfect shuffle
+        (this is recommended).
     """
 
     def parse_fn(*args):
@@ -576,7 +590,8 @@ class TFExampleDataSource(FileDataSource):
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
         num_input_examples=num_input_examples,
-        caching_permitted=caching_permitted)
+        caching_permitted=caching_permitted,
+        file_shuffle_buffer_size=file_shuffle_buffer_size)
 
 
 class ProtoDataSource(FileDataSource):
@@ -588,7 +603,8 @@ class ProtoDataSource(FileDataSource):
       decode_proto_fn: DecodeFnType,
       reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
       num_input_examples: Optional[Mapping[str, int]] = None,
-      caching_permitted: bool = True
+      caching_permitted: bool = True,
+      file_shuffle_buffer_size: Optional[int] = 16
   ):
     """ProtoDataSource constructor.
 
@@ -603,6 +619,9 @@ class ProtoDataSource(FileDataSource):
         `num_input_examples` method will return None if not provided.
       caching_permitted: indicates whether this data source may be cached.
         Default True.
+      file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
+        None, the number of files is used as buffer size for a perfect shuffle
+        (this is recommended).
     """
 
     def read_file_fn(filepattern: Union[str, Iterable[str]]):
@@ -613,7 +632,8 @@ class ProtoDataSource(FileDataSource):
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
         num_input_examples=num_input_examples,
-        caching_permitted=caching_permitted)
+        caching_permitted=caching_permitted,
+        file_shuffle_buffer_size=file_shuffle_buffer_size)
 
 
 # ========================== Offline Caching Helpers ===========================
@@ -636,7 +656,10 @@ def _rename_plaintext_to_pretokenized(
 class _CachedDataSource(FileDataSource):
   """A `FileDataSource` for reading datasets cached offline."""
 
-  def __init__(self, cache_dir: str, split: str):
+  def __init__(self,
+               cache_dir: str,
+               split: str,
+               file_shuffle_buffer_size: Optional[int] = 16):
 
     with tf.io.gfile.GFile(utils.get_cached_info_path(cache_dir, split)) as f:
       split_info = json.load(f)
@@ -694,25 +717,35 @@ class _CachedDataSource(FileDataSource):
     super().__init__(
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
-        num_input_examples={split: stats["examples"]}
-    )
+        num_input_examples={split: stats["examples"]},
+        file_shuffle_buffer_size=file_shuffle_buffer_size)
 
 
 class CacheDatasetPlaceholder(object):
   """A placeholder to signal when in the pipeline offline caching will occur."""
 
-  def __init__(self, required=False):
+  def __init__(self,
+               required=False,
+               file_shuffle_buffer_size: Optional[int] = 16):
     """CacheDatasetPlaceholder constructor.
 
     Args:
       required: whether the dataset must be accessed in its cached form, and
         on-the-fly preprocessing is disallowed.
+      file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
+        None, the number of files is used as buffer size for a perfect shuffle
+        (this is the most preferable option).
     """
     self._required = required
+    self._file_shuffle_buffer_size = file_shuffle_buffer_size
 
   @property
   def required(self):
     return self._required
+
+  @property
+  def file_shuffle_buffer_size(self):
+    return self._file_shuffle_buffer_size
 
   def __call__(self, dataset):
     raise RuntimeError("`CacheDatasetPlaceholder` should never be called.")
@@ -970,6 +1003,7 @@ class Task(DatasetProviderBase):
       sequence_length: dict mapping feature key to int length for that feature.
         If None, the features will not be truncated.
       seed: an optional random seed for deterministic preprocessing.
+
     Returns:
       a tf.data.Dataset
     """
@@ -1082,6 +1116,7 @@ class Task(DatasetProviderBase):
         after offline caching, but before applying potentially stochastic
         post-cache preprocessors and is therefore typically preferred to calling
         `repeat()` on the returned dataset. Defaults to `1`.
+
     Returns:
       A tf.data.Dataset.
     """
@@ -1096,7 +1131,9 @@ class Task(DatasetProviderBase):
           "`use_cached=False`.")
 
     if use_cached:
-      source = self._get_cached_source(split)
+      file_shuffle_buffer_size = self.preprocessors[
+          self._cache_step_idx].file_shuffle_buffer_size  # pytype: disable=attribute-error
+      source = self._get_cached_source(split, file_shuffle_buffer_size)
     else:
       source = self.source
 
@@ -1157,10 +1194,16 @@ class Task(DatasetProviderBase):
 
     return ds.prefetch(tf.data.experimental.AUTOTUNE)
 
-  def _get_cached_source(self, split) -> _CachedDataSource:
+  def _get_cached_source(
+      self,
+      split,
+      file_shuffle_buffer_size: Optional[int] = 16) -> _CachedDataSource:
     """Returns a DataSource to read cached files for split."""
     self.assert_cached()
-    return _CachedDataSource(self.cache_dir, split)
+    return _CachedDataSource(
+        self.cache_dir,
+        split,
+        file_shuffle_buffer_size=file_shuffle_buffer_size)
 
   def postprocess_fn(self, decoded_model_output: Any,
                      **postprocess_kwargs) -> Any:
@@ -1308,8 +1351,7 @@ class Mixture(DatasetProviderBase):
     return self.tasks[0].output_features
 
   def _check_compatible_features(self) -> None:
-    """Throw Exception if features across tasks have different vocabs or dtypes.
-    """
+    """Throw Exception if features across tasks have different vocabs or dtypes."""
     for name, feature in self.tasks[0].output_features.items():
       for task in self.tasks[1:]:
         if task.output_features[name].vocabulary != feature.vocabulary:
@@ -1566,8 +1608,7 @@ def get_dataset(mixture_or_task_name: str,
     task_feature_lengths: dict mapping task feature key to its sequence length.
       This specifies the sequence length of the dataset from the Task API.
     feature_converter: a feature converter object to use to convert the task
-      features to model features.
-      Must be a subclass of FeatureConverter.
+      features to model features. Must be a subclass of FeatureConverter.
     dataset_split: the split to use.
     use_cached: whether to use the cached dataset instead of processing it on
       the fly.

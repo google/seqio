@@ -17,6 +17,7 @@
 
 import functools
 import os
+import shutil
 from typing import Any, Callable, Mapping, Optional, Sequence
 
 from absl.testing import absltest
@@ -29,6 +30,7 @@ from seqio import test_utils
 from seqio import utils
 from seqio import vocabularies
 import tensorflow.compat.v2 as tf
+import tensorflow_datasets as tfds
 
 tf.compat.v1.enable_eager_execution()
 
@@ -223,6 +225,77 @@ class TasksTest(test_utils.FakeTaskTest):
     self.verify_task_matches_fake_datasets(
         "tf_example_task", use_cached=False, splits=["train"])
 
+  @mock.patch.object(tf.io.gfile, "glob")
+  def test_file_data_source_shuffle_buffer_low(self, mock_glob):
+    mock_glob.return_value = [f"{i}" for i in range(20)]
+    fds = dataset_providers.FileDataSource(
+        read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
+        split_to_filepattern={"train": "filepattern"},
+        file_shuffle_buffer_size=2)
+    for _ in range(10):
+      ds = [
+          d.decode() for d in tfds.as_numpy(
+              fds.get_dataset("train", shuffle=True, seed=23))
+      ]
+      self.assertListEqual(
+          ds,
+          [  # Not a great shuffle.
+              "0", "2", "1", "4", "5", "3", "7", "6", "9", "10", "11", "8",
+              "13", "14", "12", "16", "15", "18", "17", "19"
+          ])
+
+  @mock.patch.object(tf.io.gfile, "glob")
+  def test_file_data_source_shuffle_buffer_full(self, mock_glob):
+    mock_glob.return_value = [f"{i}" for i in range(20)]
+    fds = dataset_providers.FileDataSource(
+        read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
+        split_to_filepattern={"train": "filepattern"},
+        file_shuffle_buffer_size=None)
+    for _ in range(10):
+      ds = [
+          d.decode() for d in tfds.as_numpy(
+              fds.get_dataset("train", shuffle=True, seed=23))
+      ]
+      self.assertListEqual(
+          ds,
+          [  # Good shuffle.
+              "2", "13", "12", "19", "15", "5", "9", "1", "6", "8", "3", "0",
+              "10", "4", "14", "7", "16", "17", "18", "11"
+          ])
+
+  def _get_preps_with_cache_placeholder_buffer_size(self, buffer_size):
+    preps = list(self.DEFAULT_PREPROCESSORS)
+    for i, p in enumerate(preps):
+      if isinstance(p, dataset_providers.CacheDatasetPlaceholder):
+        preps[i] = dataset_providers.CacheDatasetPlaceholder(
+            file_shuffle_buffer_size=buffer_size)
+    return preps
+
+  def _mock_and_assert_cached_source(self, task_name, buffer_size):
+    cached_task = dataset_providers.get_mixture_or_task(task_name)
+    cached_task._get_cached_source = mock.MagicMock(
+        side_effect=cached_task._get_cached_source)
+    _ = cached_task.get_dataset(None, "train", use_cached=True)
+    cached_task._get_cached_source.assert_called_once_with(
+        "train", buffer_size)
+
+  def test_cached_data_source_shuffle_buffer_default(self):
+    self._mock_and_assert_cached_source("cached_task", 16)
+
+  def test_cached_data_source_shuffle_buffer_set(self):
+    self.add_task("cached_task_buf_2", self.tfds_source,
+                  self._get_preps_with_cache_placeholder_buffer_size(2))
+    shutil.copytree(self.cached_task_dir,
+                    os.path.join(self.test_data_dir, "cached_task_buf_2"))
+    self._mock_and_assert_cached_source("cached_task_buf_2", 2)
+
+  def test_cached_data_source_shuffle_buffer_None(self):
+    self.add_task("cached_task_buf_None", self.tfds_source,
+                  self._get_preps_with_cache_placeholder_buffer_size(None))
+    shutil.copytree(self.cached_task_dir,
+                    os.path.join(self.test_data_dir, "cached_task_buf_None"))
+    self._mock_and_assert_cached_source("cached_task_buf_None", None)
+
   def test_proto_task(self):
     self.verify_task_matches_fake_datasets(
         "proto_task", use_cached=False, splits=["train"])
@@ -240,15 +313,13 @@ class TasksTest(test_utils.FakeTaskTest):
         shuffle_buffer_size=None)
 
     with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        "Shuffling is disallowed for Task 'no_shuffle' since its "
-        '`shuffle_buffer_size` was set to `None` on construction.'):
+        ValueError, "Shuffling is disallowed for Task 'no_shuffle' since its "
+        "`shuffle_buffer_size` was set to `None` on construction."):
       task.get_dataset(None, shuffle=True)
 
     with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        "Shuffling is disallowed for Task 'no_shuffle' since its "
-        '`shuffle_buffer_size` was set to `None` on construction.'):
+        ValueError, "Shuffling is disallowed for Task 'no_shuffle' since its "
+        "`shuffle_buffer_size` was set to `None` on construction."):
       task.get_dataset(None, shuffle=True, shuffle_buffer_size=100)
 
     task.get_dataset(None, shuffle=False)
