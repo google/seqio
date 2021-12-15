@@ -433,14 +433,12 @@ class TfdsDataSource(DataSource):
 class FileDataSource(DataSource):
   """A `DataSource` that reads a file to provide the input dataset."""
 
-  def __init__(
-      self,
-      read_file_fn: Callable[[tf.data.Dataset], tf.data.Dataset],
-      split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
-      num_input_examples: Optional[Mapping[str, int]] = None,
-      caching_permitted: bool = True,
-      file_shuffle_buffer_size: Optional[int] = 16
-  ):
+  def __init__(self,
+               read_file_fn: Callable[[tf.data.Dataset], tf.data.Dataset],
+               split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
+               num_input_examples: Optional[Mapping[str, int]] = None,
+               caching_permitted: bool = True,
+               file_shuffle_buffer_size: Optional[int] = None):
     """FileDataSource constructor.
 
     Args:
@@ -455,7 +453,8 @@ class FileDataSource(DataSource):
         Default True.
       file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
         None, the number of files is used as buffer size for a perfect shuffle
-        (this is recommended).
+        (default and recommended). A value of 16 may be explicitly set to
+        replicate earlier behavior.
     """
     self._split_to_filepattern = split_to_filepattern
     self._reader = read_file_fn
@@ -493,6 +492,11 @@ class FileDataSource(DataSource):
       files_ds = files_ds.shard(shard_info.num_shards, shard_info.index)
 
     if shuffle:
+      if self._file_shuffle_buffer_size:
+        logging.warning(
+            "`file_shuffle_buffer_size` is explicitly set to %d; this may lead "
+            "to an imperfect file shuffle. Leave `file_shuffle_buffer_size` "
+            "unset for a perfect shuffle.", self._file_shuffle_buffer_size)
       file_shuffle_buffer_size = self._file_shuffle_buffer_size or len(files)
       files_ds = files_ds.shuffle(
           buffer_size=file_shuffle_buffer_size, seed=seed)
@@ -510,14 +514,12 @@ class FileDataSource(DataSource):
 class TextLineDataSource(FileDataSource):
   """A `FileDataSource` that reads lines of text from a file as input."""
 
-  def __init__(
-      self,
-      split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
-      skip_header_lines: int = 0,
-      num_input_examples: Optional[Mapping[str, int]] = None,
-      caching_permitted: bool = True,
-      file_shuffle_buffer_size: Optional[int] = 16
-  ):
+  def __init__(self,
+               split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
+               skip_header_lines: int = 0,
+               num_input_examples: Optional[Mapping[str, int]] = None,
+               caching_permitted: bool = True,
+               file_shuffle_buffer_size: Optional[int] = None):
     """TextLineDataSource constructor.
 
     Args:
@@ -532,7 +534,8 @@ class TextLineDataSource(FileDataSource):
         Default True.
       file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
         None, the number of files is used as buffer size for a perfect shuffle
-        (this is recommended).
+        (default and recommended). A value of 16 may be explicitly set to
+        replicate earlier behavior.
     """
     # Used during caching.
     self._skip_header_lines = skip_header_lines
@@ -558,7 +561,7 @@ class TFExampleDataSource(FileDataSource):
                reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
                num_input_examples: Optional[Mapping[str, int]] = None,
                caching_permitted: bool = True,
-               file_shuffle_buffer_size: Optional[int] = 16):
+               file_shuffle_buffer_size: Optional[int] = None):
     """TFExampleDataSource constructor.
 
     Args:
@@ -575,7 +578,8 @@ class TFExampleDataSource(FileDataSource):
         Default True.
       file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
         None, the number of files is used as buffer size for a perfect shuffle
-        (this is recommended).
+        (default and recommended). A value of 16 may be explicitly set to
+        replicate earlier behavior.
     """
 
     def parse_fn(*args):
@@ -597,15 +601,13 @@ class TFExampleDataSource(FileDataSource):
 class ProtoDataSource(FileDataSource):
   """A `FileDataSource` that reads files of arbitrary protos as input."""
 
-  def __init__(
-      self,
-      split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
-      decode_proto_fn: DecodeFnType,
-      reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
-      num_input_examples: Optional[Mapping[str, int]] = None,
-      caching_permitted: bool = True,
-      file_shuffle_buffer_size: Optional[int] = 16
-  ):
+  def __init__(self,
+               split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
+               decode_proto_fn: DecodeFnType,
+               reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
+               num_input_examples: Optional[Mapping[str, int]] = None,
+               caching_permitted: bool = True,
+               file_shuffle_buffer_size: Optional[int] = None):
     """ProtoDataSource constructor.
 
     Args:
@@ -621,7 +623,8 @@ class ProtoDataSource(FileDataSource):
         Default True.
       file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
         None, the number of files is used as buffer size for a perfect shuffle
-        (this is recommended).
+        (default and recommended). A value of 16 may be explicitly set to
+        replicate earlier behavior.
     """
 
     def read_file_fn(filepattern: Union[str, Iterable[str]]):
@@ -659,7 +662,7 @@ class _CachedDataSource(FileDataSource):
   def __init__(self,
                cache_dir: str,
                split: str,
-               file_shuffle_buffer_size: Optional[int] = 16):
+               file_shuffle_buffer_size: Optional[int] = None):
 
     with tf.io.gfile.GFile(utils.get_cached_info_path(cache_dir, split)) as f:
       split_info = json.load(f)
@@ -726,7 +729,7 @@ class CacheDatasetPlaceholder(object):
 
   def __init__(self,
                required=False,
-               file_shuffle_buffer_size: Optional[int] = 16):
+               file_shuffle_buffer_size: Optional[int] = None):
     """CacheDatasetPlaceholder constructor.
 
     Args:
@@ -734,7 +737,8 @@ class CacheDatasetPlaceholder(object):
         on-the-fly preprocessing is disallowed.
       file_shuffle_buffer_size: The buffer size to shuffle files when needed. If
         None, the number of files is used as buffer size for a perfect shuffle
-        (this is the most preferable option).
+        (default and recommended). A value of 16 may be explicitly set to
+        replicate earlier behavior.
     """
     self._required = required
     self._file_shuffle_buffer_size = file_shuffle_buffer_size
@@ -1197,7 +1201,7 @@ class Task(DatasetProviderBase):
   def _get_cached_source(
       self,
       split,
-      file_shuffle_buffer_size: Optional[int] = 16) -> _CachedDataSource:
+      file_shuffle_buffer_size: Optional[int] = None) -> _CachedDataSource:
     """Returns a DataSource to read cached files for split."""
     self.assert_cached()
     return _CachedDataSource(

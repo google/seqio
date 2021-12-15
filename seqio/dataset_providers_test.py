@@ -280,7 +280,7 @@ class TasksTest(test_utils.FakeTaskTest):
         "train", buffer_size)
 
   def test_cached_data_source_shuffle_buffer_default(self):
-    self._mock_and_assert_cached_source("cached_task", 16)
+    self._mock_and_assert_cached_source("cached_task", None)
 
   def test_cached_data_source_shuffle_buffer_set(self):
     self.add_task("cached_task_buf_2", self.tfds_source,
