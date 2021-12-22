@@ -190,6 +190,41 @@ class DatasetProviderRegistry(object):
 # =============================== DataSources ==================================
 
 
+class DataSourceInterface(typing_extensions.Protocol):
+  """Interface for DataSource."""
+
+  def num_input_examples(self, split: str) -> int:
+    ...
+
+  @property
+  def caching_permitted(self) -> bool:
+    ...
+
+  @property
+  def splits(self) -> Sequence[str]:
+    ...
+
+  @property
+  def supports_arbitrary_sharding(self) -> bool:
+    ...
+
+  @property
+  def output_features(self) -> Mapping[str, Feature]:
+    ...
+
+  def list_shards(self, split: str) -> Sequence[str]:
+    ...
+
+  def get_dataset(
+      self,
+      split: str,
+      shuffle: bool = True,
+      seed: Optional[int] = None,
+      shard_info: Optional[ShardInfo] = None
+    ) -> tf.data.Dataset:
+    ...
+
+
 class DataSource(DatasetProviderBase):
   """A `DatasetProvider` that provides raw data from an input source.
 
@@ -1226,7 +1261,7 @@ class TaskRegistry(DatasetProviderRegistry):
   def add(
       cls,
       name: str,
-      source: DataSource,
+      source: DataSourceInterface,
       output_features: Mapping[str, Feature],
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
