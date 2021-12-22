@@ -363,6 +363,10 @@ class Evaluator:
           "non-empty.")
     self._loggers = tuple(cls(output_dir=log_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
 
+  def __del__(self):
+    """Wait for metrics to be written before deletion."""
+    self._metrics_executor.shutdown(wait=True)
+
   def evaluate(self,
                *,
                compute_metrics: bool,
