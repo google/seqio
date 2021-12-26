@@ -319,6 +319,8 @@ class Evaluator:
       for k, l in sequence_length.items():
         if l is None:
           continue
+        if isinstance(l, tuple):
+          continue
         elif l > max_lengths[k]:
           log_long_warning = True
         elif not sequence_length_required and l == max_lengths[k]:
