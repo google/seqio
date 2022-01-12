@@ -517,7 +517,7 @@ class FileDataSource(DataSource):
           "No file is found for the file pattern: "
           f"{self._split_to_filepattern[split]}."
       )
-    files_ds = tf.data.Dataset.from_tensor_slices(np.array(files, dtype=np.str))
+    files_ds = tf.data.Dataset.from_tensor_slices(np.array(files, dtype=str))
 
     if shard_info:
       if len(files) < shard_info.num_shards:
