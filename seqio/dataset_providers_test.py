@@ -1,4 +1,4 @@
-# Copyright 2021 The SeqIO Authors.
+# Copyright 2022 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 # Lint as: python3
 """Tests for seqio.dataset_providers."""
 
+import copy
 import functools
 import os
 import shutil
@@ -1182,6 +1183,101 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
     if expect_trim_targets:
       expected[0]["targets"] = [3, 1]
       expected[2]["targets"] = [6, 1]
+    expected_dtypes = {feat: tf.int32 for feat in expected[0].keys()}
+    assert_dataset(output_ds, expected, expected_dtypes=expected_dtypes)
+
+  @parameterized.parameters(
+      dict(
+          task_name="enc_dec_multidim_trim_both",
+          task_feature_lengths={
+              "inputs": (2, 5),
+              "targets": 2
+          },
+          expect_trim_inputs=True,
+          expect_trim_targets=True,
+      ),
+      dict(
+          task_name="enc_dec_multidim_trim_inputs",
+          task_feature_lengths={
+              "inputs": (2, 5),
+              "targets": None
+          },
+          expect_trim_inputs=True,
+          expect_trim_targets=False,
+      ),
+      dict(
+          task_name="enc_dec_multidim_trim_targets",
+          task_feature_lengths={
+              "inputs": None,
+              "targets": 2
+          },
+          expect_trim_inputs=False,
+          expect_trim_targets=True,
+      ),
+      dict(
+          task_name="enc_dec_no_multidim_trim",
+          task_feature_lengths={
+              "inputs": None,
+              "targets": None
+          },
+          expect_trim_inputs=False,
+          expect_trim_targets=False
+      )
+  )
+  def test_multidimension_sequence_length(self,
+                                          task_name,
+                                          task_feature_lengths,
+                                          expect_trim_inputs,
+                                          expect_trim_targets):
+    x = [{"inputs": [[7, 8, 5, 6, 9, 4, 3],
+                     [2, 3, 4, 5, 0, 0, 0],
+                     [6, 7, 1, 0, 0, 0, 0]],
+          "targets": [3, 9]},
+         {"inputs": [[8, 4],
+                     [1, 0],
+                     [2, 3]],
+          "targets": [4]},
+         {"inputs": [[5, 6, 7]],
+          "targets": [6, 5, 1]},
+         {"inputs": [[7, 8, 9, 1, 2, 3, 4, 5, 6]],
+          "targets": [10, 11, 1]}]
+    ds = tf.data.Dataset.from_generator(
+        lambda: x,
+        output_types={"inputs": tf.int32, "targets": tf.int32},
+        output_shapes={"inputs": (None, None), "targets": (None,)})
+    dataset_fn = lambda split, shuffle_files: ds
+    dataset_providers.TaskRegistry.add(
+        task_name,
+        source=dataset_providers.FunctionDataSource(
+            dataset_fn=dataset_fn, splits=["train", "validation"]),
+        preprocessors=[
+            dataset_providers.CacheDatasetPlaceholder(),
+        ],
+        output_features={
+            "inputs": dataset_providers.Feature(
+                test_utils.sentencepiece_vocab(), rank=2),
+            "targets": dataset_providers.Feature(
+                test_utils.sentencepiece_vocab())
+        },
+        metric_fns=[])
+    # Unlike the other tests, don't use a feature converter. Instead, test the
+    # task.get_dataset method directly, which is similar to how evaluation.py
+    # infers feature lengths w/trimming.
+    task = dataset_providers.get_mixture_or_task(task_name)
+    output_ds = task.get_dataset(
+        sequence_length=task_feature_lengths,
+        shuffle=False)
+
+    expected = copy.deepcopy(x)
+    if expect_trim_inputs:
+      expected[0]["inputs"] = [[7, 8, 5, 6, 9],
+                               [2, 3, 4, 5, 0]]
+      expected[1]["inputs"] = [[8, 4],
+                               [1, 0]]
+      expected[3]["inputs"] = [[7, 8, 9, 1, 2]]
+    if expect_trim_targets:
+      expected[2]["targets"] = [6, 5]
+      expected[3]["targets"] = [10, 11]
     expected_dtypes = {feat: tf.int32 for feat in expected[0].keys()}
     assert_dataset(output_ds, expected, expected_dtypes=expected_dtypes)
 

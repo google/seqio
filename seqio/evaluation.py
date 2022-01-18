@@ -1,4 +1,4 @@
-# Copyright 2021 The SeqIO Authors.
+# Copyright 2022 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -319,6 +319,13 @@ class Evaluator:
       for k, l in sequence_length.items():
         if l is None:
           continue
+        if isinstance(l, (tuple, list)):
+          logging.warning(
+              "Automatic length checking is not supported when lengths are"
+              "specified with a tuple for feature %s = %s. Please make "
+              "sure your max lengths are not removing parts of your inputs.",
+              k, l
+          )
         elif l > max_lengths[k]:
           log_long_warning = True
         elif not sequence_length_required and l == max_lengths[k]:
