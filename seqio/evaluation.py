@@ -568,6 +568,12 @@ class Evaluator:
              if not isinstance(v, metrics_lib.MetricValue) else v
           for k, v in all_metrics[task.name].items()
       }
+
+      for k, v in metrics.items():
+        if isinstance(v, metrics_lib.Scalar) and v.value is None:
+          logging.info("Assigning %s value 0 instead of None.", k)
+          metrics[k] = metrics_lib.Scalar(0)
+
       for logger in self.loggers:
         logger(task_name=task.name, step=step, metrics=metrics,
                dataset=task_dataset, inferences=inferences, targets=targets)
