@@ -69,6 +69,10 @@ def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
       metric_types.append("predict")
     if task.score_metric_fns:
       metric_types.append("score")
+    if task.predict_targetless_metric_fns:
+      metric_types.append("targetless predict")
+    if task.score_targetless_metric_fns:
+      metric_types.append("targetless score")
     logging.info("Adding task '%s' with %s metric_fn(s).", task.name,
                  " and ".join(metric_types))
     valid_tasks.append(task)
@@ -120,25 +124,29 @@ def get_targets_and_examples(
 
     targets = []
 
-    for ex in tfds.as_numpy(ds):
-      for k in max_sequence_length:
-        sequence_dim = sequence_dims.get(k, 0)
-        sequence_length = ex[k].shape[sequence_dim]
-        max_sequence_length[k] = max(max_sequence_length[k], sequence_length)
+    if "targets" in ds.element_spec or "targets_pretokenized" in ds.element_spec:
+      for ex in tfds.as_numpy(ds):
+        for k in max_sequence_length:
+          sequence_dim = sequence_dims.get(k, 0)
+          sequence_length = ex[k].shape[sequence_dim]
+          max_sequence_length[k] = max(max_sequence_length[k], sequence_length)
 
-      # Create list of postprocessed targets
-      if "targets_pretokenized" in ex:
-        target = ex["targets_pretokenized"]
-      else:
-        target = task.output_features["targets"].vocabulary.decode(
-            [int(x) for x in ex["targets"]])
-      if isinstance(target, bytes):
-        target = target.decode("utf-8")
-      targets.append(task.postprocess_fn(target, example=ex, is_target=True))
+        # Create list of postprocessed targets
+        if "targets_pretokenized" in ex:
+          target = ex["targets_pretokenized"]
+        else:
+          target = task.prediction_vocabulary.decode(
+              [int(x) for x in ex["targets"]])
+        if isinstance(target, bytes):
+          target = target.decode("utf-8")
+        targets.append(task.postprocess_fn(target, example=ex, is_target=True))
 
-    cached_targets[task.name] = targets
-    cached_task_datasets[task.name] = ds.apply(
-        tf.data.experimental.assert_cardinality(len(targets)))
+      cached_targets[task.name] = targets
+      cached_task_datasets[task.name] = ds.apply(
+          tf.data.experimental.assert_cardinality(len(targets)))
+    else:
+      cached_task_datasets[task.name] = ds.apply(
+          tf.data.experimental.assert_cardinality(len(list(tfds.as_numpy(ds)))))
 
   return cached_targets, cached_task_datasets, max_sequence_length
 
@@ -449,12 +457,12 @@ class Evaluator:
 
     for task in self.eval_tasks:
       logging.info("Evaluating %s", task.name)
-      if task.predict_metric_fns:
+      if task.predict_metric_fns or task.predict_targetless_metric_fns:
         # output_tokens is a list of token_ids where each token_ids
         # corresponds to the model output of the input example.
         all_output_tokens[task.name] = _infer_and_sort_outputs(
             predict_fn, task.name)
-      if task.score_metric_fns:
+      if task.score_metric_fns or task.score_targetless_metric_fns:
         all_output_scores[task.name] = _infer_and_sort_outputs(
             score_fn, task.name)
 
@@ -515,24 +523,29 @@ class Evaluator:
     for task in self.eval_tasks:
       logging.info("Computing metrics for %s", task.name)
       task_dataset = self.cached_task_datasets[task.name]
-      targets = self.cached_targets[task.name]
+      # targets may be None
+      targets = self.cached_targets.get(task.name)
 
       task_metrics = []
       inferences = {}
 
-      if task.predict_metric_fns:
-        task_vocab = task.output_features["targets"].vocabulary
+      if task.predict_metric_fns or task.predict_targetless_metric_fns:
         task_predicted_tokens = predicted_tokens[task.name]
 
-        if len(targets) != len(task_predicted_tokens):
+        if task.predict_metric_fns and len(targets) != len(
+            task_predicted_tokens):
           raise ValueError(
               f"len(targets)({len(targets)}) != "
               f"len(predictions)({len(task_predicted_tokens)})")
 
-        outputs = [
-            task_vocab.decode([int(token) for token in tokens])
-            for tokens in task_predicted_tokens
-        ]
+        if task.prediction_vocabulary is None:
+          outputs = task_predicted_tokens
+        else:
+          outputs = [
+              task.prediction_vocabulary.decode([int(t)
+                                                 for t in tokens])
+              for tokens in task_predicted_tokens
+          ]
 
         task_predictions = [
             task.postprocess_fn(d, example=ex, is_target=False)
@@ -544,15 +557,23 @@ class Evaluator:
             metric_fn(targets, task_predictions) for metric_fn in
             task.predict_metric_fns
         ])
+        task_metrics.extend([
+            metric_fn(task_predictions)
+            for metric_fn in task.predict_targetless_metric_fns
+        ])
 
-      if task.score_metric_fns:
+      if task.score_metric_fns or task.score_targetless_metric_fns:
         task_scores = scores[task.name]
-        if len(targets) != len(task_scores):
+        if task.score_metric_fns and len(targets) != len(task_scores):
           raise ValueError(f"len(targets)({len(targets)}) != "
                            f"len(task_scores)({len(task_scores)})")
         task_metrics.extend([
             metric_fn(targets, task_scores)
             for metric_fn in task.score_metric_fns
+        ])
+        task_metrics.extend([
+            metric_fn(task_scores)
+            for metric_fn in task.score_targetless_metric_fns
         ])
         inferences["scores"] = task_scores
 
@@ -587,7 +608,7 @@ class Evaluator:
     return self._cached_task_datasets
 
   @property
-  def cached_targets(self) -> Mapping[str, Sequence[str]]:
+  def cached_targets(self) -> Mapping[str, Sequence[Any]]:
     return self._cached_targets
 
   @property
