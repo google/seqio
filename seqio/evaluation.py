@@ -148,7 +148,7 @@ class PredictFnCallable(typing_extensions.Protocol):
   def __call__(
       self,
       dataset: tf.data.Dataset,
-      model_feature_lengths: Optional[Mapping[str, int]]
+      model_feature_shapes: Optional[Mapping[str, int]]
   ) -> Sequence[Tuple[int, Sequence[int]]]:
     ...
 
@@ -158,7 +158,7 @@ class ScoreFnCallable(typing_extensions.Protocol):
   def __call__(
       self,
       dataset: tf.data.Dataset,
-      model_feature_lengths: Optional[Mapping[str, int]]
+      model_feature_shapes: Optional[Mapping[str, int]]
   ) -> Sequence[Tuple[int, float]]:
     ...
 
@@ -190,7 +190,7 @@ class Evaluator:
     cached_model_datasets: cached evaluation datasets with model features.
     cached_task_datasets: cached evaluation datasets with task features.
     cached_targets: cached evaluation targets.
-    model_feature_lengths: mapping from model feature to its length in the
+    model_feature_shapes: mapping from model feature to its shape in the
       `cached_model_datasets`.
     loggers: a sequence of subclasses of `Logger`.
   """
@@ -361,8 +361,10 @@ class Evaluator:
 
     self._cached_targets = cached_targets
     self._cached_task_datasets = cached_task_datasets
-    self._model_feature_lengths = feature_converter.get_model_feature_lengths(
-        sequence_length)
+    self._model_feature_shapes = {
+        k: tuple(spec.shape)
+        for k, spec in eval_ds.element_spec.items() if spec.shape.rank > 0
+    }
 
     if logger_cls and not log_dir:
       raise ValueError(
@@ -591,8 +593,8 @@ class Evaluator:
     return self._cached_targets
 
   @property
-  def model_feature_lengths(self) -> Mapping[str, int]:
-    return self._model_feature_lengths
+  def model_feature_shapes(self) -> Mapping[str, Tuple[int, ...]]:
+    return self._model_feature_shapes
 
   @property
   def loggers(self) -> Tuple[loggers_lib.Logger]:

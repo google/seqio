@@ -355,17 +355,17 @@ class EvaluationTest(tf.test.TestCase):
       # A dummy score function that always returns the same output.
       def predict_fn(
           ds: tf.data.Dataset,
-          model_feature_lengths: Optional[Mapping[str, int]] = None
+          model_feature_shapes: Optional[Mapping[str, int]] = None
       ) -> Sequence[Tuple[int, Sequence[int]]]:
-        del ds, model_feature_lengths
+        del ds, model_feature_shapes
         return ([(0, [5, 6]), (1, [7]),
                  (2, [7])] if task.predict_metric_fns else self.uncalled_fn)
 
       def score_fn(
           ds: tf.data.Dataset,
-          model_feature_lengths: Optional[Mapping[str, int]] = None
+          model_feature_shapes: Optional[Mapping[str, int]] = None
       ) -> Sequence[Tuple[int, float]]:
-        del ds, model_feature_lengths
+        del ds, model_feature_shapes
         return ([(1, 1), (0, 2),
                  (2, 3)] if task.score_metric_fns else self.uncalled_fn)
 
@@ -428,7 +428,7 @@ class EvaluationTest(tf.test.TestCase):
         preprocessor=preprocessors.append_eos_after_trim,
         metrics_fn=[_sequence_accuracy_metric])
 
-    feature_converter = mock.Mock(pack=False, TASK_FEATURES={})
+    feature_converter = evaluation.EncDecFeatureConverter(pack=False)
 
     logger_cls = (mock.Mock(), mock.Mock())
 
@@ -478,9 +478,9 @@ class EvaluationTest(tf.test.TestCase):
       # The first example is correct but the second is not.
       def predict_fn(
           ds: tf.data.Dataset,
-          model_feature_lengths: Optional[Mapping[str, int]] = None
+          model_feature_shapes: Optional[Mapping[str, int]] = None
       ) -> Sequence[Tuple[int, Sequence[int]]]:
-        del ds, model_feature_lengths
+        del ds, model_feature_shapes
         return [(0, [5, 6]), (1, [6, 8])]
 
       all_metrics, _, _ = evaluator.evaluate(
@@ -518,9 +518,9 @@ class EvaluationTest(tf.test.TestCase):
       # postprocessed to [0, 1, 2].
       def predict_fn(
           ds: tf.data.Dataset,
-          model_feature_lengths: Optional[Mapping[str, int]] = None
+          model_feature_shapes: Optional[Mapping[str, int]] = None
       ) -> Sequence[Tuple[int, Sequence[int]]]:
-        del ds, model_feature_lengths
+        del ds, model_feature_shapes
         return [(0, [5]), (1, [6]), (2, [7])]
 
       all_metrics, _, _ = evaluator.evaluate(
@@ -575,9 +575,9 @@ class EvaluationTest(tf.test.TestCase):
 
       def predict_fn(
           ds: tf.data.Dataset,
-          model_feature_lengths: Optional[Mapping[str, int]] = None
+          model_feature_shapes: Optional[Mapping[str, int]] = None
       ) -> Optional[Sequence[Tuple[int, Sequence[int]]]]:
-        del model_feature_lengths
+        del model_feature_shapes
         if ds == mock_ds1:
           return [(0, [5, 6]), (1, [7])]
         elif ds == mock_ds2:
@@ -585,9 +585,9 @@ class EvaluationTest(tf.test.TestCase):
 
       def score_fn(
           ds: tf.data.Dataset,
-          model_feature_lengths: Optional[Mapping[str, int]] = None
+          model_feature_shapes: Optional[Mapping[str, int]] = None
       ) -> Sequence[Tuple[int, float]]:
-        del model_feature_lengths
+        del model_feature_shapes
         self.assertEqual(ds, mock_ds1)
         return [(0, 1), (1, 2)]
 
@@ -617,20 +617,20 @@ class EvaluationTest(tf.test.TestCase):
         dataset_fn=dataset_fn,
         metrics_fn=[_sequence_accuracy_metric])
 
-    feature_converter = mock.Mock(
-        get_model_feature_lengths=lambda x: {k: v + 1 for k, v in x.items()},
-        pack=False,
-        TASK_FEATURES={})
+    feature_converter = evaluation.EncDecFeatureConverter(pack=False)
     sequence_length = {"inputs": 10, "targets": 8}
     evaluator = Evaluator(
         mixture_or_task_name=task_name,
         feature_converter=feature_converter,
         eval_split="validation",
         sequence_length=sequence_length)
-    feature_converter.assert_called_with(mock.ANY, sequence_length)
     self.assertDictEqual(
-        {"inputs": 11, "targets": 9},
-        evaluator.model_feature_lengths)
+        {
+            "decoder_input_tokens": (8,),
+            "decoder_loss_weights": (8,),
+            "decoder_target_tokens": (8,),
+            "encoder_input_tokens": (10,),
+        }, evaluator.model_feature_shapes)
 
   def test_no_sequence_length(self):
     task_name = "no_sequence_length"
@@ -657,19 +657,18 @@ class EvaluationTest(tf.test.TestCase):
         dataset_fn=dataset_fn,
         metrics_fn=[_sequence_accuracy_metric])
 
-    feature_converter = mock.Mock(
-        get_model_feature_lengths=lambda x: {k: v + 1 for k, v in x.items()},
-        TASK_FEATURES={},
-        pack=False)
+    feature_converter = evaluation.EncDecFeatureConverter(pack=False)
     evaluator = Evaluator(
         mixture_or_task_name=task_name,
         feature_converter=feature_converter,
         eval_split="validation")
-    # EOS tokens are added, which increases the lengths by 1.
-    feature_converter.assert_called_with(mock.ANY, {"inputs": 5, "targets": 3})
     self.assertDictEqual(
-        {"inputs": 6, "targets": 4},
-        evaluator.model_feature_lengths)
+        {
+            "encoder_input_tokens": (5,),
+            "decoder_input_tokens": (3,),
+            "decoder_target_tokens": (3,),
+            "decoder_loss_weights": (3,)
+        }, evaluator.model_feature_shapes)
 
   def test_partial_sequence_length(self):
     task_name = "partial_sequence_length"
@@ -696,21 +695,20 @@ class EvaluationTest(tf.test.TestCase):
         dataset_fn=dataset_fn,
         metrics_fn=[_sequence_accuracy_metric])
 
-    feature_converter = mock.Mock(
-        get_model_feature_lengths=lambda x: {k: v + 1 for k, v in x.items()},
-        TASK_FEATURES={},
-        pack=False)
+    feature_converter = evaluation.EncDecFeatureConverter(pack=False)
     evaluator = Evaluator(
         mixture_or_task_name=task_name,
         feature_converter=feature_converter,
         eval_split="validation",
         # Set the sequence_length for inputs only, to truncate them.
         sequence_length={"inputs": 2})
-    # EOS tokens are added, which increases the lengths by 1.
-    feature_converter.assert_called_with(mock.ANY, {"inputs": 2, "targets": 3})
     self.assertDictEqual(
-        {"inputs": 3, "targets": 4},
-        evaluator.model_feature_lengths)
+        {
+            "encoder_input_tokens": (2,),
+            "decoder_input_tokens": (3,),
+            "decoder_target_tokens": (3,),
+            "decoder_loss_weights": (3,)
+        }, evaluator.model_feature_shapes)
 
   def test_requires_sequence_length(self):
     task_name = "requires_sequence_length"
@@ -754,7 +752,7 @@ class EvaluationTest(tf.test.TestCase):
         preprocessor=preprocessors.append_eos_after_trim,
         metrics_fn=[_sequence_accuracy_metric])
 
-    feature_converter = mock.Mock(pack=False, TASK_FEATURES={})
+    feature_converter = evaluation.EncDecFeatureConverter(pack=False)
     # Should not raise ValueError
     _ = Evaluator(
         mixture_or_task_name=task_name,
@@ -831,8 +829,8 @@ class EvaluationTest(tf.test.TestCase):
     test_utils.assert_dataset(eval_ds, expected_examples)
     self.assertEqual(evaluator.cached_targets[task_name], ["ex 1", "ex 2"])
     self.assertDictEqual(
-        evaluator.model_feature_lengths,
-        {"inputs": 4, "targets": 4})
+        evaluator.model_feature_shapes,
+        {"inputs": (4,), "targets": (4,)})
 
   def test_predict_fn_called_with_cached_model_datasets(self):
     eval_ds = tf.data.Dataset.range(10)
@@ -880,9 +878,9 @@ class EvaluationTest(tf.test.TestCase):
       # Dummy predict_fn where only the order is mixed.
       def mixing_order_predict_fn(
           ds: tf.data.Dataset,
-          model_feature_lengths: Optional[Mapping[str, int]] = None
+          model_feature_shapes: Optional[Mapping[str, int]] = None
       ) -> Sequence[Tuple[int, Sequence[int]]]:
-        del model_feature_lengths
+        del model_feature_shapes
         exs = list(tfds.as_numpy(ds))
         return [exs[2], exs[0], exs[1]]
 
