@@ -86,7 +86,8 @@ def register_dummy_task(
 def get_mocked_task(
     name: str = "mocked_test",
     predict_metric_fns: Sequence[Callable] = (_sequence_accuracy_metric,),
-    score_metric_fns: Sequence[Callable] = ()) -> mock.Mock:
+    score_metric_fns: Sequence[Callable] = (),
+    target_field_name: str = "targets") -> mock.Mock:
   task = mock.Mock()
   task.name = name
   task.score_metric_fns = list(score_metric_fns)
@@ -96,7 +97,9 @@ def get_mocked_task(
   task.postprocess_fn = lambda d, example, is_target: d
 
   mock_vocab = mock.Mock()
-  task.output_features = {"targets": dataset_providers.Feature(mock_vocab)}
+  task.output_features = {
+      target_field_name: dataset_providers.Feature(mock_vocab)
+  }
   return task
 
 
@@ -333,9 +336,10 @@ class EvaluationTest(tf.test.TestCase):
     test_utils.assert_dataset(cached_task_datasets["task2"],
                               expected_task2_examples)
 
-  def _evaluate_single_task(self, task, loggers=()):
+  def _evaluate_single_task(
+      self, task, loggers=(), target_field_name="targets"):
     id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
-    mock_vocab = task.output_features["targets"].vocabulary
+    mock_vocab = task.output_features[target_field_name].vocabulary
     # Define a dummy decoding logic.
     mock_vocab.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
 
@@ -348,6 +352,7 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
+      self._target_field_name = target_field_name
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
@@ -394,6 +399,14 @@ class EvaluationTest(tf.test.TestCase):
     all_metrics, _ = self._evaluate_single_task(task)
     expected = {"sequence_accuracy": 2.0 / 3 * 100, "total_score": 1305}
     self.assertDictClose(expected, all_metrics[task.name])
+
+  def test_evaluate_single_task_predict_target_field_name(self):
+    task = get_mocked_task(
+        predict_metric_fns=[_sequence_accuracy_metric], score_metric_fns=[],
+        target_field_name="foo")
+    all_metrics, _ = self._evaluate_single_task(task, target_field_name="foo")
+    self.assertDictClose(
+        {"sequence_accuracy": 2.0 / 3 * 100}, all_metrics[task.name])
 
   def test_evaluate_single_task_with_loggers(self):
     loggers = (mock.Mock(), mock.Mock())
@@ -470,6 +483,7 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
+      self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
@@ -510,6 +524,7 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
+      self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
@@ -570,6 +585,7 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
+      self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
 
@@ -844,6 +860,7 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
+      self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
@@ -871,6 +888,7 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_future = None
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
+      self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter

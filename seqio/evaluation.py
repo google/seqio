@@ -81,7 +81,8 @@ def get_targets_and_examples(
     dataset_fn: Callable[[Task], tf.data.Dataset],
     sequence_dims: Mapping[str, int],
     num_examples: Optional[int] = None,
-    use_memory_cache: bool = True
+    use_memory_cache: bool = True,
+    target_field_name: str = "targets"
 ) -> Tuple[
     Mapping[str, Any],
     Mapping[str, tf.data.Dataset],
@@ -96,6 +97,7 @@ def get_targets_and_examples(
       beginning of each task dataset.
     use_memory_cache: whether to use tf.data.Dataset#cache. may cause
       memory issues for large datasets.
+    target_field_name: Field name of the target in the input dataset examples.
   Returns:
     cached_targets: unpreprocessed targets for each task
     cached_task_datasets: cached datasets for each task, with cardinality set
@@ -127,11 +129,12 @@ def get_targets_and_examples(
         max_sequence_length[k] = max(max_sequence_length[k], sequence_length)
 
       # Create list of postprocessed targets
-      if "targets_pretokenized" in ex:
-        target = ex["targets_pretokenized"]
+      pretokenized_target_field_name = target_field_name + "_pretokenized"
+      if pretokenized_target_field_name in ex:
+        target = ex[pretokenized_target_field_name]
       else:
-        target = task.output_features["targets"].vocabulary.decode(
-            [int(x) for x in ex["targets"]])
+        target = task.output_features[target_field_name].vocabulary.decode(
+            [int(x) for x in ex[target_field_name]])
       if isinstance(target, bytes):
         target = target.decode("utf-8")
       targets.append(task.postprocess_fn(target, example=ex, is_target=True))
@@ -206,7 +209,8 @@ class Evaluator:
                shuffle: bool = False,
                logger_cls: Sequence[Type[loggers_lib.Logger]] = (),
                log_dir: Optional[str] = None,
-               use_memory_cache: bool = True):
+               use_memory_cache: bool = True,
+               target_field_name: str = "targets"):
     """Evaluator constructor.
 
     Args:
@@ -239,6 +243,7 @@ class Evaluator:
         non-empty.
       use_memory_cache: whether to use tf.data.Dataset#cache. may cause
         memory issues for large datasets.
+      target_field_name: Field name of the target in the input dataset examples.
 
     Raises:
       ValueError if `sequence_length` is None but a preprocessor depends on its
@@ -252,6 +257,7 @@ class Evaluator:
     self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
         max_workers=1)
     self._metrics_future = None
+    self._target_field_name = target_field_name
 
     if not self._eval_tasks:
       logging.warning(
@@ -300,7 +306,8 @@ class Evaluator:
             dataset_fn=dataset_fn,
             sequence_dims=sequence_dims,
             num_examples=num_examples,
-            use_memory_cache=use_memory_cache))
+            use_memory_cache=use_memory_cache,
+            target_field_name=self._target_field_name))
 
     if sequence_length is None:
       logging.info("Setting sequence lengths to %s", max_lengths)
@@ -523,7 +530,7 @@ class Evaluator:
       inferences = {}
 
       if task.predict_metric_fns:
-        task_vocab = task.output_features["targets"].vocabulary
+        task_vocab = task.output_features[self._target_field_name].vocabulary
         task_predicted_tokens = predicted_tokens[task.name]
 
         if len(targets) != len(task_predicted_tokens):
