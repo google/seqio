@@ -215,6 +215,16 @@ class SentencepieceVocabularyTest(absltest.TestCase):
         test_tokens,
         tuple(vocab.encode_tf(test_string).numpy()))
 
+  def test_force_repeated_whitespace_preservation(self):
+    test_string = "a a  a   a"  # string with repeated whitespaces
+
+    vocab = test_utils.sentencepiece_vocab(
+        force_preserve_repeated_whitespace=True)
+    self.assertEqual(test_string, vocab.decode(vocab.encode(test_string)))
+
+    vocab = test_utils.sentencepiece_vocab()
+    self.assertEqual("a a a a", vocab.decode(vocab.encode(test_string)))
+
   def test_equal(self):
     vocab1 = test_utils.sentencepiece_vocab()
     vocab2 = test_utils.sentencepiece_vocab()

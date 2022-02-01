@@ -897,10 +897,11 @@ class MockVocabulary(vocabularies.Vocabulary):
     return 1
 
 
-def sentencepiece_vocab(extra_ids=0):
+def sentencepiece_vocab(extra_ids=0, force_preserve_repeated_whitespace=False):
   return vocabularies.SentencePieceVocabulary(
       os.path.join(TEST_DATA_DIR, "sentencepiece", "sentencepiece.model"),
-      extra_ids=extra_ids)
+      extra_ids=extra_ids,
+      force_preserve_repeated_whitespace=force_preserve_repeated_whitespace)
 
 
 def bertwordpiece_vocab(start_of_sequence_id=101):

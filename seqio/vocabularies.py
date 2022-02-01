@@ -199,7 +199,10 @@ class SentencePieceVocabulary(Vocabulary):
   "I like peanut butter and jel<extra_id_0> sandwiches is not.").
   """
 
-  def __init__(self, sentencepiece_model_file, extra_ids=None):
+  def __init__(self,
+               sentencepiece_model_file,
+               extra_ids=None,
+               force_preserve_repeated_whitespace=False):
     """Create a SentencePieceVocabulary.
 
     Optionally, specify a number of extra ids to add to the end of the
@@ -208,10 +211,13 @@ class SentencePieceVocabulary(Vocabulary):
     Args:
       sentencepiece_model_file: a string
       extra_ids: an optional integer
+      force_preserve_repeated_whitespace: if True, whitespaces are preserved
+        regardless of how the SPM model was trained.
     """
     self._sentencepiece_model_file = sentencepiece_model_file
     self._tokenizer = None
     self._sp_model = None
+    self.force_preserve_repeated_whitespace = force_preserve_repeated_whitespace
     super().__init__(extra_ids=extra_ids)
 
   def _load_model(self):
@@ -221,6 +227,9 @@ class SentencePieceVocabulary(Vocabulary):
       self._sp_model = f.read()
       # Add placeholder strings for extra IDs.
       model = sentencepiece_model_pb2.ModelProto.FromString(self._sp_model)
+      if self.force_preserve_repeated_whitespace:
+        model.normalizer_spec.remove_extra_whitespaces = False
+        model.denormalizer_spec.remove_extra_whitespaces = False
       if self._extra_ids:
         # We name them in reverse order to match their use in span corruption.
         for i in reversed(range(self._extra_ids)):
