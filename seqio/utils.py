@@ -230,7 +230,7 @@ def trim_and_pad_dataset(
   """Trim and pad first dimension of features to `feature_lengths`.
 
   Args:
-    dataset: tf.data.Dataset, the dataset to trimp/pad examples in.
+    dataset: tf.data.Dataset, the dataset to trim/pad examples in.
     feature_lengths: map from feature key to final length. Other features will
       be returned unchanged.
 
