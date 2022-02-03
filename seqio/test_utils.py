@@ -904,6 +904,13 @@ def sentencepiece_vocab(extra_ids=0, force_preserve_repeated_whitespace=False):
       force_preserve_repeated_whitespace=force_preserve_repeated_whitespace)
 
 
+def classification_sentencepiece_vocab(extra_ids=0, class_labels=None):
+  return vocabularies.ClassificationSentencePieceVocabulary(
+      os.path.join(TEST_DATA_DIR, "sentencepiece", "sentencepiece.model"),
+      extra_ids=extra_ids,
+      class_labels=class_labels)
+
+
 def bertwordpiece_vocab(start_of_sequence_id=101):
   return vocabularies.BertWordPieceVocabulary(
       os.path.join(TEST_DATA_DIR, "bertwordpiece", "vocab.txt"),
