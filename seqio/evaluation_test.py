@@ -646,6 +646,7 @@ class EvaluationTest(tf.test.TestCase):
             "decoder_loss_weights": (8,),
             "decoder_target_tokens": (8,),
             "encoder_input_tokens": (10,),
+            "encoder_loss_weights": (10,),
         }, evaluator.model_feature_shapes)
 
   def test_no_sequence_length(self):
@@ -681,6 +682,7 @@ class EvaluationTest(tf.test.TestCase):
     self.assertDictEqual(
         {
             "encoder_input_tokens": (5,),
+            "encoder_loss_weights": (5,),
             "decoder_input_tokens": (3,),
             "decoder_target_tokens": (3,),
             "decoder_loss_weights": (3,)
@@ -721,6 +723,7 @@ class EvaluationTest(tf.test.TestCase):
     self.assertDictEqual(
         {
             "encoder_input_tokens": (2,),
+            "encoder_loss_weights": (2,),
             "decoder_input_tokens": (3,),
             "decoder_target_tokens": (3,),
             "decoder_loss_weights": (3,)

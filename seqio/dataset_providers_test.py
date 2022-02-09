@@ -1097,16 +1097,19 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
 
     expected = [{
         "encoder_input_tokens": [7, 8, 5, 6, 9, 4, 1],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 1],
         "decoder_target_tokens": [3, 9, 1, 0, 0],
         "decoder_input_tokens": [0, 3, 9, 1, 0],
         "decoder_loss_weights": [1, 1, 1, 0, 0],
     }, {
         "encoder_input_tokens": [8, 4, 1, 0, 0, 0, 0],
+        "encoder_loss_weights": [1, 1, 1, 0, 0, 0, 0],
         "decoder_target_tokens": [4, 1, 0, 0, 0],
         "decoder_input_tokens": [0, 4, 1, 0, 0],
         "decoder_loss_weights": [1, 1, 0, 0, 0],
     }, {
         "encoder_input_tokens": [5, 6, 7, 1, 0, 0, 0],
+        "encoder_loss_weights": [1, 1, 1, 1, 0, 0, 0],
         "decoder_target_tokens": [6, 5, 1, 0, 0],
         "decoder_input_tokens": [0, 6, 5, 1, 0],
         "decoder_loss_weights": [1, 1, 1, 0, 0],
@@ -1302,6 +1305,7 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
     expected = [{
         # Example 1 is trimmed
         "encoder_input_tokens": [7, 8, 5, 6, 9, 4, 1],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 1],
         "encoder_segment_ids": [1, 1, 1, 1, 1, 1, 1],
         "encoder_positions": [0, 1, 2, 3, 4, 5, 6],
         "decoder_target_tokens": [3, 9, 1, 0, 0],
@@ -1312,6 +1316,7 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
     }, {
         # Example 2 and 3 are packed together
         "encoder_input_tokens": [8, 4, 1, 5, 6, 7, 1],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 1],
         "encoder_segment_ids": [1, 1, 1, 2, 2, 2, 2],
         "encoder_positions": [0, 1, 2, 0, 1, 2, 3],
         "decoder_target_tokens": [4, 1, 6, 5, 1],
@@ -1347,12 +1352,14 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
 
     expected_train = {
         "encoder_input_tokens": [7, 8, 5, 6, 9, 4, 1],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 1],
         "decoder_target_tokens": [3, 9, 1, 0, 0],
         "decoder_input_tokens": [0, 3, 9, 1, 0],
         "decoder_loss_weights": [1, 1, 1, 0, 0],
     }
     expected_val = {
         "encoder_input_tokens": [8, 4, 1, 0, 0, 0, 0],
+        "encoder_loss_weights": [1, 1, 1, 0, 0, 0, 0],
         "decoder_target_tokens": [4, 1, 0, 0, 0],
         "decoder_input_tokens": [0, 4, 1, 0, 0],
         "decoder_loss_weights": [1, 1, 0, 0, 0],
@@ -1386,11 +1393,13 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
     # Example index 1 should not be present in the sharded dataset.
     expected = [{
         "encoder_input_tokens": [7, 8, 5, 6, 9, 4, 1],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 1],
         "decoder_target_tokens": [3, 9, 1, 0, 0],
         "decoder_input_tokens": [0, 3, 9, 1, 0],
         "decoder_loss_weights": [1, 1, 1, 0, 0],
     }, {
         "encoder_input_tokens": [5, 6, 7, 1, 0, 0, 0],
+        "encoder_loss_weights": [1, 1, 1, 1, 0, 0, 0],
         "decoder_target_tokens": [6, 5, 1, 0, 0],
         "decoder_input_tokens": [0, 6, 5, 1, 0],
         "decoder_loss_weights": [1, 1, 1, 0, 0],
@@ -1421,6 +1430,7 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
     # Packing should be done after the sharding.
     expected = {
         "encoder_input_tokens": [7, 8, 1, 5, 6, 7, 1],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 1],
         "encoder_segment_ids": [1, 1, 1, 2, 2, 2, 2],
         "encoder_positions": [0, 1, 2, 0, 1, 2, 3],
         "decoder_target_tokens": [3, 9, 1, 6, 1],

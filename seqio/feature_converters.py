@@ -492,6 +492,10 @@ class EncDecFeatureConverter(FeatureConverter):
   First, the `inputs` are packed together, padded to length 10 and assigned to
   "encoder_input_tokens" field. The `targets` are processed similarly.
 
+  The "encoder_loss_weights" is a binary mask indicating where non-padding
+  positions are, i.e., value of 1 indicates non-padding and 0 for padding on
+  "encoder_input_tokens".
+
   The "*_segment_id" fields are generated from the packing operation. For the
   explanation of these fields, see the module docstring.
 
@@ -501,6 +505,7 @@ class EncDecFeatureConverter(FeatureConverter):
 
   converted_ds = [{
        "encoder_input_tokens": [7, 8, 5, 1, 8, 4, 9, 3, 1, 0],
+       "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
         "encoder_segment_ids": [1, 1, 1, 1, 2, 2, 2, 2, 2, 0],
           "encoder_positions": [0, 1, 2, 3, 0, 1, 2, 3, 4, 0],
       "decoder_target_tokens": [3, 9, 1, 4, 1, 0, 0],
@@ -519,6 +524,7 @@ class EncDecFeatureConverter(FeatureConverter):
   }
   MODEL_FEATURES = {
       "encoder_input_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "encoder_loss_weights": FeatureConverter.FeatureSpec(dtype=tf.int32),
       "decoder_target_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
       "decoder_input_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
       "decoder_loss_weights": FeatureConverter.FeatureSpec(dtype=tf.int32),
@@ -563,11 +569,14 @@ class EncDecFeatureConverter(FeatureConverter):
           features["targets"],
           sequence_id=features.get("targets_segment_ids", None))
 
-      d = {"encoder_input_tokens": features["inputs"],
-           "decoder_target_tokens": features["targets"],
-           "decoder_input_tokens": decoder_input_tokens,
-           # Loss is computed for all but the padding positions.
-           "decoder_loss_weights": non_padding_position(features["targets"])}
+      d = {
+          "encoder_input_tokens": features["inputs"],
+          "encoder_loss_weights": non_padding_position(features["inputs"]),
+          "decoder_target_tokens": features["targets"],
+          "decoder_input_tokens": decoder_input_tokens,
+          # Loss is computed for all but the padding positions.
+          "decoder_loss_weights": non_padding_position(features["targets"])
+      }
 
       if self.pack:
         d["encoder_segment_ids"] = features["inputs_segment_ids"]
@@ -589,6 +598,7 @@ class EncDecFeatureConverter(FeatureConverter):
 
     model_feature_lengths = {
         "encoder_input_tokens": encoder_length,
+        "encoder_loss_weights": encoder_length,
         "decoder_target_tokens": decoder_length,
         "decoder_input_tokens": decoder_length,
         "decoder_loss_weights": decoder_length

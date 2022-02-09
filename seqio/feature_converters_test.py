@@ -338,6 +338,7 @@ class EncDecFeatureConverterTest(tf.test.TestCase):
 
     expected = {
         "encoder_input_tokens": [9, 4, 3, 8, 1, 0, 0],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 0, 0],
         "decoder_target_tokens": [3, 9, 4, 1, 0],
         # mtf.transformer.autoregressive_inputs does not zero out the last eos
         # when the data is not packed. This test mimic the behavior.
@@ -356,6 +357,7 @@ class EncDecFeatureConverterTest(tf.test.TestCase):
 
     expected = {
         "encoder_input_tokens": [9, 4, 3, 8, 1],
+        "encoder_loss_weights": [1, 1, 1, 1, 1],
         "decoder_target_tokens": [3, 9, 4, 5, 1],
         "decoder_input_tokens": [0, 3, 9, 4, 5],
         "decoder_loss_weights": [1, 1, 1, 1, 1],
@@ -384,6 +386,7 @@ class EncDecFeatureConverterTest(tf.test.TestCase):
     converted_ds = converter(ds, task_feature_lengths)
     expected = {
         "encoder_input_tokens": [7, 8, 5, 1, 8, 4, 9, 3, 1, 0],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
         "encoder_segment_ids": [1, 1, 1, 1, 2, 2, 2, 2, 2, 0],
         "encoder_positions": [0, 1, 2, 3, 0, 1, 2, 3, 4, 0],
         "decoder_target_tokens": [3, 9, 1, 4, 1, 0, 0],
@@ -408,6 +411,7 @@ class EncDecFeatureConverterTest(tf.test.TestCase):
     # fields.
     expected = [{
         "encoder_input_tokens": [7, 8, 5, 6, 9, 4, 1],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 1],
         "encoder_segment_ids": [1, 1, 1, 1, 1, 1, 1],
         "encoder_positions": [0, 1, 2, 3, 4, 5, 6],
         "decoder_target_tokens": [3, 9, 1],
@@ -417,6 +421,7 @@ class EncDecFeatureConverterTest(tf.test.TestCase):
         "decoder_positions": [0, 1, 2],
     }, {
         "encoder_input_tokens": [8, 4, 9, 3, 5, 1, 0],
+        "encoder_loss_weights": [1, 1, 1, 1, 1, 1, 0],
         "encoder_segment_ids": [1, 1, 1, 1, 1, 1, 0],
         "encoder_positions": [0, 1, 2, 3, 4, 5, 0],
         "decoder_target_tokens": [4, 1, 0],
