@@ -10,7 +10,7 @@ Welcome to SeqIO's documentation!
    :maxdepth: 2
    :caption: Contents:
    
-   overview
+   overview.md
 
 Indices and tables
 ==================
