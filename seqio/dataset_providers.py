@@ -1690,6 +1690,12 @@ def get_dataset(mixture_or_task_name: str,
     logging.info(
         "The output dataset from seqio.get_dataset has the following features")
     for feature_name, tensor_spec in ds.element_spec.items():
-      logging.info("feature: %s \t shape: %s \t dtype: %s", feature_name,
-                   tensor_spec.shape.as_list(), tensor_spec.dtype.name)
+      if isinstance(tensor_spec, tf.TensorSpec):
+        logging.info("feature: %s \t shape: %s \t dtype: %s", feature_name,
+                     tensor_spec.shape.as_list(), tensor_spec.dtype.name)
+        continue
+      # Handle the case where ds is a nested map of depth 2.
+      for name, tspec in tensor_spec.items():
+        logging.info("feature: %s.%s \t shape: %s \t dtype: %s", feature_name,
+                     name, tspec.shape.as_list(), tspec.dtype.name)
   return ds
