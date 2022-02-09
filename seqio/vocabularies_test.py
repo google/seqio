@@ -20,6 +20,8 @@ from seqio import test_utils
 from seqio import vocabularies
 import tensorflow.compat.v2 as tf
 
+from sentencepiece import sentencepiece_model_pb2
+
 tf.compat.v1.enable_eager_execution()
 
 mock = absltest.mock
@@ -219,7 +221,8 @@ class SentencepieceVocabularyTest(absltest.TestCase):
     test_string = "a a  a   a"  # string with repeated whitespaces
 
     vocab = test_utils.sentencepiece_vocab(
-        force_preserve_repeated_whitespace=True)
+        normalizer_spec_overrides=sentencepiece_model_pb2.NormalizerSpec(
+            remove_extra_whitespaces=False))
     self.assertEqual(test_string, vocab.decode(vocab.encode(test_string)))
 
     vocab = test_utils.sentencepiece_vocab()

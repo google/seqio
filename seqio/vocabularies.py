@@ -202,7 +202,8 @@ class SentencePieceVocabulary(Vocabulary):
   def __init__(self,
                sentencepiece_model_file,
                extra_ids=None,
-               force_preserve_repeated_whitespace=False):
+               normalizer_spec_overrides: Optional[
+                   sentencepiece_model_pb2.NormalizerSpec] = None):
     """Create a SentencePieceVocabulary.
 
     Optionally, specify a number of extra ids to add to the end of the
@@ -211,13 +212,14 @@ class SentencePieceVocabulary(Vocabulary):
     Args:
       sentencepiece_model_file: a string
       extra_ids: an optional integer
-      force_preserve_repeated_whitespace: if True, whitespaces are preserved
-        regardless of how the SPM model was trained.
+      normalizer_spec_overrides: If not None, this proto will be merged into the
+        model's normalizer and denormalizer specs. Thus, any options set on this
+        object will override the values of those options in the loaded model.
     """
     self._sentencepiece_model_file = sentencepiece_model_file
+    self._normalizer_spec_overrides = normalizer_spec_overrides
     self._tokenizer = None
     self._sp_model = None
-    self.force_preserve_repeated_whitespace = force_preserve_repeated_whitespace
     super().__init__(extra_ids=extra_ids)
 
   def _load_model(self):
@@ -225,11 +227,8 @@ class SentencePieceVocabulary(Vocabulary):
     # Handle cases where SP can't load the file, but gfile can.
     with tf.io.gfile.GFile(self._sentencepiece_model_file, "rb") as f:
       self._sp_model = f.read()
-      # Add placeholder strings for extra IDs.
       model = sentencepiece_model_pb2.ModelProto.FromString(self._sp_model)
-      if self.force_preserve_repeated_whitespace:
-        model.normalizer_spec.remove_extra_whitespaces = False
-        model.denormalizer_spec.remove_extra_whitespaces = False
+      # Add placeholder strings for extra IDs.
       if self._extra_ids:
         # We name them in reverse order to match their use in span corruption.
         for i in reversed(range(self._extra_ids)):
@@ -237,6 +236,9 @@ class SentencePieceVocabulary(Vocabulary):
               piece=f"▁<extra_id_{i}>", score=0.0,
               type=
               sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED)
+      if self._normalizer_spec_overrides is not None:
+        model.normalizer_spec.MergeFrom(self._normalizer_spec_overrides)
+        model.denormalizer_spec.MergeFrom(self._normalizer_spec_overrides)
       self._sp_model = model.SerializeToString()
     # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
     self._tokenizer = sentencepiece_processor.SentencePieceProcessor()
