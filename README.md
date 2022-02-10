@@ -105,7 +105,7 @@ All data sources are subclasses of the `DataSource` base class and are defined i
 Existing implementations include:
 
   * `TfdsDataSource` for loading examples from [TensorFlow Datasets](https://www.tensorflow.org/datasets).
-  * `TextLineDataset` for loading examples from text files (e.g., tsv).
+  * `TextLineDataSource` for loading examples from text files (e.g., tsv).
   * `TFExampleDataSource` for loading [`tf.train.Example`](https://www.tensorflow.org/tutorials/load_data/tfrecord) protos from a file (e.g. a `TFRecord` file.)
   * `FunctionDataSource` for providing an custom function that returns a `tf.data.Dataset`.
 
