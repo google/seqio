@@ -1135,3 +1135,5 @@ class PassThroughFeatureConverter(FeatureConverter):
   def get_model_feature_lengths(self, task_feature_lengths: Mapping[str, int]):
     """This method is required to be overridden but unused."""
     pass
+
+

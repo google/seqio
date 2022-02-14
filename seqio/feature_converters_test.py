@@ -862,5 +862,22 @@ class PassThroughFeatureConverterTest(tf.test.TestCase):
     test_utils.assert_datasets_eq(converted_ds, ds)
 
 
+class RemoteModelInferenceFeatureConverterTest(tf.test.TestCase):
+
+  def test_equivalence(self):
+    x = [{"inputs": [8, 9, 9, 3, 1], "targets": [8, 7, 4, 3, 1]},
+         {"inputs": [8, 3, 9, 1], "targets": [8, 3, 6, 1]}]
+    task_features = {
+        "inputs": FeatureSpec(tf.int64), "targets": FeatureSpec(tf.int64)}
+
+    ds = create_default_dataset(x)
+    converter = feature_converters.RemoteModelInferenceFeatureConverter()
+    converter.TASK_FEATURES = task_features
+    converted_ds = converter(ds, task_feature_lengths={})
+
+    test_utils.assert_datasets_eq(converted_ds, ds)
+    self.assertEqual(converter.TASK_FEATURES, task_features)
+
+
 if __name__ == "__main__":
   tf.test.main()
