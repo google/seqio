@@ -161,6 +161,8 @@ class PassThroughVocabularyTest(absltest.TestCase):
     ids_t = tf.constant([ids], tf.int32)
     np.testing.assert_equal(ids_t, vocab.encode_tf(ids_t).numpy())
     np.testing.assert_equal(ids_t, vocab.decode_tf(ids_t).numpy())
+    self.assertEqual(str(vocab),
+                     "PassThroughVocabulary(size=128, eos_id=None)")
 
   def test_eos(self):
     vocab = vocabularies.PassThroughVocabulary(size=128, eos_id=1)
@@ -174,6 +176,8 @@ class PassThroughVocabularyTest(absltest.TestCase):
     np.testing.assert_equal(ids_t, vocab.encode_tf(ids_t).numpy())
     np.testing.assert_equal(
         [ids[0:4] + [0]*5], vocab.decode_tf(ids_t).numpy())
+    self.assertEqual(str(vocab),
+                     "PassThroughVocabulary(size=128, eos_id=1)")
 
   def test_equal(self):
     vocab1 = vocabularies.PassThroughVocabulary(size=128)

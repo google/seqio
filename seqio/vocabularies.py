@@ -182,6 +182,10 @@ class PassThroughVocabulary(Vocabulary):
     return (self._size == other._size and
             self.eos_id == other.eos_id)
 
+  def __str__(self) -> str:
+    return (f"PassThroughVocabulary(size={self._size}, "
+            f"eos_id={self.eos_id})")
+
 
 class SentencePieceVocabulary(Vocabulary):
   """Wrapper for nlp/sentencepiece encoder.
