@@ -72,6 +72,10 @@ flags.DEFINE_boolean(
     "overwrite", False,
     "If true, overwrite the cached task even if it exists in the cached "
     "directories.")
+flags.DEFINE_integer(
+    "min_shards", 64,
+    "The minimum number of output shards to produce. Higher is better for "
+    "improved online data shuffling during training.")
 
 
 def _import_modules(modules):
@@ -154,7 +158,7 @@ def run_pipeline(pipeline,
 
       pat = beam_utils.PreprocessTask(
           task, split, modules_to_import=modules_to_import)
-      num_shards = len(pat.shards)
+      num_shards = min(len(pat.shards), FLAGS.min_shards)
       examples = pipeline | "%s_pat" % label >> pat
       completion_values.append(
           examples
