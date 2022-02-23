@@ -187,7 +187,7 @@ class FeatureConverter(abc.ABC):
   Subclasses of FeatureConverter are used to convert the tf.data.Dataset
   instance from the Task API to features that are passed to the
   model implementation. Note that Task API has an attribute "output_features",
-  which is referred to as "model features" in the context of FeatureConverter.
+  which is referred to as "task features" in the context of FeatureConverter.
 
   Typically the task features contain keys: "inputs" and "targets". The model
   features are constructed based on what is consumed by the model architecture.
