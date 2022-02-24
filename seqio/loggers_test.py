@@ -211,7 +211,7 @@ class JSONLoggerTest(tf.test.TestCase):
     return task_dataset
 
   def test_logging(self):
-    inferences = {"predictions": ["pred0", "pred1"], "scores": [0.2, 0.3]}
+    inferences = {"prediction": ["pred0", "pred1"], "score": [0.2, 0.3]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
@@ -243,7 +243,7 @@ class JSONLoggerTest(tf.test.TestCase):
     self.assertEqual(actual, expected)
 
   def test_n_prediction_and_scores(self):
-    inferences = {"predictions": ["pred0", "pred1"], "scores": [0.2, 0.3]}
+    inferences = {"prediction": ["pred0", "pred1"], "score": [0.2, 0.3]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
@@ -270,7 +270,7 @@ class JSONLoggerTest(tf.test.TestCase):
     self.assertEqual(actual, expected)
 
   def test_predicitions_only(self):
-    inferences = {"predictions": ["pred0", "pred1"]}
+    inferences = {"prediction": ["pred0", "pred1"]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
     task_dataset = self._get_task_dataset_for_write_to_file_tests()
@@ -301,8 +301,8 @@ class JSONLoggerTest(tf.test.TestCase):
 
   def test_numpy_data(self):
     inferences = {
-        "predictions": [np.zeros((2, 2)), np.ones((2, 2))],
-        "scores": [0.2, 0.3]
+        "prediction": [np.zeros((2, 2)), np.ones((2, 2))],
+        "score": [0.2, 0.3]
     }
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
@@ -337,8 +337,8 @@ class JSONLoggerTest(tf.test.TestCase):
 
   def test_non_serializable_prediction(self):
     inferences = {
-        "predictions": [object(), object()],
-        "scores": [0.2, 0.3]
+        "prediction": [object(), object()],
+        "score": [0.2, 0.3]
     }
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
@@ -370,8 +370,8 @@ class JSONLoggerTest(tf.test.TestCase):
 
   def test_non_serializable_target(self):
     inferences = {
-        "predictions": ["pred0", "pred1"],
-        "scores": [0.2, 0.3]
+        "prediction": ["pred0", "pred1"],
+        "score": [0.2, 0.3]
     }
     targets = [object(), object()]
     tmp_dir = self.create_tempdir().full_path
@@ -403,7 +403,7 @@ class JSONLoggerTest(tf.test.TestCase):
 
   def test_prediction_bytes(self):
     inferences = {
-        "predictions": [b"\x99", b"\x88"],
+        "prediction": [b"\x99", b"\x88"],
     }
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
@@ -444,7 +444,7 @@ class JSONLoggerTest(tf.test.TestCase):
             "inputs": tf.RaggedTensorSpec(shape=[None, None], dtype=tf.int32),
             "inputs_pretokenized": tf.TensorSpec(shape=[None], dtype=tf.string)}
     )
-    inferences = {"predictions": ["pred0", "pred1"], "scores": [0.2, 0.3]}
+    inferences = {"prediction": ["pred0", "pred1"], "score": [0.2, 0.3]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
 

@@ -542,12 +542,12 @@ class Evaluator:
             task_vocab.decode([int(token) for token in tokens])
             for tokens in task_predicted_tokens
         ]
-
+        inferences["output"] = outputs
         task_predictions = [
             task.postprocess_fn(d, example=ex, is_target=False)
             for d, ex in zip(outputs, tfds.as_numpy(task_dataset))
         ]
-        inferences["predictions"] = task_predictions
+        inferences["prediction"] = task_predictions
 
         task_metrics.extend([
             metric_fn(targets, task_predictions) for metric_fn in
@@ -563,7 +563,7 @@ class Evaluator:
             metric_fn(targets, task_scores)
             for metric_fn in task.score_metric_fns
         ])
-        inferences["scores"] = task_scores
+        inferences["score"] = task_scores
 
       all_metrics[task.name] = {}
       for k, v in itertools.chain(*[m.items() for m in task_metrics]):

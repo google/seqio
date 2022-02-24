@@ -414,9 +414,10 @@ class EvaluationTest(tf.test.TestCase):
     task = get_mocked_task(
         predict_metric_fns=[_sequence_accuracy_metric],
         score_metric_fns=[_sum_scores_metric])
+    task.postprocess_fn = lambda x, **_: x.replace("e6", "e7")
     _, evaluator = self._evaluate_single_task(task, loggers=loggers)
     metrics = {
-        "sequence_accuracy": metrics_lib.Scalar(2.0 / 3 * 100),
+        "sequence_accuracy": metrics_lib.Scalar(1 / 3 * 100),
         "total_score": metrics_lib.Scalar(1305)
     }
     for logger in loggers:
@@ -425,8 +426,9 @@ class EvaluationTest(tf.test.TestCase):
           dataset=evaluator._cached_task_datasets[task.name],
           targets=evaluator._cached_targets[task.name],
           inferences={
-              "predictions": ["e5 e6", "e7", "e7"],
-              "scores": [2, 1, 3]
+              "prediction": ["e5 e7", "e7", "e7"],
+              "score": [2, 1, 3],
+              "output": ["e5 e6", "e7", "e7"]
           })
 
   def test_initialize_loggers(self):

@@ -53,7 +53,7 @@ class Logger(abc.ABC):
       task_name: The name of the task these datapoints are relevant to.
       step: The timestep to place this datapoint at.
       metrics: A mapping from series names to numeric datapoints to be added to
-         that series.
+        that series.
       dataset: The Task dataset.
       inferences: Mapping from inference type ("predictions", "scores") to the
         model outputs, aligned with the dataset.
@@ -232,7 +232,7 @@ class TensorBoardLoggerV1(Logger):
       task_name: The name of the task these datapoints are relevant to.
       step: The timestep to place this datapoint at.
       metrics: A mapping from series names to numeric datapoints to be added to
-         that series.
+        that series.
       dataset: The Task dataset, which is unused by this logger.
       inferences: The model outputs, which are unused by this logger.
       targets: The postprocessed targets, which are unused by this logger.
@@ -287,9 +287,8 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
         # If the ndarray is larger than allowed, return a summary string
         # instead of the entire array.
         first_five_str = str(obj.reshape([-1])[:5].tolist())[1:-1]
-        return (
-            f"{type(obj).__name__}(shape={obj.shape}, dtype={obj_dtype}); "
-            f"first: {first_five_str} ...")
+        return (f"{type(obj).__name__}(shape={obj.shape}, dtype={obj_dtype}); "
+                f"first: {first_five_str} ...")
     elif (np.issubdtype(type(obj), np.number) or
           np.issubdtype(type(obj), np.bool_)):
       return obj.item()  # Convert most primitive np types to py-native types.
@@ -378,15 +377,16 @@ class JSONLogger(Logger):
                                     f"{task_name}-{step:06}.jsonl")
     logging.info("Writing inferences to %s", inferences_fname)
     with tf.io.gfile.GFile(inferences_fname, "w") as f:
-      examples_with_scores = itertools.zip_longest(
-          tfds.as_numpy(dataset), inferences.get("predictions", []),
-          targets, inferences.get("scores", []))
+      inference_types = list(inferences.keys())
+      to_zip = ([tfds.as_numpy(dataset), targets] +
+                [inferences.get(t) for t in inference_types])
+      examples_with_results = itertools.zip_longest(*to_zip)
       if self._write_n_results:
-        examples_with_scores = itertools.islice(
-            examples_with_scores, 0, self._write_n_results)
+        examples_with_results = itertools.islice(examples_with_results, 0,
+                                                 self._write_n_results)
+      field_names = ["target"] + inference_types
 
-      for inp, prediction, target, score in examples_with_scores:
-
+      for inp, *results in examples_with_results:
         # tfds.as_numpy does not convert ragged tensors
         for k in inp:
           if isinstance(inp[k], tf.RaggedTensor):
@@ -394,24 +394,14 @@ class JSONLogger(Logger):
 
         json_dict = {"input": inp}
 
-        # Only write `prediction` if it is JSON serializable.
-        if prediction is not None:
+        for field_name, res in zip(field_names, results):
+          # Only write if it is JSON serializable.
           try:
-            json.dumps(prediction, cls=self._json_encoder_cls)
-            json_dict["prediction"] = prediction
+            json.dumps(res, cls=self._json_encoder_cls)
+            json_dict[field_name] = res
           except TypeError:
-            logging.warning("`prediction` is not JSON serializable",
-                            exc_info=True)
-
-        # Only write `target` if it is JSON serializable.
-        try:
-          json.dumps(target, cls=self._json_encoder_cls)
-          json_dict["target"] = target
-        except TypeError:
-          logging.warning("`target` is not JSON serializable", exc_info=True)
-
-        if score is not None:
-          json_dict["score"] = score
+            logging.warning(
+                "`%s` is not JSON serializable", field_name, exc_info=True)
 
         json_str = json.dumps(json_dict, cls=self._json_encoder_cls)
         f.write(json_str + "\n")
