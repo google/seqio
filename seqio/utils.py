@@ -49,6 +49,8 @@ def set_global_cache_dirs(global_cache_dirs):
 
 def add_global_cache_dirs(global_cache_dirs):
   global _GLOBAL_CACHE_DIRECTORIES
+  if isinstance(global_cache_dirs, str):
+    global_cache_dirs = [global_cache_dirs]
   _GLOBAL_CACHE_DIRECTORIES += global_cache_dirs
 
 
