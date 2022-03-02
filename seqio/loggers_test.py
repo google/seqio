@@ -514,5 +514,21 @@ class JSONLoggerTest(tf.test.TestCase):
       self.assertDictEqual(json.load(f),
                            {"step": 42, "scalar": 100.0, "text": "foo"})
 
+  def test_logging_metrics_only(self):
+    tmp_dir = self.create_tempdir().full_path
+
+    logger = loggers.JSONLogger(tmp_dir)
+    logger(task_name="test", step=42,
+           metrics={"accuracy": metrics_lib.Scalar(100)}, dataset=None,
+           inferences=None, targets=None)
+
+    # Validate the metrics file.
+    with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
+      self.assertDictEqual(json.load(f), {"step": 42, "accuracy": 100.0})
+
+    # Verify inferences not written.
+    self.assertFalse(
+        tf.io.gfile.exists(os.path.join(tmp_dir, "test-000042.jsonl")))
+
 if __name__ == "__main__":
   tf.test.main()

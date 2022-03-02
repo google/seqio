@@ -328,11 +328,11 @@ class JSONLogger(Logger):
 
   def __call__(self,
                task_name: str,
-               step: int,
+               step: Optional[int],
                metrics: Mapping[str, metrics_lib.MetricValue],
-               dataset: tf.data.Dataset,
-               inferences: Mapping[str, Sequence[Any]],
-               targets: Sequence[Any]) -> None:
+               dataset: Optional[tf.data.Dataset],
+               inferences: Optional[Mapping[str, Sequence[Any]]],
+               targets: Optional[Sequence[Any]]) -> None:
     if step is None:
       logging.warning("Step number for the logging session is not provided. "
                       "A dummy value of -1 will be used.")
@@ -370,6 +370,11 @@ class JSONLogger(Logger):
       tf.io.gfile.rename(metrics_fname + ".tmp", metrics_fname, overwrite=True)
 
     if self._write_n_results == 0:
+      return
+
+    if not inferences or not targets or not dataset:
+      logging.info("Skipping inference logging as one or more of inferences, "
+                   "targets or dataset is unset")
       return
 
     write_tick = time.time()
