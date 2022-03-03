@@ -100,7 +100,7 @@ We'll now break down each part of the task definition.
 Data sources are the first step in your pipeline, providing a way to load raw
 data in many formats as a `tf.data.Dataset`.
 All data sources are subclasses of the `DataSource` base class and are defined in
-[dataset_providers](http://google3/third_party/py/seqio/dataset_providers.py),
+[dataset_providers](http://github.com/google/seqio/blob/main/seqio/dataset_providers.py),
 
 Existing implementations include:
 
@@ -122,7 +122,7 @@ raised.
 
 Each `Feature` includes:
 
-  * A `vocabulary`, which must subclass [`seqio.Vocabulary`](http://google3/third_party/py/seqio/vocabularies.py), to specify how the feature can be tokenized and detokenized. You may use `seqio.PassThroughVocabulary` if tokenization is not necessary.
+  * A `vocabulary`, which must subclass [`seqio.Vocabulary`](https://github.com/google/seqio/blob/main/seqio/vocabularies.py), to specify how the feature can be tokenized and detokenized. You may use `seqio.PassThroughVocabulary` if tokenization is not necessary.
   * `add_eos`, which specifies whether the feature should end with the vocabulary's EOS token.
   * The output `dtype` which must be a `tf.dtypes.DType`.
 
@@ -248,7 +248,7 @@ A few **important** notes:
 
   If `num_seeds > 1`, the arg will instead be called `seeds` and will contain a sequence of seeds.
 
-In our "wmt_19_ende" task, we also use the predefined preprocessors `seqio.preprocessors.tokenize` and `seqio.preprocessors.append_eos`. The former uses each `Feature.vocabulary` to tokenize it, and the the latter appends `Feature.vocabulary.eos_id` to the feature if the `Feaure.add_eos` is True. See [preprocessors.py](http://google3/third_party/py/seqio/preprocessors.py) for their implementations and other useful preprocessors.
+In our "wmt_19_ende" task, we also use the predefined preprocessors `seqio.preprocessors.tokenize` and `seqio.preprocessors.append_eos`. The former uses each `Feature.vocabulary` to tokenize it, and the the latter appends `Feature.vocabulary.eos_id` to the feature if the `Feaure.add_eos` is True. See [preprocessors.py](https://github.com/google/seqio/blob/main/seqio/preprocessors.py) for their implementations and other useful preprocessors.
 
 #### Postprocessor
 
@@ -260,7 +260,7 @@ task in the [Advanced Postprocessing `Task`](#advanced-postprocessing-task) for 
 
 #### Metrics
 
-Metrics are functions that are passed (by the [Evaluator](#evaluator)) the fully-materialized list of postprocessed model outputs (or scores) and targets and return a mapping from string names to `MetricValue` objects containing their values. These are most commonly floating-point scalars, but may also be text, images, audio, histograms, etc (see [metrics.py](http://google3/third_party/py/seqio/metrics.py) for the full list).
+Metrics are functions that are passed (by the [Evaluator](#evaluator)) the fully-materialized list of postprocessed model outputs (or scores) and targets and return a mapping from string names to `MetricValue` objects containing their values. These are most commonly floating-point scalars, but may also be text, images, audio, histograms, etc (see [metrics.py](https://github.com/google/seqio/blob/main/seqio/metrics.py) for the full list).
 
 The first argument of a metric function must always be called `targets`. If the second argument of a metric function is called `predictions`, it will be passed the decoded and detokenized model prediction. If it is called `scores`, it will be passed a list of log-likelihood scores for each example.
 
@@ -346,7 +346,7 @@ There are 3 ways to specify the tasks and their rates:
   ```
 
   1. Provide a function that generates the rate for each task at runtime.
-  The example below uses the provided [`seqio.mixing_rate_num_examples`](http://google3/third_party/py/seqio/utils.py), which uses the number of examples (computed during [offline caching](#optional-offline-caching)) as the rate for each task.
+  The example below uses the provided [`seqio.mixing_rate_num_examples`](https://github.com/google/seqio/blob/main/seqio/utils.py), which uses the number of examples (computed during [offline caching](#optional-offline-caching)) as the rate for each task.
 
   ```py
   seqio.MixtureRegistry.add(
@@ -407,7 +407,7 @@ The first step to doing so is to add a `seqio.CacheDatasetPlaceholder(required=F
 Caveats:
 
 * Any stochastic operations that you wish to be re-run when `num_epochs > 1` or with a different `seed` *should* go after the placeholder since only a single sample will be cached.
-* Any preprocessing steps that use the `sequence_length` argument *must* come after the `seqio.CacheDatasetPlaceholder` preproessor since this is only known at runtime, or an exception will be raised. If you wish to cache for a specific sequence length, you can use [`seqio.experimental.add_fully_cached_task`](http://google3/third_party/py/seqio/experimental.py).
+* Any preprocessing steps that use the `sequence_length` argument *must* come after the `seqio.CacheDatasetPlaceholder` preproessor since this is only known at runtime, or an exception will be raised. If you wish to cache for a specific sequence length, you can use [`seqio.experimental.add_fully_cached_task`](https://github.com/google/seqio/blob/main/seqio/experimental.py).
 
 Once your `Task` is registered, you can run [`cache_tasks_main`](scripts/cache_tasks_main.py) to execute the offline preprocessing, providing it with the module containing your task definitions via the `--module_import` flag. For very large datasets, it's recommended you run this [Apache Beam](https://beam.apache.org/) script on a distributed framework like [Google Cloud DataFlow](https://beam.apache.org/documentation/runners/dataflow/).
 
@@ -431,9 +431,9 @@ The raw data consists of sentence pairs such as
 ```
 
 A task registered to `Task` (e.g.,
-[wmt_t2t_ende_v003](http://google3/third_party/py/t5/data/tasks.py?l=156&rcl=337594707))
+[wmt_t2t_ende_v003](https://github.com/google-research/text-to-text-transfer-transformer/blob/main/t5/data/tasks.py#L212))
 reads these sentence pairs from the data source and applies a series of
-[preprocessors](http://google3/third_party/py/t5/data/preprocessors.py?rcl=343354647).
+[preprocessors](https://github.com/google-research/text-to-text-transfer-transformer/blob/main/t5/data/preprocessors.py).
 One of the internal representations looks like
 
 ```python
