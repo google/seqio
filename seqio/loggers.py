@@ -42,11 +42,11 @@ class Logger(abc.ABC):
     self.output_dir = output_dir
 
   @abc.abstractmethod
-  def __call__(self, task_name: str, step: int,
+  def __call__(self, task_name: str, step: Optional[int],
                metrics: Mapping[str, metrics_lib.MetricValue],
-               dataset: tf.data.Dataset, inferences: Mapping[str,
-                                                             Sequence[Any]],
-               targets: Sequence[Any]) -> None:
+               dataset: Optional[tf.data.Dataset],
+               inferences: Optional[Mapping[str, Sequence[Any]]],
+               targets: Optional[Sequence[Any]]) -> None:
     """Logs the metrics and inferences for each task.
 
     Args:
@@ -69,14 +69,15 @@ class PyLoggingLogger(Logger):
     self._level = level
     super().__init__(output_dir)
 
-  def __call__(self, task_name: str, step: int,
+  def __call__(self, task_name: str, step: Optional[int],
                metrics: Mapping[str, metrics_lib.MetricValue],
-               dataset: tf.data.Dataset, inferences: Mapping[str,
-                                                             Sequence[Any]],
-               targets: Sequence[Any]) -> None:
+               dataset: Optional[tf.data.Dataset],
+               inferences: Optional[Mapping[str, Sequence[Any]]],
+               targets: Optional[Sequence[Any]]) -> None:
     del dataset
     del inferences
     del targets
+    step = step or -1
     for metric_name, metric_value in metrics.items():
       if isinstance(metric_value, metrics_lib.Scalar):
         strvalue = f"{metric_value.value:.3f}"
@@ -159,11 +160,11 @@ class TensorBoardLogger(Logger):
       raise TypeError(
           f"Value type not understood, got '{type(value).__name__}'.")
 
-  def __call__(self, task_name: str, step: int,
+  def __call__(self, task_name: str, step: Optional[int],
                metrics: Mapping[str, metrics_lib.MetricValue],
-               dataset: tf.data.Dataset, inferences: Mapping[str,
-                                                             Sequence[Any]],
-               targets: Sequence[Any]) -> None:
+               dataset: Optional[tf.data.Dataset],
+               inferences: Optional[Mapping[str, Sequence[Any]]],
+               targets: Optional[Sequence[Any]]) -> None:
     """Log metrics to tensorboard.
 
     Args:
@@ -215,13 +216,11 @@ class TensorBoardLoggerV1(Logger):
             os.path.join(self.output_dir, task_name))
     return self._summary_writers[task_name]
 
-  def __call__(self,
-               task_name: str,
-               step: int,
+  def __call__(self, task_name: str, step: Optional[int],
                metrics: Mapping[str, metrics_lib.Scalar],
-               dataset: tf.data.Dataset,
-               inferences: Mapping[str, Sequence[Any]],
-               targets: Sequence[Any]) -> None:
+               dataset: Optional[tf.data.Dataset],
+               inferences: Optional[Mapping[str, Sequence[Any]]],
+               targets: Optional[Sequence[Any]]) -> None:
     """Log the eval results and optionally write summaries for TensorBoard.
 
     Note:
