@@ -24,6 +24,7 @@ from absl import logging
 import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
+from typing import Sequence
 
 _INFO_FILENAME = "info.{split}.json"
 _STATS_FILENAME = "stats.{split}.json"
