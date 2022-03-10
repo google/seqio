@@ -892,6 +892,10 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
     def concat_and_add_masks(features):
       inputs = features["inputs"]
       targets = features["targets"]
+      # If the targets are empty, we add one padding target.
+      targets = tf.cond(
+          tf.size(targets) > 0, lambda: targets,
+          lambda: tf.zeros(1, dtype="int32"))
 
       # Width of the "inputs" portion in the concatenated sequence.
       width = tf.size(inputs)
