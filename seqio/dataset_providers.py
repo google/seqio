@@ -842,8 +842,8 @@ class Task(DatasetProviderBase):
     for metric_fn in metric_fns:
       pos_args = tuple(
           key for key, param in inspect.signature(metric_fn).parameters.items()
-          if param.default == inspect.Parameter.empty
-      )
+          if param.default == inspect.Parameter.empty and
+          param.kind != inspect.Parameter.VAR_KEYWORD)
       if pos_args == ("targets", "scores"):
         self._score_metric_fns.append(metric_fn)
       elif pos_args == ("targets", "predictions"):

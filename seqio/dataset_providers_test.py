@@ -111,10 +111,10 @@ class TasksTest(test_utils.FakeTaskTest):
 
     add_task = functools.partial(self.add_task, source=self.function_source)
 
-    def score_metric_fn(targets, scores):
+    def score_metric_fn(targets, scores, **kwargs):
       return {}
 
-    def predict_metric_fn(targets, predictions):
+    def predict_metric_fn(targets, predictions, **kwargs):
       return {}
 
     valid_task = add_task(
