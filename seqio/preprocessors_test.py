@@ -276,6 +276,39 @@ class PreprocessorsTest(tf.test.TestCase):
         og_dataset, {'inputs': 'text', 'targets': None})
     assert_dataset(dataset, {'inputs': 'That is good.', 'targets': ''})
 
+  def test_truncate_length_two(self):
+    self.og_tokenized_dataset = tf.data.Dataset.from_tensors({
+        'inputs': [1, 2, 3],
+        'targets': [4, 5, 6, 7],
+    })
+
+    # Truncate inputs from left according to sequence_length.
+    sequence_length = {'inputs': 2, 'targets': 4}
+    assert_dataset(
+        preprocessors.truncate_inputs_left(self.og_tokenized_dataset,
+                                           sequence_length), {
+                                               'inputs': [2, 3],
+                                               'targets': [4, 5, 6, 7],
+                                           })
+
+  def test_dont_truncate(self):
+    self.og_tokenized_dataset = tf.data.Dataset.from_tensors({
+        'inputs': [1, 2, 3],
+        'targets': [4, 5, 6, 7],
+    })
+    # Don't truncate inputs when sequence_length is None.
+    assert_dataset(
+        preprocessors.truncate_inputs_left(self.og_tokenized_dataset, None), {
+            'inputs': [1, 2, 3],
+            'targets': [4, 5, 6, 7],
+        })
+
+    assert_dataset(
+        preprocessors.truncate_inputs_left(self.og_tokenized_dataset,
+                                           {'targets': 4}), {
+                                               'inputs': [1, 2, 3],
+                                               'targets': [4, 5, 6, 7],
+                                           })
 
 if __name__ == '__main__':
   absltest.main()

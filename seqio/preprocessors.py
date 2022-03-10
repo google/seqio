@@ -298,3 +298,30 @@ def _append_to_innermost_axis(tensor: tf.Tensor,
          tf.constant([[0, 1]])],
         axis=0)
     return tf.pad(tensor, paddings=paddings, constant_values=scalar)
+
+
+@utils.map_over_dataset
+def truncate_inputs_left(example, sequence_length):
+  """Pre-processor for truncation of inputs sequences from the left.
+
+  Default seqio truncation always removes the overflow on the right, which may
+  not be optimal for decoder only models.
+  Applying this pre-processor truncates the 'inputs' from the left according to
+  sequence_length['inputs'].
+  This pre-processor should be applied after [seqio.preprocessors.tokenize,
+  seqio.preprocessors.append_eos].
+
+  Args:
+    example: an example to process.
+    sequence_length: dictionary with token sequence length for the inputs and
+      targets.
+
+  Returns:
+    Example with truncated 'inputs' sequence.
+  """
+  if sequence_length is None or 'inputs' not in sequence_length:
+    return example
+
+  example['inputs'] = example['inputs'][-sequence_length['inputs']:]
+
+  return example
