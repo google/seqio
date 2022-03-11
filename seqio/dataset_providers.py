@@ -302,22 +302,28 @@ def _get_name(function):
     return function.__name__
 
 
-def _validate_args(fn, expected_pos_args):
-  """Ensure function has exactly expected positional args."""
+def _validate_args(fn, expected_pos_args_groups):
+  """Ensure function has one of expected positional args groups."""
   argspec = inspect.getfullargspec(fn)
-  expected_pos_args = tuple(expected_pos_args)
+  expected_pos_args_groups = [
+      tuple(expected_pos_args) for expected_pos_args in expected_pos_args_groups
+  ]
+  expected_pos_args_groups_string = " or ".join(
+      str(group) for group in expected_pos_args_groups)
   actual_args = tuple(argspec.args)
-  if actual_args[:len(expected_pos_args)] != expected_pos_args:
+  if all(actual_args[:len(expected_pos_args)] != expected_pos_args
+         for expected_pos_args in expected_pos_args_groups):
     raise ValueError(
-        "'%s' must have positional args %s, got: %s" % (
-            _get_name(fn), expected_pos_args, actual_args))
+        "'%s' must have positional args %s, got: %s" %
+        (_get_name(fn), expected_pos_args_groups_string, actual_args))
   actual_pos_args = tuple(
       argspec.args[:-len(argspec.defaults)]
       if argspec.defaults else argspec.args)
-  if actual_pos_args != expected_pos_args[:len(actual_pos_args)]:
+  if all(actual_pos_args != expected_pos_args[:len(actual_pos_args)]
+         for expected_pos_args in expected_pos_args_groups):
     raise ValueError(
-        "'%s' may only have positional args %s, got: %s" % (
-            _get_name(fn), expected_pos_args, actual_pos_args))
+        "'%s' may only have positional args %s, got: %s" %
+        (_get_name(fn), expected_pos_args_groups_string, actual_pos_args))
 
 
 class DatasetFnCallable(typing_extensions.Protocol):
@@ -352,7 +358,9 @@ class FunctionDataSource(DataSource):
       caching_permitted: indicates whether this data source may be cached.
         Default True.
     """
-    _validate_args(dataset_fn, ["split", "shuffle_files"])
+    _validate_args(
+        dataset_fn,
+        [["split", "shuffle_files"], ["split", "shuffle_files", "seed"]])
     self._dataset_fn = dataset_fn
     super().__init__(
         splits=splits,
@@ -378,7 +386,6 @@ class FunctionDataSource(DataSource):
     if seed is None:
       ds = self._dataset_fn(split=split, shuffle_files=shuffle)
     else:
-      _validate_args(self._dataset_fn, ["split", "shuffle_files", "seed"])
       ds = self._dataset_fn(split=split, shuffle_files=shuffle, seed=seed)
     return ds
 
