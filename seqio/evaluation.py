@@ -22,6 +22,8 @@ import time
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type
 
 from absl import logging
+import jax
+import jax.numpy as jnp
 from seqio import dataset_providers
 from seqio import feature_converters
 from seqio import loggers as loggers_lib
@@ -388,7 +390,8 @@ class Evaluator:
                compute_metrics: bool,
                step: Optional[int] = None,
                predict_fn: PredictFnCallable,
-               score_fn: ScoreFnCallable) -> MetricsAndOutputsType:
+               score_fn: ScoreFnCallable,
+               rng_key: Optional[jnp.ndarray] = None) -> MetricsAndOutputsType:
     """Predict and score self.eval_tasks.
 
     Evaluation must preserve the example ordering. This requirement is satisfied
@@ -436,6 +439,8 @@ class Evaluator:
       score_fn: a user-defined function, which takes in a tf.data.Dataset and
         outputs the log likelihood score of the targets. Only called if score
         metrics exist for the task.
+      rng_key: if provided, an RNG key to use for inference. If not provided,
+        will default to PRNGKey(0).
 
     Returns:
       metrics: a Future containing a mapping from task name to computed metrics,
@@ -445,12 +450,16 @@ class Evaluator:
       scores: a mapping from task name to the output scores from
         `score_fn` for tasks that have `score_predict_fns`.
     """
+    if rng_key is None:
+      rng_key = jax.random.PRNGKey(0)
 
     all_output_tokens = {}
     all_output_scores = {}
 
     def _infer_and_sort_outputs(infer_fn, task_name):
-      indices_and_outputs = infer_fn(self.cached_model_datasets[task_name])
+      indices_and_outputs = infer_fn(
+          self.cached_model_datasets[task_name], rng=rng_key)
+
       if len(indices_and_outputs[0]) != 2:
         raise ValueError(
             "Expected a sequence of length-2 tuples with (index, *) format.")
