@@ -76,6 +76,12 @@ flags.DEFINE_integer(
     "min_shards", 64,
     "The minimum number of output shards to produce. Higher is better for "
     "improved online data shuffling during training.")
+flags.DEFINE_string(
+    "tfds_data_dir", None,
+    "If set, this directory will be used to store datasets prepared by "
+    "TensorFlow Datasets that are not available in the public TFDS GCS "
+    "bucket. Note that this flag overrides the `tfds_data_dir` attribute of "
+    "all `Task`s.")
 
 
 def _import_modules(modules):
@@ -197,6 +203,9 @@ def main(_):
 
   seqio.add_global_cache_dirs(
       [FLAGS.output_cache_dir] + FLAGS.tasks_additional_cache_dirs)
+
+  if FLAGS.tfds_data_dir:
+    seqio.set_tfds_data_dir_override(FLAGS.tfds_data_dir)
 
   pipeline_options = beam.options.pipeline_options.PipelineOptions(
       FLAGS.pipeline_options)
