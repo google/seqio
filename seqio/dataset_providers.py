@@ -839,6 +839,7 @@ class Task(DatasetProviderBase):
     metric_fns = metric_fns or []
     self._predict_metric_fns = []
     self._score_metric_fns = []
+    self._retrieve_metric_fns = []
     for metric_fn in metric_fns:
       pos_args = tuple(
           key for key, param in inspect.signature(metric_fn).parameters.items()
@@ -848,6 +849,8 @@ class Task(DatasetProviderBase):
         self._score_metric_fns.append(metric_fn)
       elif pos_args == ("targets", "predictions"):
         self._predict_metric_fns.append(metric_fn)
+      elif pos_args == ("targets", "retrievals"):
+        self._retrieve_metric_fns.append(metric_fn)
       else:
         raise ValueError(
             "Metric functions must have positional arguments matching either "
@@ -908,7 +911,7 @@ class Task(DatasetProviderBase):
   @property
   def metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of all metric functions."""
-    return self._predict_metric_fns + self._score_metric_fns
+    return self._predict_metric_fns + self._score_metric_fns + self._retrieve_metric_fns
 
   @property
   def score_metric_fns(self) -> Sequence[MetricFnCallable]:
@@ -919,6 +922,11 @@ class Task(DatasetProviderBase):
   def predict_metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of metric functions that use model predictions."""
     return self._predict_metric_fns
+
+  @property
+  def retrieve_metric_fns(self) -> Sequence[MetricFnCallable]:
+    """List of metric functions that use model retrievals."""
+    return self._retrieve_metric_fns
 
   @property
   def output_features(self) -> Mapping[str, Feature]:

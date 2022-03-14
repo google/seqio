@@ -117,15 +117,20 @@ class TasksTest(test_utils.FakeTaskTest):
     def predict_metric_fn(targets, predictions):
       return {}
 
+    def retrieve_metric_fn(targets, retrievals):
+      return {}
+
     valid_task = add_task(
-        "valid_metrics", metric_fns=[score_metric_fn, predict_metric_fn])
+        "valid_metrics",
+        metric_fns=[score_metric_fn, predict_metric_fn, retrieve_metric_fn])
 
     self.assertSameElements(
-        [score_metric_fn, predict_metric_fn], valid_task.metric_fns)
-    self.assertSameElements(
-        [score_metric_fn], valid_task.score_metric_fns)
-    self.assertSameElements(
-        [predict_metric_fn], valid_task.predict_metric_fns)
+        [score_metric_fn, predict_metric_fn, retrieve_metric_fn],
+        valid_task.metric_fns)
+    self.assertSameElements([score_metric_fn], valid_task.score_metric_fns)
+    self.assertSameElements([predict_metric_fn], valid_task.predict_metric_fns)
+    self.assertSameElements([retrieve_metric_fn],
+                            valid_task.retrieve_metric_fns)
 
     def extra_arg_metric_fn(targets, predictions, extra_param):
       return {}
@@ -166,6 +171,7 @@ class TasksTest(test_utils.FakeTaskTest):
         "valid_metrics_2", metric_fns=[ok_default_metric_fn])
     self.assertSameElements([ok_default_metric_fn], valid_task_2.metric_fns)
     self.assertEmpty(valid_task_2.score_metric_fns)
+    self.assertEmpty(valid_task_2.retrieve_metric_fns)
     self.assertSameElements(
         [ok_default_metric_fn], valid_task_2.predict_metric_fns)
 
