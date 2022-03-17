@@ -58,7 +58,8 @@ class PreprocessTask(beam.PTransform):
                *,
                preprocessors_seed: Optional[int] = None,
                modules_to_import: Sequence[str] = (),
-               add_provenance: bool = False):
+               add_provenance: bool = False,
+               tfds_data_dir: Optional[str] = None):
     """BasePreprocessTask constructor.
 
     Args:
@@ -68,12 +69,14 @@ class PreprocessTask(beam.PTransform):
           task preprocessing.
       modules_to_import: (Optional) list, modules to import.
       add_provenance: If True, provenance is added to each example.
+      tfds_data_dir: (Optional) str, directory used to store datasets.
     """
     self._task = task
     self._split = split
     self._preprocessors_seed = preprocessors_seed
     self._modules_to_import = modules_to_import
     self._add_provenance = add_provenance
+    self._tfds_data_dir = tfds_data_dir
     self.shards = list(enumerate(task.source.list_shards(split)))
     logging.info(
         "%s %s shards: %s", task.name, split, ", ".join(
@@ -86,6 +89,10 @@ class PreprocessTask(beam.PTransform):
   def _emit_examples(self, shard: Tuple[int, str]):
     """Emits examples keyed by shard number and index for a single shard."""
     _import_modules(self._modules_to_import)
+
+    if self._tfds_data_dir:
+      seqio.set_tfds_data_dir_override(self._tfds_data_dir)
+
     shard_index, shard_name = shard
     logging.info("Processing shard: %s", shard_name)
     self._increment_counter("input-shards")
