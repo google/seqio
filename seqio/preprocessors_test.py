@@ -16,6 +16,7 @@
 
 from absl.testing import absltest
 from seqio import dataset_providers
+from seqio import feature_converters
 from seqio import preprocessors
 from seqio import test_utils
 import tensorflow.compat.v2 as tf
@@ -309,6 +310,88 @@ class PreprocessorsTest(tf.test.TestCase):
                                                'inputs': [1, 2, 3],
                                                'targets': [4, 5, 6, 7],
                                            })
+
+  def test_apply_encdec_feature_converter(self):
+    x = [
+        {
+            # first example
+            'inputs': [8, 7, 1, 0],
+            'targets': [4, 1, 0],
+            'redundant_feature': [0]
+        },
+        {
+            # second example
+            'inputs': [2, 3, 4, 1],
+            'targets': [5, 6, 1],
+            'redundant_feature': [1]
+        },
+        {
+            # third example
+            'inputs': [9, 2, 13, 4, 6],
+            'targets': [14, 3, 9, 17, 0],
+            'redundant_feature': [2]
+        },
+        {
+            # fourth example
+            'inputs': [31, 2, 0, 0, 0],
+            'targets': [1, 21, 6, 2, 0],
+            'redundant_feature': [3]
+        },
+        {
+            # fifth example
+            'inputs': [111, 21, 131, 41, 26, 0],
+            'targets': [114, 56, 12, 0, 0],
+            'redundant_feature': [4]
+        }
+    ]
+
+    ds = test_utils.create_default_dataset(
+        x, feature_names=('inputs', 'targets', 'redundant_feature'))
+    sequence_length = {'inputs': 8, 'targets': 7}
+    feature_converter_cls = feature_converters.EncDecFeatureConverter
+    packed_ds = preprocessors.apply_feature_converter(
+        ds,
+        sequence_length=sequence_length,
+        feature_converter_cls=feature_converter_cls,
+        pack=True)
+    expected = [
+        {
+            # first and second examples are packed here.
+            'encoder_input_tokens': [8, 7, 1, 2, 3, 4, 1, 0],
+            'encoder_segment_ids': [1, 1, 1, 2, 2, 2, 2, 0],
+            'encoder_positions': [0, 1, 2, 0, 1, 2, 3, 0],
+            'decoder_target_tokens': [4, 1, 5, 6, 1, 0, 0],
+            'decoder_input_tokens': [0, 4, 0, 5, 6, 0, 0],
+            'decoder_loss_weights': [1, 1, 1, 1, 1, 0, 0],
+            'decoder_segment_ids': [1, 1, 2, 2, 2, 0, 0],
+            'decoder_positions': [0, 1, 0, 1, 2, 0, 0],
+        },
+        {
+            # third example is packed here.
+            'encoder_input_tokens': [9, 2, 13, 4, 6, 0, 0, 0],
+            'encoder_segment_ids': [1, 1, 1, 1, 1, 0, 0, 0],
+            'encoder_positions': [0, 1, 2, 3, 4, 0, 0, 0],
+            'decoder_target_tokens': [14, 3, 9, 17, 0, 0, 0],
+            'decoder_input_tokens': [0, 14, 3, 9, 0, 0, 0],
+            'decoder_loss_weights': [1, 1, 1, 1, 0, 0, 0],
+            'decoder_segment_ids': [1, 1, 1, 1, 0, 0, 0],
+            'decoder_positions': [0, 1, 2, 3, 0, 0, 0],
+        },
+        {
+            # fourth and fifth examples are packed here.
+            'encoder_input_tokens': [31, 2, 111, 21, 131, 41, 26, 0],
+            'encoder_segment_ids': [1, 1, 2, 2, 2, 2, 2, 0],
+            'encoder_positions': [0, 1, 0, 1, 2, 3, 4, 0],
+            'decoder_target_tokens': [1, 21, 6, 2, 114, 56, 12],
+            'decoder_input_tokens': [0, 1, 21, 6, 0, 114, 56],
+            'decoder_loss_weights': [1, 1, 1, 1, 1, 1, 1],
+            'decoder_segment_ids': [1, 1, 1, 1, 2, 2, 2],
+            'decoder_positions': [0, 1, 2, 3, 0, 1, 2],
+        }
+    ]
+    # It tests packing and also tests that packed_dataset has examples
+    # in the same order as they are in original unpacked_datatset.
+    assert_dataset(packed_ds, expected)
 
 if __name__ == '__main__':
   absltest.main()
