@@ -383,6 +383,10 @@ class Evaluator:
     """Wait for metrics to be written before deletion."""
     self._metrics_executor.shutdown(wait=True)
 
+  def close(self):
+    """Wait for metrics to be written."""
+    self._metrics_executor.shutdown(wait=True)
+
   def evaluate(self,
                *,
                compute_metrics: bool,
