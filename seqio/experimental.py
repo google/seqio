@@ -300,11 +300,11 @@ class FewshotDataSource(dataset_providers.DataSource):
     return tf.data.Dataset.zip(datasets)
 
 
-def fewshot_preprocessor(
-    ds,
-    inputs_prefix='',
-    targets_prefix='',
-    example_separator='\n\n'):
+def fewshot_preprocessor(ds,
+                         inputs_prefix='',
+                         targets_prefix='',
+                         example_separator='\n\n',
+                         prompt=''):
   """Create 'inputs' and 'targets' strings for (zero/few)-shot evaluation.
 
   Inputs and targets will be formatted using the given prefixes along with a
@@ -331,6 +331,10 @@ def fewshot_preprocessor(
     inputs_prefix: Prefix string for inputs.
     targets_prefix: Prefix string for targets.
     example_separator: The string separator to delimit different examples.
+    prompt: Optional prefix for the entire few-shot input. Typically
+      consists of a natural language description of the task or task
+      instructions.
+
   Returns:
     A tf.data.Dataset containing 'inputs', 'targets', and any other features
     from the evaluation dataset.
@@ -350,7 +354,8 @@ def fewshot_preprocessor(
       shots = tf.strings.reduce_join(train_examples)
     else:
       shots = ''
-
+    if prompt:
+      shots = tf.strings.join([prompt, shots], separator=example_separator)
     new_ex = {
         'inputs':
             shots + inputs_prefix + ex['eval']['inputs'] +
@@ -522,4 +527,3 @@ def add_task_with_sentinels(
       postprocess_fn=new_postprocess_fn,
       metric_fns=task.metric_fns,
   )
-
