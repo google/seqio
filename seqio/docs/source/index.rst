@@ -8,9 +8,12 @@ Welcome to SeqIO's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
    
    overview.md
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference
 
 Indices and tables
 ==================
