@@ -11,9 +11,12 @@ Welcome to SeqIO's documentation!
    :caption: Contents
    
    overview.md
+
 .. toctree::
    :maxdepth: 2
    :caption: API Reference
+
+   seqio.beam_utils
 
 Indices and tables
 ==================
