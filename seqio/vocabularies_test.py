@@ -192,6 +192,50 @@ class PassThroughVocabularyTest(absltest.TestCase):
     self.assertNotEqual(vocab1, vocab3)
 
 
+class UnigramVocabularyTest(absltest.TestCase):
+
+  def test_encode_converts_unigrams_to_ints_correctly(self):
+    unigrams = ["this", "that", "is", "not", "a", "the", "test", "ball"]
+    vocabulary = vocabularies.UnigramVocabulary(unigrams)
+    self.assertEqual(vocabulary.unk_id, 9)
+    with self.subTest(name="pure_python"):
+      # Note that id 0 is reserved for padding.
+      self.assertEqual(vocabulary.encode("that"), [2])
+      self.assertEqual(vocabulary.encode("not"), [4])
+      self.assertEqual(vocabulary.encode("apple"), [vocabulary.unk_id])
+    with self.subTest(name="tensorflow"):
+      # Note that id 0 is reserved for padding.
+      # Note that this test must pass under both TF1 and TF2, but the default
+      # behavior of TF1 == among tensors is to compare object references, not
+      # values. So this test inspects the value of the tensor returned by
+      # encode_tf() rather than the tensor itself. See
+      # https://www.tensorflow.org/guide/migrate/tf1_vs_tf2#tensor_equality_by_value
+      self.assertEqual(vocabulary.encode_tf(tf.constant(["that"])).numpy(), [2])
+      self.assertEqual(vocabulary.encode_tf(tf.constant(["not"])).numpy(), [4])
+      self.assertEqual(
+          vocabulary.encode_tf(tf.constant(["apple"])).numpy(),
+          [vocabulary.unk_id])
+
+  def test_decode_converts_ints_to_unigrams_correctly(self):
+    unigrams = ["this", "that", "is", "not", "a", "the", "test", "ball"]
+    vocabulary = vocabularies.UnigramVocabulary(unigrams)
+    with self.subTest(name="pure_python"):
+      self.assertEqual(vocabulary.decode([1]), "this")
+      self.assertEqual(vocabulary.decode([3]), "is")
+      self.assertEqual(vocabulary.decode([vocabulary.unk_id]), "UNK")
+    with self.subTest(name="tensorflow"):
+      # Note that this test must pass under both TF1 and TF2, but the default
+      # behavior of TF1 == among tensors is to compare object references, not
+      # values. So this test inspects the value of the tensor returned by
+      # decode_tf() rather than the tensor itself. See
+      # https://www.tensorflow.org/guide/migrate/tf1_vs_tf2#tensor_equality_by_value
+      self.assertEqual(vocabulary.decode_tf(tf.constant([2])).numpy(), b"that")
+      self.assertEqual(vocabulary.decode_tf(tf.constant([4])).numpy(), b"not")
+      self.assertEqual(
+          vocabulary.decode_tf(tf.constant([vocabulary.unk_id])).numpy(),
+          b"UNK")
+
+
 class SentencepieceVocabularyTest(absltest.TestCase):
 
   TEST_STRING = "this is a test"

@@ -187,6 +187,56 @@ class PassThroughVocabulary(Vocabulary):
             f"eos_id={self.eos_id})")
 
 
+class UnigramVocabulary(Vocabulary):
+  """Vocabulary that does table-lookup of unigrams."""
+
+  def __init__(self, unigrams: Sequence[str]):
+    """UnigramVocabulary constructor.
+
+    Args:
+      unigrams: the collection of in-vocabulary tokens. This collection should
+        not include PAD or UNK, which are automatically assigned ids and managed
+        as possible decode tokens.
+    """
+
+    super().__init__()
+    unigrams_as_list = list(unigrams)
+    self._unigram_by_id = ["PAD"] + unigrams_as_list + ["UNK"]
+    self._id_by_unigram = {u: i for i, u in enumerate(self._unigram_by_id)}
+    initializer = tf.lookup.KeyValueTensorInitializer(
+        keys=tf.constant(["PAD"] + unigrams_as_list),
+        # One extra value because the leading 0 corresponds to PAD
+        values=tf.constant(range(len(unigrams) + 1), dtype=tf.int64))
+    self._id_by_unigram_tf = tf.lookup.StaticVocabularyTable(initializer,
+                                                             num_oov_buckets=1)
+    self._unigram_by_id_tf = tf.constant(self._unigram_by_id)
+
+  def _encode(self, s: str) -> Sequence[int]:
+    return [self._id_by_unigram.get(s, self.unk_id)]
+
+  def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
+    tf_ids = self._id_by_unigram_tf.lookup(s)
+    return tf.dtypes.cast(tf_ids, tf.int32)
+
+  def _decode(self, ids: Sequence[int]) -> str:
+    return " ".join(self._unigram_by_id[id] for id in ids)
+
+  def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
+    return self._unigram_by_id_tf[ids[0]]
+
+  @property
+  def _base_vocab_size(self):
+    return len(self._unigram_by_id)
+
+  @property
+  def eos_id(self):
+    return None
+
+  @property
+  def unk_id(self):
+    return self._base_vocab_size - 1
+
+
 class SentencePieceVocabulary(Vocabulary):
   """Wrapper for nlp/sentencepiece encoder.
 
