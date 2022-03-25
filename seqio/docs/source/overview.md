@@ -52,7 +52,7 @@ At a high level, we use SeqIO with the following steps.
 We will look at each of these steps in detail.
 
 
-### Defining a `Task`
+## Defining a `Task`
 
 The most important class in SeqIO is the `Task`. It is an abstraction that combines:
 
@@ -95,7 +95,7 @@ registry, if desired.
 
 We'll now break down each part of the task definition.
 
-#### Data Source
+### Data Source
 
 Data sources are the first step in your pipeline, providing a way to load raw
 data in many formats as a `tf.data.Dataset`.
@@ -111,7 +111,7 @@ Existing implementations include:
 
 In our example, we are using the `TfdsDataSource`. We specify the name of the WMT dataset in TFDS ([`"wmt19_translate"`](https://www.tensorflow.org/datasets/catalog/wmt19_translate)), the specific config for the language pair that excludes the context for the open domain setting (`"de-en"`), and the version number (`"1.0.0"`).
 
-#### Output Features
+### Output Features
 
 The `output_features` field expects a dictionary that maps string feature names
 to `seqio.Feature` objects. This defines what the `Task` is expected to produce
@@ -131,7 +131,7 @@ Each `Feature` includes:
 The [tasks used in T5](TODO) all produce "inputs" and "targets" features to be consumed by the text-to-text model. For a decoder-only language model, only a single feature (e.g., "targets") would be necessary.
 Nevertheless, SeqIO is flexible enough to generate arbitrary output features what will be converted into model features by the [`FeatureConverter`](#featureconverter) later in the pipeline.
 
-#### Preprocessors
+### Preprocessors
 
 Preprocessors are functions that transform one `tf.data.Dataset` into a new `tf.data.Dataset`. Typically this involves executing a `map` over the given dataset. The preprocessors provided to the `Task` will be executed sequentially.
 
@@ -250,7 +250,7 @@ A few **important** notes:
 
 In our "wmt_19_ende" task, we also use the predefined preprocessors `seqio.preprocessors.tokenize` and `seqio.preprocessors.append_eos`. The former uses each `Feature.vocabulary` to tokenize it, and the the latter appends `Feature.vocabulary.eos_id` to the feature if the `Feaure.add_eos` is True. See [preprocessors.py](https://github.com/google/seqio/blob/main/seqio/preprocessors.py) for their implementations and other useful preprocessors.
 
-#### Postprocessor
+### Postprocessor
 
 During evaluation, the model outputs are first detokenized using the output feature vocabulary. Before passing these predictions to the metric functions, they can be run through a Python postprocessing function, alongside the full input example. Similarly, the raw targets are run through this function before being passed to the metrics.
 Since the postprocess function is used on both the model output and the targets, it is passed an `is_target` boolean in case the behavior should be different. It is also passed the fully preprocessed example, including fields that were excluded from `output_features`.
@@ -258,7 +258,7 @@ Since the postprocess function is used on both the model output and the targets,
 For the "wmt19_ende", we don't need any postprocessors. See "trivia_qa_open"
 task in the [Advanced Postprocessing `Task`](#advanced-postprocessing-task) for an example postprocessor.
 
-#### Metrics
+### Metrics
 
 Metrics are functions that are passed (by the [Evaluator](#evaluator)) the fully-materialized list of postprocessed model outputs (or scores) and targets and return a mapping from string names to `MetricValue` objects containing their values. These are most commonly floating-point scalars, but may also be text, images, audio, histograms, etc (see [metrics.py](https://github.com/google/seqio/blob/main/seqio/metrics.py) for the full list).
 
@@ -266,7 +266,7 @@ The first argument of a metric function must always be called `targets`. If the 
 
 If multiple metric functions are provided, they will all be used and their returned mappings merged.
 
-##### Prediction Metrics
+#### Prediction Metrics
 
 Prediction metrics are computed using the postprocessed targets and model outputs (predictions).
 The args must be named `targets` and `predictions`.
@@ -303,7 +303,7 @@ def bleu(targets: Sequence[str], predictions: Sequence[str]):
 ```
 
 
-##### Score Metrics
+#### Score Metrics
 
 Score metrics are computed using the postprocessed targets and their log-likelihood scores according to the model.
 The args must be named `targets` and `scores`.
@@ -315,7 +315,7 @@ def perplexity(targets: Sequence[str], scores: Sequence[int]):
   }
 ```
 
-### Defining a `Mixture`
+## Defining a `Mixture`
 
 Once you have multiple `Task`s added to the `TaskRegistry`, you can define `Mixture`s that will combine the examples from them according to some specified rate.
 Examples will then be sampled from each task in proportion to its rate.
@@ -366,7 +366,7 @@ seqio.MixtureRegistry.add(
 )
 ```
 
-### Getting a Preprocessed Dataset
+## Getting a Preprocessed Dataset
 
 Now that your `Task` (and/or `Mixture`) is defined, its primary functionality is to use it to generate a dataset.
 
@@ -413,7 +413,7 @@ Once your `Task` is registered, you can run [`cache_tasks_main`](scripts/cache_t
 
 Finally, you are ready to load the cached version of your `Task` (or `Mixture`) containing it. You will need to add the path to the directory you passed to `--output_cache_dir` via `seqio.add_global_cache_dirs(["/my/cache/dir"])`. Now when you call `task_or_mixture.get_dataset(..., use_cached=True)`, the data will be loaded from the cache directory instead of the raw data source.
 
-### Feature Converters
+## Feature Converters
 
 The role of `Task` is to provide the dataset object with as little
 model-specific features (e.g., generic "inputs" and "targets") while the Feature
@@ -482,7 +482,7 @@ We will look at the details of this example in Encoder-decoder architecture:
 `seqio.EncDecFeatureConverter` section.
 
 
-#### Feature converters provided out of the box
+### Feature converters provided out of the box
 
 We provide feature converters for three common architectures: encoder-decoder,
 decoder-only and encoder-only. Here we describe how users can use the feature
@@ -496,7 +496,7 @@ already implemented, it is straightforward to use them by providing the class as
 following sections will show the example usage of `seqio.get_dataset`.
 
 
-##### Encoder-decoder architecture: `seqio.EncDecFeatureConverter`
+#### Encoder-decoder architecture: `seqio.EncDecFeatureConverter`
 This is the architecture of the original Transformer paper. For the
 English-to-German translation task, the following function call retrieves the
 `tf.data.Dataset` object with the model features.
@@ -525,7 +525,7 @@ The resulting dataset object has the following 7 fields
 |`decoder_segment_ids`  | Same as `encoder_segment_ids` but for decoder.|
 
 
-##### Decoder-only architecture
+#### Decoder-only architecture
 
 This architecture consists of a single autoregressive stack, which we denote as
 a "decoder".
@@ -555,7 +555,7 @@ language modeling objective (unsupervised) using `seqio.LMFeatureConverter` and
 then fine-tune (supervised) using `seqio.PrefixLMFeatureConverter`.
 
 
-###### Standard LM
+##### Standard LM
 
 For the standard language model, the task dataset only has "targets" field.
 Therefore, the sequence length specification only needs to specify targets.
@@ -590,7 +590,7 @@ standard teacher-forced autoregressive training.
 
 
 
-###### Prefix LM: `seqio.PrefixLMFeatureConverter`
+##### Prefix LM: `seqio.PrefixLMFeatureConverter`
 
 If the input dataset has a notion of "inputs" and "targets", we can concatenate
 them so that we can still use a single stack decoder. Therefore, the output only
@@ -709,7 +709,7 @@ additional feature is `decoder_causal_attention`.
 
 
 
-###### Encoder-only architecture
+##### Encoder-only architecture
 Like decoder-only architecture, this one is a single stack, but not
 autoregressive.
 
@@ -777,7 +777,7 @@ The resulting dataset object has the following 5 fields
 |`encoder_loss_weights` | Binary mask to indicate where the loss should be taken |
 
 
-###### Custom architectures
+##### Custom architectures
 For a model architectures, you would need to create a subclass of
 `FeatureConverter` and override two methods `_convert_features` and
 `get_model_feature_lengths` to define how task features are mapped to the model
@@ -787,7 +787,7 @@ useful starting point.
 
 
 
-### `Evaluator`
+## `Evaluator`
 
 TODO(hwchung)
 
@@ -807,7 +807,7 @@ Furthermore, SeqIO has been made more modular with respect to the Mesh TensorFlo
 
 ## Advanced Postprocessing `Task`
 
-### TriviaQA (Closed-book, open-domain version)
+## TriviaQA (Closed-book, open-domain version)
 This version of TriviaQA was introduced in [Roberts et al.
 2020](https://arxiv.org/abs/2002.08910).
 
