@@ -17,10 +17,3 @@ Welcome to SeqIO's documentation!
    :caption: API Reference
 
    seqio.beam_utils
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
