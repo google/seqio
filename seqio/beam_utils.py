@@ -109,9 +109,6 @@ class PreprocessTask(beam.PTransform):
     ds = self._task.preprocess_precache(ds, seed=self._preprocessors_seed)
 
     def _add_provenance(index_within_shard: int, ex: Dict[str, Any]):
-      if [k for k in ex.keys() if k.startswith(PROVENANCE_PREFIX)]:
-        raise ValueError("Example contains provenance. Please set "
-                         "PreprocessTask.add_provenance = False.")
       ex.update({
           TASK_PROVENANCE_KEY: self._task.name,
           SOURCE_SHARD_PROVENANCE_KEY: shard_name,

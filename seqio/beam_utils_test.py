@@ -171,29 +171,6 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "examples": 2
           }]))
 
-  def test_preprocess_task_error_with_provenance(self):
-    def _test_dataset_fn(split, shuffle_files=None, seed=None):
-      del split, shuffle_files, seed
-      return tf.data.Dataset.from_tensor_slices({
-          "inputs": ["some input", "other input"],
-          "targets": ["some target", "other target"],
-          "provenance/task": ["task_with_provenance", "task_with_provenance"],
-      })
-    seqio.TaskRegistry.add(
-        "task_with_provenance",
-        source=seqio.FunctionDataSource(_test_dataset_fn, splits=["split"]),
-        preprocessors=[],
-        output_features={})
-
-    with self.assertRaises(ValueError):
-      with TestPipeline() as p:
-        _ = (
-            p | beam_utils.PreprocessTask(
-                task=seqio.TaskRegistry.get("task_with_provenance"),
-                split="split",
-                add_provenance=True))
-    seqio.TaskRegistry.remove("task_with_provenance")
-
 
 if __name__ == "__main__":
   absltest.main()
