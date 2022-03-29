@@ -901,11 +901,13 @@ class MockVocabulary(vocabularies.Vocabulary):
 
 def sentencepiece_vocab(extra_ids=0,
                         normalizer_spec_overrides: Optional[
-                            sentencepiece_model_pb2.NormalizerSpec] = None):
+                            sentencepiece_model_pb2.NormalizerSpec] = None,
+                        reverse_extra_ids: bool = True):
   return vocabularies.SentencePieceVocabulary(
       os.path.join(TEST_DATA_DIR, "sentencepiece", "sentencepiece.model"),
       extra_ids=extra_ids,
-      normalizer_spec_overrides=normalizer_spec_overrides)
+      normalizer_spec_overrides=normalizer_spec_overrides,
+      reverse_extra_ids=reverse_extra_ids)
 
 
 def bertwordpiece_vocab(start_of_sequence_id=101):

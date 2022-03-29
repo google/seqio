@@ -257,7 +257,8 @@ class SentencePieceVocabulary(Vocabulary):
                sentencepiece_model_file,
                extra_ids=None,
                normalizer_spec_overrides: Optional[
-                   sentencepiece_model_pb2.NormalizerSpec] = None):
+                   sentencepiece_model_pb2.NormalizerSpec] = None,
+               reverse_extra_ids: bool = True):
     """Create a SentencePieceVocabulary.
 
     Optionally, specify a number of extra ids to add to the end of the
@@ -269,9 +270,13 @@ class SentencePieceVocabulary(Vocabulary):
       normalizer_spec_overrides: If not None, this proto will be merged into the
         model's normalizer and denormalizer specs. Thus, any options set on this
         object will override the values of those options in the loaded model.
+      reverse_extra_ids: if True, extra_ids are numbered in descending order, so
+        the first extra_id has the highest number. This is done for
+        compatibility with span_corruption mask generation in T5.
     """
     self._sentencepiece_model_file = sentencepiece_model_file
     self._normalizer_spec_overrides = normalizer_spec_overrides
+    self._reverse_extra_ids = reverse_extra_ids
     self._tokenizer = None
     self._sp_model = None
     super().__init__(extra_ids=extra_ids)
@@ -284,8 +289,13 @@ class SentencePieceVocabulary(Vocabulary):
       model = sentencepiece_model_pb2.ModelProto.FromString(self._sp_model)
       # Add placeholder strings for extra IDs.
       if self._extra_ids:
-        # We name them in reverse order to match their use in span corruption.
-        for i in reversed(range(self._extra_ids)):
+        # By default, we them in reverse order to match span corruption.
+        if self._reverse_extra_ids:
+          extra_id_tokens = reversed(range(self._extra_ids))
+        else:
+          extra_id_tokens = range(self._extra_ids)
+
+        for i in extra_id_tokens:
           model.pieces.add(
               piece=f"▁<extra_id_{i}>", score=0.0,
               type=
