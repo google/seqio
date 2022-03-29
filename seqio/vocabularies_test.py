@@ -286,6 +286,19 @@ class SentencepieceVocabularyTest(absltest.TestCase):
     vocab2 = test_utils.sentencepiece_vocab(10)
     self.assertNotEqual(vocab1, vocab2)
 
+  def test_not_reversing_extra_ids(self):
+    vocab = test_utils.sentencepiece_vocab(
+        extra_ids=10, reverse_extra_ids=False)
+    base_vocab_size = vocab.vocab_size - vocab.extra_ids
+
+    self.assertEqual("<extra_id_0> <extra_id_1>",
+                     vocab.decode([base_vocab_size, base_vocab_size + 1]))
+
+    reversed_vocab = test_utils.sentencepiece_vocab(
+        extra_ids=10, reverse_extra_ids=True)
+
+    self.assertNotEqual(vocab, reversed_vocab)
+
 
 class ByteVocabularyTest(absltest.TestCase):
 
