@@ -15,6 +15,7 @@
 """Preprocessors for SeqIO Tasks."""
 
 import functools
+import sys
 from typing import Dict, Mapping, Optional, Type
 
 from seqio import dataset_providers
@@ -355,4 +356,34 @@ def apply_feature_converter(
   """
   feature_converter = feature_converter_cls(pack=pack)
   return feature_converter(dataset, sequence_length)
+
+
+def filter_by_numeric_feature(
+    dataset: tf.data.Dataset,
+    feature_key: str,
+    min_allowed: float = -sys.float_info.max,
+    max_allowed: float = sys.float_info.max) -> tf.data.Dataset:
+  """Filters examples by a specified numeric feature value.
+
+  Only elements whose value for the specified feature key is in the allowed
+  closed interval [min_allowed, max_allowed] are returned in the output dataset.
+  Elements that have no value for the specified key are excluded from the output
+  dataset, as are elements that have a value for the key which is outside the
+  specified limits.
+
+  Args:
+    dataset: the dataset to filter
+    feature_key: the name of the numeric feature to filter on
+    min_allowed: discard data if x[feature_key] <= min_allowed
+    max_allowed: discard data if x[feature_key] >= max_allowed
+
+  Returns:
+    A subset of the tf.data.Dataset
+  """
+
+  def is_allowed(x):
+    return feature_key in x and x[feature_key] >= min_allowed and x[
+        feature_key] <= max_allowed
+
+  return dataset.filter(is_allowed)
 
