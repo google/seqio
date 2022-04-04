@@ -195,6 +195,8 @@ class Evaluator:
     cached_targets: cached evaluation targets.
     model_feature_shapes: mapping from model feature to its shape in the
       `cached_model_datasets`.
+    element_spec: the type specification of an element of the
+      `cached_model_datasets`.
     loggers: a sequence of subclasses of `Logger`.
   """
 
@@ -372,6 +374,7 @@ class Evaluator:
         k: tuple(spec.shape)
         for k, spec in eval_ds.element_spec.items() if spec.shape.rank > 0
     }
+    self._element_spec = eval_ds.element_spec
 
     if logger_cls and not log_dir:
       raise ValueError(
@@ -606,6 +609,10 @@ class Evaluator:
   @property
   def model_feature_shapes(self) -> Mapping[str, Tuple[int, ...]]:
     return self._model_feature_shapes
+
+  @property
+  def element_spec(self) -> Mapping[str, tf.TypeSpec]:
+    return self._element_spec
 
   @property
   def loggers(self) -> Tuple[loggers_lib.Logger]:
