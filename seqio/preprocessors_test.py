@@ -393,5 +393,67 @@ class PreprocessorsTest(tf.test.TestCase):
     # in the same order as they are in original unpacked_datatset.
     assert_dataset(packed_ds, expected)
 
+  def test_filter_by_numeric_feature_defaults_to_allow_if_key_is_present(self):
+    dataset = tf.data.Dataset.from_tensor_slices({
+        'foo': [-1.0, 0.0, 2.0],
+        'bar': ['a', 'b', 'c'],
+    })
+    processed_dataset = preprocessors.filter_by_numeric_feature(dataset, 'foo')
+    assert_dataset(processed_dataset, [{
+        'foo': -1.0,
+        'bar': 'a',
+    }, {
+        'foo': 0.0,
+        'bar': 'b',
+    }, {
+        'foo': 2.0,
+        'bar': 'c',
+    }])
+
+  def test_filter_by_numeric_feature_removes_elements_with_missing_key(self):
+    dataset = tf.data.Dataset.from_tensor_slices({
+        'foo': [-1.0, 0.0, 1.0, 2.0],
+        'bar': ['a', 'b', 'c', 'd'],
+        'qux': [-4, 1, 2, 3]
+    })
+    processed_dataset = preprocessors.filter_by_numeric_feature(
+        dataset, 'wug', min_allowed=0.0, max_allowed=0.0)
+    assert_dataset(processed_dataset, [])
+
+  def test_filter_by_numeric_feature_respects_numeric_limits(self):
+    dataset = tf.data.Dataset.from_tensor_slices({
+        'foo': [-1.0, 0.0, 1.0, 2.0],
+        'bar': ['a', 'b', 'c', 'd'],
+    })
+    processed_dataset = preprocessors.filter_by_numeric_feature(
+        dataset, 'foo', min_allowed=-0.5, max_allowed=1.5)
+    assert_dataset(processed_dataset, [
+        {
+            'foo': 0.0,
+            'bar': 'b',
+        }, {
+            'foo': 1.0,
+            'bar': 'c',
+        },
+    ])
+
+  def test_filter_by_numeric_feature_works_with_integer_values(self):
+    dataset = tf.data.Dataset.from_tensor_slices({
+        'bar': ['a', 'b', 'c', 'd'],
+        'qux': [-4, 1, 2, 3]
+    })
+    processed_dataset = preprocessors.filter_by_numeric_feature(
+        dataset, 'qux', min_allowed=1, max_allowed=2)
+    assert_dataset(processed_dataset, [
+        {
+            'bar': 'b',
+            'qux': 1
+        }, {
+            'bar': 'c',
+            'qux': 2
+        },
+    ])
+
+
 if __name__ == '__main__':
   absltest.main()
