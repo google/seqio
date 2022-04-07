@@ -72,17 +72,21 @@ seqio.TaskRegistry.add(
     "wmt19_ende",
     seqio.TfdsDataSource(tfds_name="wmt19_translate/de-en:1.0.0"),
     preprocessors=[
-        translate, seqio.preprocessors.tokenize, seqio.preprocessors.append_eos
+        functools.partial(
+            translate, source_language='en', target_language='de'),
+        seqio.preprocessors.tokenize, seqio.preprocessors.append_eos
     ],
     output_features={
-        "inputs": seqio.Feature(
-           seqio.SentencePieceVocabulary("/path/to/inputs/vocab"),
-           add_eos=False, dtype=tf.int32
-        ),
-        "targets": seqio.Feature(
-           seqio.SentencePieceVocabulary("/path/to/targets/vocab"),
-           add_eos=True, dtype=tf.int32
-        ),
+        'inputs':
+            seqio.Feature(
+                seqio.SentencePieceVocabulary('/path/to/inputs/vocab'),
+                add_eos=False,
+                dtype=tf.int32),
+        'targets':
+            seqio.Feature(
+                seqio.SentencePieceVocabulary('/path/to/targets/vocab'),
+                add_eos=True,
+                dtype=tf.int32),
     },
     metric_fns=[bleu])
 ```
@@ -149,7 +153,7 @@ def translate(dataset: tf.data.Dataset,
       {'de': 'Das ist gut.', 'en': 'That is good.'}
     If source_language = 'de', target_language = 'en', then the outputs will have
     the format:
-      {'inputs': 'translate German to English: Das ist gut.',
+      {'inputs': 'translate de to en: Das ist gut.',
       'targets': 'That is good.'}
 
     Args:
@@ -178,7 +182,7 @@ The TFDS dataset provides the dataset where each example has the form: `{'de':
 
 A few **important** notes:
 
-  1. When instantiating a `Task`, the preprocessor functions can have the following arguments: `dataset`, `output_features`, and `sequence_length`. The first (positional) dataset argument is always required. If an argument named `output_features` is provided, the [output feature mapping](#output-features) will be passed to the preprocessor. If `sequence_length` is provided, a mapping from feature name to its *maximum* final sequence length ([provided by the caller](#getting-a-preprocessed-dataset) will be passed -- any sequences that are too long after preprocessing will be automatically truncated. If a preprocessor function does have other arguments, they must have default values or be bound (e.g., with `functools.partial`) before instantiating the `Task`.
+  1. When instantiating a `Task`, the preprocessor functions can have the following arguments: `dataset`, `output_features`, and `sequence_length`. The first (positional) dataset argument is always required. If an argument named `output_features` is provided, the [output feature mapping](#output-features) will be passed to the preprocessor. If `sequence_length` is provided, a mapping from feature name to its *maximum* final sequence length ([provided by the caller](#getting-a-preprocessed-dataset) will be passed -- any sequences that are too long after preprocessing will be automatically truncated. If a preprocessor function does have other arguments, they must have default values or be bound (e.g., with `functools.partial` as used in `translate`) before instantiating the `Task`.
 
   1. Mapping functions operate on and return `tf.Tensor`s using TensorFlow operations, although it is possible to take advantage of automatic [AutoGraph](https://blog.tensorflow.org/2018/07/autograph-converts-python-into-tensorflow-graphs.html) conversion for `numpy` or use [`tf.py_function`](https://www.tensorflow.org/api_docs/python/tf/py_function) to wrap arbitrary Python code. See `tf.data.Dataset` [documentation](https://www.tensorflow.org/api_docs/python/tf/data/Dataset) for more details.
 
