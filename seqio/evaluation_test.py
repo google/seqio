@@ -36,8 +36,10 @@ Evaluator = evaluation.Evaluator
 tf.compat.v1.enable_eager_execution()
 
 
-def _string_label_to_class_id_postprocessor(
-    string_label, label_classes, default=-1, **unused_kwargs):
+def _string_label_to_class_id_postprocessor(string_label,
+                                            label_classes,
+                                            default=-1,
+                                            **unused_kwargs):
   """Returns index of string_label in label_classes or default if not found."""
   if string_label in label_classes:
     return label_classes.index(string_label)
@@ -51,8 +53,7 @@ def _sequence_accuracy_metric(targets, predictions):
 
 
 def _accuracy_metric(targets, predictions):
-  acc = 100 * np.mean(
-      [np.all(p == t) for p, t in zip(predictions, targets)])
+  acc = 100 * np.mean([np.all(p == t) for p, t in zip(predictions, targets)])
   return {"accuracy": acc}
 
 
@@ -61,13 +62,14 @@ def _sum_scores_metric(targets, scores):
   return {"total_score": (np.array(scores) * np.array(weights)).sum()}
 
 
-def register_dummy_task(
-    task_name: str,
-    dataset_fn: Callable[[str, bool, Optional[int]], tf.data.Dataset],
-    output_feature_names: Sequence[str] = ("inputs", "targets"),
-    preprocessor=preprocessors.append_eos,
-    postprocess_fn=None,
-    metrics_fn=None) -> dataset_providers.Task:
+def register_dummy_task(task_name: str,
+                        dataset_fn: Callable[[str, bool, Optional[int]],
+                                             tf.data.Dataset],
+                        output_feature_names: Sequence[str] = ("inputs",
+                                                               "targets"),
+                        preprocessor=preprocessors.append_eos,
+                        postprocess_fn=None,
+                        metrics_fn=None) -> dataset_providers.Task:
   """Register a dummy task for GetDatasetTest."""
   return dataset_providers.TaskRegistry.add(
       task_name,
@@ -83,11 +85,11 @@ def register_dummy_task(
       metric_fns=metrics_fn)
 
 
-def get_mocked_task(
-    name: str = "mocked_test",
-    predict_metric_fns: Sequence[Callable] = (_sequence_accuracy_metric,),
-    score_metric_fns: Sequence[Callable] = (),
-    target_field_name: str = "targets") -> mock.Mock:
+def get_mocked_task(name: str = "mocked_test",
+                    predict_metric_fns: Sequence[Callable] = (
+                        _sequence_accuracy_metric,),
+                    score_metric_fns: Sequence[Callable] = (),
+                    target_field_name: str = "targets") -> mock.Mock:
   task = mock.Mock()
   task.name = name
   task.score_metric_fns = list(score_metric_fns)
@@ -107,20 +109,23 @@ def _task_from_tensor_slices(name, tensor_slices, label_classes):
   return dataset_providers.Task(
       name,
       dataset_providers.FunctionDataSource(
-          lambda split, shuffle_files:
-          tf.data.Dataset.from_tensor_slices(tensor_slices),
+          lambda split, shuffle_files: tf.data.Dataset.from_tensor_slices(
+              tensor_slices),
           splits=("validation")),  # pytype: disable=wrong-arg-types
-      preprocessors=[utils.map_over_dataset(lambda ex: {
-          "inputs": tf.range(ex["inputs_lengths"]),
-          "targets": tf.range(ex["targets_lengths"]),
-          "targets_pretokenized": ex["targets_pretokenized"],
-      })],
+      preprocessors=[
+          utils.map_over_dataset(
+              lambda ex: {
+                  "inputs": tf.range(ex["inputs_lengths"]),
+                  "targets": tf.range(ex["targets_lengths"]),
+                  "targets_pretokenized": ex["targets_pretokenized"],
+              })
+      ],
       postprocess_fn=functools.partial(
-          _string_label_to_class_id_postprocessor,
-          label_classes=label_classes),
-      output_features={"inputs": dataset_providers.Feature(mock.Mock()),
-                       "targets": dataset_providers.Feature(mock.Mock())}
-  )
+          _string_label_to_class_id_postprocessor, label_classes=label_classes),
+      output_features={
+          "inputs": dataset_providers.Feature(mock.Mock()),
+          "targets": dataset_providers.Feature(mock.Mock())
+      })
 
 
 class EvaluationTest(tf.test.TestCase):
@@ -153,21 +158,17 @@ class EvaluationTest(tf.test.TestCase):
 
   def test_get_targets_and_examples(self):
     task1 = _task_from_tensor_slices(
-        "task1",
-        {
+        "task1", {
             "inputs_lengths": [3, 2],
             "targets_lengths": [2, 3],
             "targets_pretokenized": ["e6", "e5"],
-        },
-        ("e4", "e5", "e6"))
+        }, ("e4", "e5", "e6"))
     task2 = _task_from_tensor_slices(
-        "task2",
-        {
+        "task2", {
             "inputs_lengths": [1],
             "targets_lengths": [4],
             "targets_pretokenized": ["e4"],
-        },
-        ("e2", "e3", "e4"))
+        }, ("e2", "e3", "e4"))
     cached_targets, cached_task_datasets, max_sequence_length = (
         evaluation.get_targets_and_examples(
             [task1, task2],
@@ -180,12 +181,21 @@ class EvaluationTest(tf.test.TestCase):
     self.assertCountEqual(["task1", "task2"], cached_task_datasets.keys())
     self.assertLen(cached_task_datasets["task1"], 2)
     self.assertLen(cached_task_datasets["task2"], 1)
-    expected_task1_examples = [
-        {"inputs": [0, 1, 2], "targets": [0, 1], "targets_pretokenized": "e6"},
-        {"inputs": [0, 1], "targets": [0, 1, 2], "targets_pretokenized": "e5"}
-    ]
+    expected_task1_examples = [{
+        "inputs": [0, 1, 2],
+        "targets": [0, 1],
+        "targets_pretokenized": "e6"
+    }, {
+        "inputs": [0, 1],
+        "targets": [0, 1, 2],
+        "targets_pretokenized": "e5"
+    }]
     expected_task2_examples = [
-        {"inputs": [0], "targets": [0, 1, 2, 3], "targets_pretokenized": "e4"},
+        {
+            "inputs": [0],
+            "targets": [0, 1, 2, 3],
+            "targets_pretokenized": "e4"
+        },
     ]
     test_utils.assert_dataset(cached_task_datasets["task1"],
                               expected_task1_examples)
@@ -195,21 +205,17 @@ class EvaluationTest(tf.test.TestCase):
   def test_get_targets_and_examples_num_examples(self):
 
     task1 = _task_from_tensor_slices(
-        "task1",
-        {
+        "task1", {
             "inputs_lengths": [3, 2, 4],
             "targets_lengths": [2, 3, 4],
             "targets_pretokenized": ["e6", "e5", "e4"],
-        },
-        ("e4", "e5", "e6"))
+        }, ("e4", "e5", "e6"))
     task2 = _task_from_tensor_slices(
-        "task2",
-        {
+        "task2", {
             "inputs_lengths": [1],
             "targets_lengths": [4],
             "targets_pretokenized": ["e4"],
-        },
-        ("e2", "e3", "e4"))
+        }, ("e2", "e3", "e4"))
     cached_targets, cached_task_datasets, max_sequence_length = (
         evaluation.get_targets_and_examples(
             [task1, task2],
@@ -223,12 +229,21 @@ class EvaluationTest(tf.test.TestCase):
     self.assertCountEqual(["task1", "task2"], cached_task_datasets.keys())
     self.assertLen(cached_task_datasets["task1"], 2)
     self.assertLen(cached_task_datasets["task2"], 1)
-    expected_task1_examples = [
-        {"inputs": [0, 1, 2], "targets": [0, 1], "targets_pretokenized": "e6"},
-        {"inputs": [0, 1], "targets": [0, 1, 2], "targets_pretokenized": "e5"}
-    ]
+    expected_task1_examples = [{
+        "inputs": [0, 1, 2],
+        "targets": [0, 1],
+        "targets_pretokenized": "e6"
+    }, {
+        "inputs": [0, 1],
+        "targets": [0, 1, 2],
+        "targets_pretokenized": "e5"
+    }]
     expected_task2_examples = [
-        {"inputs": [0], "targets": [0, 1, 2, 3], "targets_pretokenized": "e4"},
+        {
+            "inputs": [0],
+            "targets": [0, 1, 2, 3],
+            "targets_pretokenized": "e4"
+        },
     ]
     test_utils.assert_dataset(cached_task_datasets["task1"],
                               expected_task1_examples)
@@ -248,14 +263,25 @@ class EvaluationTest(tf.test.TestCase):
     self.assertCountEqual(["task1", "task2"], cached_task_datasets.keys())
     self.assertLen(cached_task_datasets["task1"], 3)
     self.assertLen(cached_task_datasets["task2"], 1)
-    expected_task1_examples = [
-        {"inputs": [0, 1, 2], "targets": [0, 1], "targets_pretokenized": "e6"},
-        {"inputs": [0, 1], "targets": [0, 1, 2], "targets_pretokenized": "e5"},
-        {"inputs": [0, 1, 2, 3], "targets": [0, 1, 2, 3],
-         "targets_pretokenized": "e4"}
-    ]
+    expected_task1_examples = [{
+        "inputs": [0, 1, 2],
+        "targets": [0, 1],
+        "targets_pretokenized": "e6"
+    }, {
+        "inputs": [0, 1],
+        "targets": [0, 1, 2],
+        "targets_pretokenized": "e5"
+    }, {
+        "inputs": [0, 1, 2, 3],
+        "targets": [0, 1, 2, 3],
+        "targets_pretokenized": "e4"
+    }]
     expected_task2_examples = [
-        {"inputs": [0], "targets": [0, 1, 2, 3], "targets_pretokenized": "e4"},
+        {
+            "inputs": [0],
+            "targets": [0, 1, 2, 3],
+            "targets_pretokenized": "e4"
+        },
     ]
     test_utils.assert_dataset(cached_task_datasets["task1"],
                               expected_task1_examples)
@@ -263,6 +289,7 @@ class EvaluationTest(tf.test.TestCase):
                               expected_task2_examples)
 
   def test_get_targets_and_examples_nondefault_sequence_dim(self):
+
     def _task_from_tensor_slices_rank2(name, tensor_slices, label_classes):
       return dataset_providers.Task(
           name,
@@ -336,8 +363,10 @@ class EvaluationTest(tf.test.TestCase):
     test_utils.assert_dataset(cached_task_datasets["task2"],
                               expected_task2_examples)
 
-  def _evaluate_single_task(
-      self, task, loggers=(), target_field_name="targets"):
+  def _evaluate_single_task(self,
+                            task,
+                            loggers=(),
+                            target_field_name="targets"):
     id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
     mock_vocab = task.output_features[target_field_name].vocabulary
     # Define a dummy decoding logic.
@@ -375,7 +404,9 @@ class EvaluationTest(tf.test.TestCase):
                  (2, 3)] if task.score_metric_fns else self.uncalled_fn)
 
       all_metrics, _, _ = evaluator.evaluate(
-          compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn,
+          compute_metrics=True,
+          predict_fn=predict_fn,
+          score_fn=score_fn,
           step=42)
       return all_metrics.result(), evaluator
 
@@ -383,8 +414,8 @@ class EvaluationTest(tf.test.TestCase):
     task = get_mocked_task(
         predict_metric_fns=[_sequence_accuracy_metric], score_metric_fns=[])
     all_metrics, _ = self._evaluate_single_task(task)
-    self.assertDictClose(
-        {"sequence_accuracy": 2.0 / 3 * 100}, all_metrics[task.name])
+    self.assertDictClose({"sequence_accuracy": 2.0 / 3 * 100},
+                         all_metrics[task.name])
 
   def test_evaluate_single_task_score(self):
     task = get_mocked_task(
@@ -402,11 +433,12 @@ class EvaluationTest(tf.test.TestCase):
 
   def test_evaluate_single_task_predict_target_field_name(self):
     task = get_mocked_task(
-        predict_metric_fns=[_sequence_accuracy_metric], score_metric_fns=[],
+        predict_metric_fns=[_sequence_accuracy_metric],
+        score_metric_fns=[],
         target_field_name="foo")
     all_metrics, _ = self._evaluate_single_task(task, target_field_name="foo")
-    self.assertDictClose(
-        {"sequence_accuracy": 2.0 / 3 * 100}, all_metrics[task.name])
+    self.assertDictClose({"sequence_accuracy": 2.0 / 3 * 100},
+                         all_metrics[task.name])
 
   def test_evaluate_single_task_with_loggers(self):
     loggers = (mock.Mock(), mock.Mock())
@@ -422,7 +454,9 @@ class EvaluationTest(tf.test.TestCase):
     }
     for logger in loggers:
       logger.assert_called_once_with(
-          task_name=task.name, step=42, metrics=metrics,
+          task_name=task.name,
+          step=42,
+          metrics=metrics,
           dataset=evaluator._cached_task_datasets[task.name],
           targets=evaluator._cached_targets[task.name],
           inferences={
@@ -433,8 +467,11 @@ class EvaluationTest(tf.test.TestCase):
 
   def test_initialize_loggers(self):
     task_name = "initialize_loggers"
-    ds = tf.data.Dataset.from_tensors(
-        {"inputs": [7, 8], "targets": [3, 9], "targets_pretokenized": "ex 1"})
+    ds = tf.data.Dataset.from_tensors({
+        "inputs": [7, 8],
+        "targets": [3, 9],
+        "targets_pretokenized": "ex 1"
+    })
     dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(
         task_name,
@@ -550,9 +587,7 @@ class EvaluationTest(tf.test.TestCase):
   def test_evaluate_mixture(self):
     id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
 
-    task1 = get_mocked_task(
-        name="task1",
-        score_metric_fns=[_sum_scores_metric])
+    task1 = get_mocked_task(name="task1", score_metric_fns=[_sum_scores_metric])
     mock_vocab1 = task1.output_features["targets"].vocabulary
     mock_vocab1.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
 
@@ -627,8 +662,11 @@ class EvaluationTest(tf.test.TestCase):
 
   def test_short_inputs_targets(self):
     task_name = "short_inputs_targets"
-    ds = tf.data.Dataset.from_tensors(
-        {"inputs": [7, 8], "targets": [3, 9], "targets_pretokenized": "ex 1"})
+    ds = tf.data.Dataset.from_tensors({
+        "inputs": [7, 8],
+        "targets": [3, 9],
+        "targets_pretokenized": "ex 1"
+    })
     dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(
         task_name,
@@ -730,8 +768,11 @@ class EvaluationTest(tf.test.TestCase):
 
   def test_requires_sequence_length(self):
     task_name = "requires_sequence_length"
-    ds = tf.data.Dataset.from_tensors(
-        {"inputs": [7, 8], "targets": [3, 9], "targets_pretokenized": "ex 1"})
+    ds = tf.data.Dataset.from_tensors({
+        "inputs": [7, 8],
+        "targets": [3, 9],
+        "targets_pretokenized": "ex 1"
+    })
     dataset_fn = lambda split, shuffle_files, seed=None: ds
 
     def preprocessor_with_sequence_length(dataset, sequence_length):
@@ -748,8 +789,7 @@ class EvaluationTest(tf.test.TestCase):
     feature_converter = mock.Mock(pack=False)
 
     with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        "Preprocessor 'preprocessor_with_sequence_length' in task "
+        ValueError, "Preprocessor 'preprocessor_with_sequence_length' in task "
         "'requires_sequence_length' has a `sequence_length` argument, making "
         "it incompatible with automatic sequence length detection. Pass a "
         "valid `sequence_length` to `Evaluator` and try again."):
@@ -760,8 +800,11 @@ class EvaluationTest(tf.test.TestCase):
 
   def test_preprocessor_with_optional_sequence_length(self):
     task_name = "preprocessor_with_optional_sequence_length"
-    ds = tf.data.Dataset.from_tensors(
-        {"inputs": [7, 8], "targets": [3, 9], "targets_pretokenized": "ex 1"})
+    ds = tf.data.Dataset.from_tensors({
+        "inputs": [7, 8],
+        "targets": [3, 9],
+        "targets_pretokenized": "ex 1"
+    })
     dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(
         task_name,
@@ -814,8 +857,7 @@ class EvaluationTest(tf.test.TestCase):
         lambda ds, length: utils.trim_and_pad_dataset(ds, {
             "inputs": 4,
             "targets": 4
-        })
-    )
+        }))
     evaluator = Evaluator(
         mixture_or_task_name=task_name,
         feature_converter=feature_converter,
@@ -839,16 +881,17 @@ class EvaluationTest(tf.test.TestCase):
         "targets_pretokenized": b"ex 2"
     }]
 
-    test_utils.assert_dataset(
-        evaluator._cached_task_datasets[task_name], expected_task_examples)
+    test_utils.assert_dataset(evaluator._cached_task_datasets[task_name],
+                              expected_task_examples)
 
     # _cached_model_datasets are enumerated. Remove the index for assertion.
     eval_ds = evaluator._cached_model_datasets[task_name].map(lambda i, ds: ds)
     test_utils.assert_dataset(eval_ds, expected_examples)
     self.assertEqual(evaluator.cached_targets[task_name], ["ex 1", "ex 2"])
-    self.assertDictEqual(
-        evaluator.model_feature_shapes,
-        {"inputs": (4,), "targets": (4,)})
+    self.assertDictEqual(evaluator.model_feature_shapes, {
+        "inputs": (4,),
+        "targets": (4,)
+    })
 
   def test_predict_fn_called_with_cached_model_datasets(self):
     eval_ds = tf.data.Dataset.range(10)
@@ -868,7 +911,8 @@ class EvaluationTest(tf.test.TestCase):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
       predict_fn = mock.Mock(return_value=[(0, 1)])
       evaluator.evaluate(
-          compute_metrics=False, predict_fn=predict_fn,
+          compute_metrics=False,
+          predict_fn=predict_fn,
           score_fn=self.uncalled_fn)
       predict_fn.assert_called_with(eval_ds)
 
@@ -917,8 +961,7 @@ class EvaluationTest(tf.test.TestCase):
     task = get_mocked_task(
         predict_metric_fns=[_accuracy_metric, _accuracy_metric])
     with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        "Duplicate metric key 'accuracy' in Task 'mocked_test'."):
+        ValueError, "Duplicate metric key 'accuracy' in Task 'mocked_test'."):
       self._evaluate_single_task(task)
 
     task = get_mocked_task(
@@ -930,10 +973,11 @@ class EvaluationTest(tf.test.TestCase):
 
     task = get_mocked_task(
         predict_metric_fns=[_accuracy_metric],
-        score_metric_fns=[lambda *_: {"accuracy": 0}])
+        score_metric_fns=[lambda *_: {
+            "accuracy": 0
+        }])
     with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        "Duplicate metric key 'accuracy' in Task 'mocked_test'."):
+        ValueError, "Duplicate metric key 'accuracy' in Task 'mocked_test'."):
       self._evaluate_single_task(task)
 
   def test_task_with_no_metrics_fn(self):
@@ -945,8 +989,9 @@ class EvaluationTest(tf.test.TestCase):
         lambda: x, output_types=dtypes, output_shapes=shapes)
     dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(task_name, dataset_fn=dataset_fn, metrics_fn=[])
-    evaluator = Evaluator(mixture_or_task_name=task_name,
-                          feature_converter=evaluation.EncDecFeatureConverter())
+    evaluator = Evaluator(
+        mixture_or_task_name=task_name,
+        feature_converter=evaluation.EncDecFeatureConverter())
     all_metrics, all_output_tokens, all_output_scores = evaluator.evaluate(
         compute_metrics=True, predict_fn=mock.Mock(), score_fn=self.uncalled_fn)
     self.assertEqual({}, all_metrics.result())
@@ -962,8 +1007,9 @@ class EvaluationTest(tf.test.TestCase):
         lambda: x, output_types=dtypes, output_shapes=shapes)
     dataset_fn = lambda split, shuffle_files, seed=None: ds
     register_dummy_task(task_name, dataset_fn=dataset_fn, metrics_fn=[])
-    evaluator = Evaluator(mixture_or_task_name=task_name,
-                          feature_converter=evaluation.EncDecFeatureConverter())
+    evaluator = Evaluator(
+        mixture_or_task_name=task_name,
+        feature_converter=evaluation.EncDecFeatureConverter())
     all_metrics, all_output_tokens, all_output_scores = evaluator.evaluate(
         compute_metrics=False,
         predict_fn=mock.Mock(),
