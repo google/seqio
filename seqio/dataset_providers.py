@@ -40,7 +40,6 @@ import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 import typing_extensions
 
-
 _DEFAULT_FEATURE_KEYS = ["inputs", "targets"]
 
 _VALID_TASK_NAME_REGEX = re.compile(r"^[\w\d\.\:_]+$")
@@ -87,16 +86,14 @@ class DatasetProviderBase(metaclass=abc.ABCMeta):
     raise NotImplementedError
 
   @abc.abstractmethod
-  def get_dataset(
-      self,
-      sequence_length: int,
-      split: str,
-      use_cached: bool = False,
-      shuffle: bool = True,
-      seed: Optional[int] = None,
-      shard_info: Optional[ShardInfo] = None,
-      num_epochs: int = 1
-  ) -> tf.data.Dataset:
+  def get_dataset(self,
+                  sequence_length: int,
+                  split: str,
+                  use_cached: bool = False,
+                  shuffle: bool = True,
+                  seed: Optional[int] = None,
+                  shard_info: Optional[ShardInfo] = None,
+                  num_epochs: int = 1) -> tf.data.Dataset:
     """Returns the requested tf.data.Dataset."""
     raise NotImplementedError
 
@@ -121,27 +118,19 @@ class DatasetProviderRegistry(object):
     if name in cls._REGISTRY:
       raise ValueError("Attempting to register duplicate provider: %s" % name)
     if not isinstance(provider, cls._PROVIDER_TYPE):
-      raise ValueError(
-          "Attempting to register a class of an invalid type. "
-          "Expecting instance of %s, got %s" %
-          (cls._PROVIDER_TYPE, type(provider).__name__))
+      raise ValueError("Attempting to register a class of an invalid type. "
+                       "Expecting instance of %s, got %s" %
+                       (cls._PROVIDER_TYPE, type(provider).__name__))
 
     cls._REGISTRY[name] = provider
 
   @classmethod
-  def add(
-      cls,
-      name: str,
-      provider_cls,
-      *provider_args,
-      **provider_kwargs
-  ):
+  def add(cls, name: str, provider_cls, *provider_args, **provider_kwargs):
     """Instantiates and adds provider to the registry."""
     if not issubclass(provider_cls, cls._PROVIDER_TYPE):
-      raise ValueError(
-          "Attempting to register a class of an invalid type. "
-          "Expecting instance of %s, got %s" %
-          (cls._PROVIDER_TYPE, provider_cls))
+      raise ValueError("Attempting to register a class of an invalid type. "
+                       "Expecting instance of %s, got %s" %
+                       (cls._PROVIDER_TYPE, provider_cls))
     provider = provider_cls(*provider_args, **provider_kwargs)
     cls.add_provider(name, provider)
     return provider
@@ -170,20 +159,23 @@ class DatasetProviderRegistry(object):
     cls._REGISTRY = {}
 
   @classmethod
-  def get_dataset(
-      cls,
-      name,
-      sequence_length,
-      split,
-      use_cached=False,
-      shuffle=True,
-      seed=None,
-      shard_info=None,
-      num_epochs=1):
+  def get_dataset(cls,
+                  name,
+                  sequence_length,
+                  split,
+                  use_cached=False,
+                  shuffle=True,
+                  seed=None,
+                  shard_info=None,
+                  num_epochs=1):
     """Returns the requested tf.data.Dataset."""
     return cls.get(name).get_dataset(
-        sequence_length=sequence_length, split=split, use_cached=use_cached,
-        shuffle=shuffle, seed=seed, shard_info=shard_info,
+        sequence_length=sequence_length,
+        split=split,
+        use_cached=use_cached,
+        shuffle=shuffle,
+        seed=seed,
+        shard_info=shard_info,
         num_epochs=num_epochs)
 
 
@@ -215,13 +207,11 @@ class DataSourceInterface(typing_extensions.Protocol):
   def list_shards(self, split: str) -> Sequence[str]:
     ...
 
-  def get_dataset(
-      self,
-      split: str,
-      shuffle: bool = True,
-      seed: Optional[int] = None,
-      shard_info: Optional[ShardInfo] = None
-    ) -> tf.data.Dataset:
+  def get_dataset(self,
+                  split: str,
+                  shuffle: bool = True,
+                  seed: Optional[int] = None,
+                  shard_info: Optional[ShardInfo] = None) -> tf.data.Dataset:
     ...
 
 
@@ -232,11 +222,10 @@ class DataSource(DatasetProviderBase):
   those overidden below.
   """
 
-  def __init__(
-      self,
-      splits: Iterable[str],
-      num_input_examples: Optional[Mapping[str, int]] = None,
-      caching_permitted: bool = True):
+  def __init__(self,
+               splits: Iterable[str],
+               num_input_examples: Optional[Mapping[str, int]] = None,
+               caching_permitted: bool = True):
     self._splits = tuple(splits)
     self._num_input_examples = (
         dict(num_input_examples) if num_input_examples is not None else None)
@@ -271,13 +260,11 @@ class DataSource(DatasetProviderBase):
     raise NotImplementedError
 
   @abc.abstractmethod
-  def get_dataset(
-      self,
-      split: str,
-      shuffle: bool = True,
-      seed: Optional[int] = None,
-      shard_info: Optional[ShardInfo] = None
-    ) -> tf.data.Dataset:
+  def get_dataset(self,
+                  split: str,
+                  shuffle: bool = True,
+                  seed: Optional[int] = None,
+                  shard_info: Optional[ShardInfo] = None) -> tf.data.Dataset:
     """Overrides base class to add shard identifier and remove use_cached.
 
     Args:
@@ -308,16 +295,13 @@ def _validate_args(fn, expected_pos_args):
   expected_pos_args = tuple(expected_pos_args)
   actual_args = tuple(argspec.args)
   if actual_args[:len(expected_pos_args)] != expected_pos_args:
-    raise ValueError(
-        "'%s' must have positional args %s, got: %s" % (
-            _get_name(fn), expected_pos_args, actual_args))
-  actual_pos_args = tuple(
-      argspec.args[:-len(argspec.defaults)]
-      if argspec.defaults else argspec.args)
+    raise ValueError("'%s' must have positional args %s, got: %s" %
+                     (_get_name(fn), expected_pos_args, actual_args))
+  actual_pos_args = tuple(argspec.args[:-len(argspec.defaults)] if argspec
+                          .defaults else argspec.args)
   if actual_pos_args != expected_pos_args[:len(actual_pos_args)]:
-    raise ValueError(
-        "'%s' may only have positional args %s, got: %s" % (
-            _get_name(fn), expected_pos_args, actual_pos_args))
+    raise ValueError("'%s' may only have positional args %s, got: %s" %
+                     (_get_name(fn), expected_pos_args, actual_pos_args))
 
 
 class DatasetFnCallable(typing_extensions.Protocol):
@@ -332,13 +316,11 @@ class DatasetFnCallable(typing_extensions.Protocol):
 class FunctionDataSource(DataSource):
   """A `DataSource` that uses a function to provide the input data."""
 
-  def __init__(
-      self,
-      dataset_fn: DatasetFnCallable,
-      splits: Iterable[str],
-      num_input_examples: Optional[Mapping[str, int]] = None,
-      caching_permitted: bool = True
-  ):
+  def __init__(self,
+               dataset_fn: DatasetFnCallable,
+               splits: Iterable[str],
+               num_input_examples: Optional[Mapping[str, int]] = None,
+               caching_permitted: bool = True):
     """FunctionDataSource constructor.
 
     Args:
@@ -363,13 +345,11 @@ class FunctionDataSource(DataSource):
   def supports_arbitrary_sharding(self) -> bool:
     return False
 
-  def get_dataset(
-      self,
-      split: str,
-      shuffle: bool = True,
-      seed: Optional[int] = None,
-      shard_info: Optional[ShardInfo] = None
-  ) -> tf.data.Dataset:
+  def get_dataset(self,
+                  split: str,
+                  shuffle: bool = True,
+                  seed: Optional[int] = None,
+                  shard_info: Optional[ShardInfo] = None) -> tf.data.Dataset:
     if shard_info and shard_info.num_shards > 1:
       raise ValueError(
           "`FunctionDataSource` does not support low-level sharding. Use "
@@ -396,7 +376,7 @@ class TfdsDataSource(DataSource):
       splits: Optional[Union[Iterable[str], Mapping[str, str]]] = None,
       caching_permitted: bool = True,
       decoders: Optional[tfds.typing.TreeDict[tfds.decode.Decoder]] = None,
-    ):
+  ):
     """TfdsTask constructor.
 
     Args:
@@ -443,13 +423,11 @@ class TfdsDataSource(DataSource):
   def supports_arbitrary_sharding(self) -> bool:
     return False
 
-  def get_dataset(
-      self,
-      split: str,
-      shuffle: bool = True,
-      seed: Optional[int] = None,
-      shard_info: Optional[ShardInfo] = None
-  ) -> tf.data.Dataset:
+  def get_dataset(self,
+                  split: str,
+                  shuffle: bool = True,
+                  seed: Optional[int] = None,
+                  shard_info: Optional[ShardInfo] = None) -> tf.data.Dataset:
     return self.tfds_dataset.load(
         split, shuffle_files=shuffle, seed=seed, shard_info=shard_info)
 
@@ -458,10 +436,12 @@ class TfdsDataSource(DataSource):
     return self.tfds_dataset.size(split)
 
   def list_shards(self, split: str) -> Sequence[str]:
+
     def _get_filename(info):
       if isinstance(info, dict):  # this is true for unit tests
         return info["filename"]
       return info.filename  # TFDS FileInstruction
+
     return [_get_filename(info) for info in self.tfds_dataset.files(split)]
 
 
@@ -503,20 +483,16 @@ class FileDataSource(DataSource):
   def supports_arbitrary_sharding(self) -> bool:
     return False
 
-  def get_dataset(
-      self,
-      split: str,
-      shuffle: bool = True,
-      seed: Optional[int] = None,
-      shard_info: Optional[ShardInfo] = None
-    ) -> tf.data.Dataset:
+  def get_dataset(self,
+                  split: str,
+                  shuffle: bool = True,
+                  seed: Optional[int] = None,
+                  shard_info: Optional[ShardInfo] = None) -> tf.data.Dataset:
     files = self.list_shards(split)
 
     if not files:
-      raise ValueError(
-          "No file is found for the file pattern: "
-          f"{self._split_to_filepattern[split]}."
-      )
+      raise ValueError("No file is found for the file pattern: "
+                       f"{self._split_to_filepattern[split]}.")
     files_ds = tf.data.Dataset.from_tensor_slices(np.array(files, dtype=str))
 
     if shard_info:
@@ -680,6 +656,7 @@ class ProtoDataSource(FileDataSource):
 def _rename_plaintext_to_pretokenized(
     dataset: tf.data.Dataset) -> tf.data.Dataset:
   """Rename cached _plaintext features to new _pretokenized standard."""
+
   def _rename(inputs):
     outputs = {}
     for k, v in inputs.items():
@@ -687,8 +664,8 @@ def _rename_plaintext_to_pretokenized(
         k = k[:-len("plaintext")] + "pretokenized"
       outputs[k] = v
     return outputs
-  return dataset.map(
-      _rename, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+  return dataset.map(_rename, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
 
 class _CachedDataSource(FileDataSource):
@@ -747,9 +724,9 @@ class _CachedDataSource(FileDataSource):
       return ds
 
     split_to_filepattern = {
-        split: "%s-*-of-*%d" % (
-            utils.get_cached_tfrecord_prefix(cache_dir, split),
-            split_info["num_shards"])
+        split:
+            "%s-*-of-*%d" % (utils.get_cached_tfrecord_prefix(
+                cache_dir, split), split_info["num_shards"])
     }
 
     super().__init__(
@@ -833,8 +810,8 @@ class Task(DatasetProviderBase):
     """
     if not _VALID_TASK_NAME_REGEX.match(name):
       raise ValueError(
-          "Task name '%s' contains invalid characters. Must match regex: %s" % (
-              name, _VALID_TASK_NAME_REGEX.pattern))
+          "Task name '%s' contains invalid characters. Must match regex: %s" %
+          (name, _VALID_TASK_NAME_REGEX.pattern))
 
     metric_fns = metric_fns or []
     self._predict_metric_fns = []
@@ -842,8 +819,7 @@ class Task(DatasetProviderBase):
     for metric_fn in metric_fns:
       pos_args = tuple(
           key for key, param in inspect.signature(metric_fn).parameters.items()
-          if param.default == inspect.Parameter.empty
-      )
+          if param.default == inspect.Parameter.empty)
       if pos_args == ("targets", "scores"):
         self._score_metric_fns.append(metric_fn)
       elif pos_args == ("targets", "predictions"):
@@ -898,8 +874,7 @@ class Task(DatasetProviderBase):
     self._shuffle_buffer_size = shuffle_buffer_size
 
     self._output_features = collections.OrderedDict(
-        sorted(list(output_features.items()))
-    )
+        sorted(list(output_features.items())))
 
   @property
   def name(self) -> str:
@@ -963,9 +938,8 @@ class Task(DatasetProviderBase):
       dataset = prep_fn(dataset, **kwargs)
     return dataset
 
-  def _validate_preprocessing(
-      self, dataset: tf.data.Dataset
-    ) -> tf.data.Dataset:
+  def _validate_preprocessing(self,
+                              dataset: tf.data.Dataset) -> tf.data.Dataset:
     """Validates preprocessed dataset, raising Exceptions if needed.
 
     Args:
@@ -999,11 +973,11 @@ class Task(DatasetProviderBase):
     return dataset
 
   def _trim_output_features(
-      self,
-      dataset: tf.data.Dataset,
+      self, dataset: tf.data.Dataset,
       sequence_length: Optional[Mapping[str, Union[int, Sequence[int]]]]
   ) -> tf.data.Dataset:
     """Trim output features to sequence length."""
+
     def _trim(k: str, v: tf.Tensor) -> tf.Tensor:
       if (k not in self.output_features or not sequence_length or
           k not in sequence_length or sequence_length[k] is None):
@@ -1020,11 +994,9 @@ class Task(DatasetProviderBase):
         lambda ex: {k: _trim(k, v) for k, v in ex.items()},
         num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-  def preprocess_precache(
-      self,
-      dataset: tf.data.Dataset,
-      seed: Optional[int] = None
-    ) -> tf.data.Dataset:
+  def preprocess_precache(self,
+                          dataset: tf.data.Dataset,
+                          seed: Optional[int] = None) -> tf.data.Dataset:
     """Runs preprocessing steps before the optional CacheDatasetPlaceholder."""
     if not self.supports_caching:
       return dataset
@@ -1035,12 +1007,10 @@ class Task(DatasetProviderBase):
           self._preprocessors[:self._cache_step_idx],
       )
 
-  def preprocess_postcache(
-      self,
-      dataset: tf.data.Dataset,
-      sequence_length: Optional[Mapping[str, int]],
-      seed: Optional[int] = None
-    ) -> tf.data.Dataset:
+  def preprocess_postcache(self,
+                           dataset: tf.data.Dataset,
+                           sequence_length: Optional[Mapping[str, int]],
+                           seed: Optional[int] = None) -> tf.data.Dataset:
     """Runs preprocessing steps after the optional CacheDatasetPlaceholder.
 
     Args:
@@ -1082,8 +1052,8 @@ class Task(DatasetProviderBase):
             logging.info("'%s' is cached at %s.", self.name, self.cache_dir)
             break
         except tf.errors.PermissionDeniedError:
-          logging.warning(
-              "Permission denied for global cache folder: %s", cache_dir)
+          logging.warning("Permission denied for global cache folder: %s",
+                          cache_dir)
         except tf.errors.FailedPreconditionError as e:
           logging.warning(
               "Failed precondition for global cache folder: %s with %r",
@@ -1121,23 +1091,21 @@ class Task(DatasetProviderBase):
     if split not in self._stats:
       stats_path = utils.get_cached_stats_path(self.cache_dir, split)
       if not tf.io.gfile.exists(stats_path):
-        raise ValueError(
-            "Stats do not exist for '%s' split: %s" % (self.name, split))
+        raise ValueError("Stats do not exist for '%s' split: %s" %
+                         (self.name, split))
       with tf.io.gfile.GFile(stats_path) as f:
         self._stats[split] = json.load(f)
     return self._stats[split]
 
-  def get_dataset(
-      self,
-      sequence_length: Optional[Mapping[str, int]],
-      split: str = tfds.Split.TRAIN,
-      use_cached: bool = False,
-      shuffle: bool = True,
-      shuffle_buffer_size: Optional[int] = None,
-      seed: Optional[int] = None,
-      shard_info: Optional[ShardInfo] = None,
-      num_epochs: Optional[int] = 1
-  ) -> tf.data.Dataset:
+  def get_dataset(self,
+                  sequence_length: Optional[Mapping[str, int]],
+                  split: str = tfds.Split.TRAIN,
+                  use_cached: bool = False,
+                  shuffle: bool = True,
+                  shuffle_buffer_size: Optional[int] = None,
+                  seed: Optional[int] = None,
+                  shard_info: Optional[ShardInfo] = None,
+                  num_epochs: Optional[int] = 1) -> tf.data.Dataset:
     """Returns a tf.data.Dataset from cache or generated on the fly.
 
     Args:
@@ -1207,9 +1175,8 @@ class Task(DatasetProviderBase):
          self.get_cached_stats(split)["examples"] < _MAX_EXAMPLES_TO_MEM_CACHE)
         or (self.num_input_examples(split) and
             self.num_input_examples(split) < _MAX_EXAMPLES_TO_MEM_CACHE)):
-      logging.info(
-          "Automatically caching small dataset in memory: '%s:%s'",
-          self.name, split)
+      logging.info("Automatically caching small dataset in memory: '%s:%s'",
+                   self.name, split)
       ds = ds.cache()
 
     if not use_cached:
@@ -1263,15 +1230,15 @@ class TaskRegistry(DatasetProviderRegistry):
   _PROVIDER_TYPE = Task
 
   @classmethod
-  def add(
-      cls,
-      name: str,
-      source: DataSourceInterface,
-      output_features: Mapping[str, Feature],
-      preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
-      postprocess_fn: Optional[Callable[..., Any]] = None,
-      metric_fns: Optional[Sequence[MetricFnCallable]] = None,
-      **kwargs) -> Task:
+  def add(cls,
+          name: str,
+          source: DataSourceInterface,
+          output_features: Mapping[str, Feature],
+          preprocessors: Optional[Sequence[Callable[...,
+                                                    tf.data.Dataset]]] = None,
+          postprocess_fn: Optional[Callable[..., Any]] = None,
+          metric_fns: Optional[Sequence[MetricFnCallable]] = None,
+          **kwargs) -> Task:
     """See `Task` constructor for docstring."""
     return super().add(name, Task, name, source, output_features, preprocessors,
                        postprocess_fn, metric_fns, **kwargs)
@@ -1346,8 +1313,7 @@ class Mixture(DatasetProviderBase):
 
     if len(set(tuple(t.output_features) for t in self.tasks)) != 1:
       raise ValueError(
-          "All Tasks in a Mixture must have the same output features."
-      )
+          "All Tasks in a Mixture must have the same output features.")
 
   @property
   def name(self) -> str:
@@ -1360,8 +1326,9 @@ class Mixture(DatasetProviderBase):
 
   @property
   def total_rate(self) -> float:
-    return sum(float(rate(TaskRegistry.get(name)) if callable(rate) else rate)
-               for name, rate in self._task_to_rate.items())
+    return sum(
+        float(rate(TaskRegistry.get(name)) if callable(rate) else rate)
+        for name, rate in self._task_to_rate.items())
 
   def get_rate(self, task: Task) -> float:
     """Computes the mixing rate for the given task."""
@@ -1404,8 +1371,7 @@ class Mixture(DatasetProviderBase):
           )
         if task.output_features[name].dtype != feature.dtype:
           raise ValueError(
-              "Features across tasks in a mixture must use the same dtype."
-          )
+              "Features across tasks in a mixture must use the same dtype.")
 
   def get_dataset(
       self,
@@ -1418,8 +1384,7 @@ class Mixture(DatasetProviderBase):
       num_epochs: Optional[int] = None,
       copy_pretokenized: bool = False,
       compute_stats_empirically: bool = False,
-      passthrough_features: Optional[Sequence[str]] = None
-  ) -> tf.data.Dataset:
+      passthrough_features: Optional[Sequence[str]] = None) -> tf.data.Dataset:
     """Returns the dataset of mixed tasks using the object-specified rates.
 
     Args:
@@ -1449,9 +1414,8 @@ class Mixture(DatasetProviderBase):
     tasks = []
     for task in self.tasks:
       if split not in task.splits:
-        logging.warning(
-            "Task %s has no '%s' split, skipping.", task.name, split
-        )
+        logging.warning("Task %s has no '%s' split, skipping.", task.name,
+                        split)
         continue
       tasks.append(task)
     if not tasks:
@@ -1476,9 +1440,11 @@ class Mixture(DatasetProviderBase):
             shuffle=shuffle,
             seed=seed,
             shard_info=shard_info,
-            num_epochs=num_epochs)
-        .map(filter_features, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        for task in tasks]
+            num_epochs=num_epochs).map(
+                filter_features,
+                num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        for task in tasks
+    ]
     rates = [self.get_rate(task) for task in tasks]
     # Sample from the dataset with the rates rates
     if seed is not None:
@@ -1513,9 +1479,8 @@ def _log_padding_fractions(dataset, sequence_length, num_examples=100):
     logging.info("%s padding fraction = %g", k, padding_frac[k])
 
 
-def _log_mixing_proportions(
-    tasks, datasets, rates, mixed_dataset,
-    sequence_length, compute_stats_empirically):
+def _log_mixing_proportions(tasks, datasets, rates, mixed_dataset,
+                            sequence_length, compute_stats_empirically):
   """Log information about the mixing proportions.
 
   Called from Mixture.get_dataset.
@@ -1528,11 +1493,13 @@ def _log_mixing_proportions(
     sequence_length: dict from string to int (packed lengths)
     compute_stats_empirically: a boolean - does not work on TPU
   """
+
   def _normalize(l):
     denom = sum(l)
     if not denom:
       return l
     return [x / denom for x in l]
+
   # compute some stats about the mixture
   examples_fraction = _normalize(rates)
   if compute_stats_empirically:
@@ -1550,6 +1517,7 @@ def _log_mixing_proportions(
       mean_inputs_length.append(inputs_sum / float(stats_examples))
       mean_targets_length.append(targets_sum / float(stats_examples))
   else:
+
     def _estimated_mean_length(task, key):
       if key not in sequence_length:
         return 0
@@ -1565,23 +1533,22 @@ def _log_mixing_proportions(
       else:
         return 0
 
-    mean_inputs_length = [_estimated_mean_length(task, "inputs")
-                          for task in tasks]
-    mean_targets_length = [_estimated_mean_length(task, "targets")
-                           for task in tasks]
+    mean_inputs_length = [
+        _estimated_mean_length(task, "inputs") for task in tasks
+    ]
+    mean_targets_length = [
+        _estimated_mean_length(task, "targets") for task in tasks
+    ]
   inputs_fraction = _normalize(
       [l * r for l, r in zip(mean_inputs_length, rates)])
   targets_fraction = _normalize(
       [l * r for l, r in zip(mean_targets_length, rates)])
-  logging.info("%12s %12s %12s %12s %12s %12s %s",
-               "rate", "ex.frac.", "inp.frac.", "tgt.frac.",
-               "inp.len.", "tgt.len", "task")
+  logging.info("%12s %12s %12s %12s %12s %12s %s", "rate", "ex.frac.",
+               "inp.frac.", "tgt.frac.", "inp.len.", "tgt.len", "task")
   for i in range(len(rates)):
-    logging.info("%12g %12g %12g %12g %12g %12g %s",
-                 rates[i], examples_fraction[i],
-                 inputs_fraction[i], targets_fraction[i],
-                 mean_inputs_length[i], mean_targets_length[i],
-                 tasks[i].name)
+    logging.info("%12g %12g %12g %12g %12g %12g %s", rates[i],
+                 examples_fraction[i], inputs_fraction[i], targets_fraction[i],
+                 mean_inputs_length[i], mean_targets_length[i], tasks[i].name)
   if compute_stats_empirically:
     _log_padding_fractions(mixed_dataset, sequence_length)
 

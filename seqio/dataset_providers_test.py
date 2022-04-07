@@ -44,10 +44,13 @@ create_default_dataset = test_utils.create_default_dataset
 
 class TasksTest(test_utils.FakeTaskTest):
 
+  def setUp(self):
+    super(TasksTest, self).setUp()
+    self._sequence_length = {"inputs": 13, "targets": 13}
+
   def test_invalid_name(self):
     with self.assertRaisesRegex(
-        ValueError,
-        "Task name 'invalid/name' contains invalid characters. "
+        ValueError, "Task name 'invalid/name' contains invalid characters. "
         "Must match regex: .*"):
       self.add_task("invalid/name", self.function_source)
 
@@ -62,22 +65,26 @@ class TasksTest(test_utils.FakeTaskTest):
     def good_fn(split, shuffle_files):
       del split
       del shuffle_files
+
     dataset_providers.FunctionDataSource(good_fn, splits=("train",))
 
     def default_good_fn(split, shuffle_files=False):
       del split
       del shuffle_files
+
     dataset_providers.FunctionDataSource(default_good_fn, splits=("train",))
 
     def seed_fn(split, shuffle_files=True, seed=0):
       del split
       del shuffle_files
       del seed
+
     dataset_providers.FunctionDataSource(seed_fn, splits=("train",))
 
     def extra_kwarg_good_fn(split, shuffle_files, unused_kwarg=True):
       del split
       del shuffle_files
+
     dataset_providers.FunctionDataSource(extra_kwarg_good_fn, splits=("train",))
 
     # Bad signatures.
@@ -85,25 +92,30 @@ class TasksTest(test_utils.FakeTaskTest):
         ValueError,
         "'missing_shuff' must have positional args ('split', 'shuffle_files'), "
         "got: ('split',)"):
+
       def missing_shuff(split):
         del split
+
       dataset_providers.FunctionDataSource(missing_shuff, splits=("train",))
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
         "'missing_split' must have positional args ('split', 'shuffle_files'), "
         "got: ('shuffle_files',)"):
+
       def missing_split(shuffle_files):
         del shuffle_files
+
       dataset_providers.FunctionDataSource(missing_split, splits=("train",))
 
     with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        "'extra_pos_arg' may only have positional args ('split', "
+        ValueError, "'extra_pos_arg' may only have positional args ('split', "
         "'shuffle_files'), got: ('split', 'shuffle_files', 'unused_arg')"):
+
       def extra_pos_arg(split, shuffle_files, unused_arg):
         del split
         del shuffle_files
+
       dataset_providers.FunctionDataSource(extra_pos_arg, splits=("train",))
 
   def test_metric_fn_signature(self):
@@ -120,12 +132,10 @@ class TasksTest(test_utils.FakeTaskTest):
     valid_task = add_task(
         "valid_metrics", metric_fns=[score_metric_fn, predict_metric_fn])
 
-    self.assertSameElements(
-        [score_metric_fn, predict_metric_fn], valid_task.metric_fns)
-    self.assertSameElements(
-        [score_metric_fn], valid_task.score_metric_fns)
-    self.assertSameElements(
-        [predict_metric_fn], valid_task.predict_metric_fns)
+    self.assertSameElements([score_metric_fn, predict_metric_fn],
+                            valid_task.metric_fns)
+    self.assertSameElements([score_metric_fn], valid_task.score_metric_fns)
+    self.assertSameElements([predict_metric_fn], valid_task.predict_metric_fns)
 
     def extra_arg_metric_fn(targets, predictions, extra_param):
       return {}
@@ -135,8 +145,7 @@ class TasksTest(test_utils.FakeTaskTest):
         "('targets', 'predictions') or ('targets', 'scores'). Got: ")
 
     with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        expected_error_message_prefix +
+        ValueError, expected_error_message_prefix +
         "('targets', 'predictions', 'extra_param')"):
       valid_task = add_task(
           "extra_arg_metric", metric_fns=[extra_arg_metric_fn])
@@ -154,8 +163,7 @@ class TasksTest(test_utils.FakeTaskTest):
       return {}
 
     with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        expected_error_message_prefix + "('targets',)"):
+        ValueError, expected_error_message_prefix + "('targets',)"):
       valid_task = add_task(
           "bad_default_metric", metric_fns=[bad_default_metric_fn])
 
@@ -166,8 +174,8 @@ class TasksTest(test_utils.FakeTaskTest):
         "valid_metrics_2", metric_fns=[ok_default_metric_fn])
     self.assertSameElements([ok_default_metric_fn], valid_task_2.metric_fns)
     self.assertEmpty(valid_task_2.score_metric_fns)
-    self.assertSameElements(
-        [ok_default_metric_fn], valid_task_2.predict_metric_fns)
+    self.assertSameElements([ok_default_metric_fn],
+                            valid_task_2.predict_metric_fns)
 
     def predict_metric_fn_with_types(
         targets: Sequence[Mapping[str,
@@ -201,22 +209,22 @@ class TasksTest(test_utils.FakeTaskTest):
     self.assertSameElements(
         ["train", "validation"],
         dataset_providers.TfdsDataSource(tfds_name="fake:0.0.0").splits)
-    self.assertSameElements(
-        ["validation"],
-        dataset_providers.TfdsDataSource(
-            tfds_name="fake:0.0.0", splits=["validation"]).splits)
-    self.assertSameElements(
-        ["validation"],
-        dataset_providers.TfdsDataSource(
-            tfds_name="fake:0.0.0", splits={"validation": "train"}).splits)
+    self.assertSameElements(["validation"],
+                            dataset_providers.TfdsDataSource(
+                                tfds_name="fake:0.0.0",
+                                splits=["validation"]).splits)
+    self.assertSameElements(["validation"],
+                            dataset_providers.TfdsDataSource(
+                                tfds_name="fake:0.0.0",
+                                splits={
+                                    "validation": "train"
+                                }).splits)
 
   def test_tfds_task(self):
-    self.verify_task_matches_fake_datasets(
-        "tfds_task", use_cached=False)
+    self.verify_task_matches_fake_datasets("tfds_task", use_cached=False)
 
   def test_function_task(self):
-    self.verify_task_matches_fake_datasets(
-        "function_task", use_cached=False)
+    self.verify_task_matches_fake_datasets("function_task", use_cached=False)
 
   def test_text_line_task(self):
     self.verify_task_matches_fake_datasets(
@@ -277,8 +285,7 @@ class TasksTest(test_utils.FakeTaskTest):
     cached_task._get_cached_source = mock.MagicMock(
         side_effect=cached_task._get_cached_source)
     _ = cached_task.get_dataset(None, "train", use_cached=True)
-    cached_task._get_cached_source.assert_called_once_with(
-        "train", buffer_size)
+    cached_task._get_cached_source.assert_called_once_with("train", buffer_size)
 
   def test_cached_data_source_shuffle_buffer_default(self):
     self._mock_and_assert_cached_source("cached_task", None)
@@ -422,8 +429,7 @@ class TasksTest(test_utils.FakeTaskTest):
         ValueError,
         "Caching was requested for 'prohibits_cache', but the underlying data "
         "source prohibits caching. Please remove `CacheDatasetPlaceholder` and "
-        "try again."
-    ):
+        "try again."):
       dataset_providers.Task(
           "prohibits_cache",
           output_features=self.DEFAULT_OUTPUT_FEATURES,
@@ -449,22 +455,25 @@ class TasksTest(test_utils.FakeTaskTest):
   def test_get_cached_stats(self):
     expected_train_stats = {
         "examples": 3,
-        "inputs_tokens": 36, "inputs_max_tokens": 13,
-        "targets_tokens": 18, "targets_max_tokens": 6}
-    self.assertEqual(
-        expected_train_stats,
-        self.cached_task.get_cached_stats("train"))
+        "inputs_tokens": 36,
+        "inputs_max_tokens": 13,
+        "targets_tokens": 18,
+        "targets_max_tokens": 6
+    }
+    self.assertEqual(expected_train_stats,
+                     self.cached_task.get_cached_stats("train"))
     # Check repeated call.
-    self.assertEqual(
-        expected_train_stats,
-        self.cached_task.get_cached_stats("train"))
+    self.assertEqual(expected_train_stats,
+                     self.cached_task.get_cached_stats("train"))
     expected_validation_stats = {
         "examples": 2,
-        "inputs_tokens": 23, "inputs_max_tokens": 12,
-        "targets_tokens": 36, "targets_max_tokens": 21}
-    self.assertEqual(
-        expected_validation_stats,
-        self.cached_task.get_cached_stats("validation"))
+        "inputs_tokens": 23,
+        "inputs_max_tokens": 12,
+        "targets_tokens": 36,
+        "targets_max_tokens": 21
+    }
+    self.assertEqual(expected_validation_stats,
+                     self.cached_task.get_cached_stats("validation"))
     with self.assertRaisesWithLiteralMatch(
         ValueError, "Stats do not exist for 'cached_task' split: fake"):
       self.cached_task.get_cached_stats("fake")
@@ -491,8 +500,7 @@ class TasksTest(test_utils.FakeTaskTest):
         "cached_task", use_cached=True, token_preprocessed=True)
 
   def test_get_dataset_onthefly(self):
-    self.verify_task_matches_fake_datasets(
-        "uncached_task", use_cached=False)
+    self.verify_task_matches_fake_datasets("uncached_task", use_cached=False)
 
     # Test with token preprocessor.
     self.cached_task._preprocessors = self.DEFAULT_PREPROCESSORS + (
@@ -507,10 +515,14 @@ class TasksTest(test_utils.FakeTaskTest):
   def test_sharding(self):
     for i in range(3):
       self.verify_task_matches_fake_datasets(
-          "cached_task", use_cached=False, num_shards=i,
+          "cached_task",
+          use_cached=False,
+          num_shards=i,
           token_preprocessed=False)
       self.verify_task_matches_fake_datasets(
-          "cached_task", use_cached=True, num_shards=i,
+          "cached_task",
+          use_cached=True,
+          num_shards=i,
           token_preprocessed=False)
 
   def test_feature_validation(self):
@@ -526,9 +538,7 @@ class TasksTest(test_utils.FakeTaskTest):
                 required=False,
                 rank=2),
         "continuous_features":
-            dataset_providers.ContinuousFeature(
-                required=False,
-                rank=2)
+            dataset_providers.ContinuousFeature(required=False, rank=2)
     }
 
     def _materialize(output):
@@ -539,12 +549,12 @@ class TasksTest(test_utils.FakeTaskTest):
           preprocessors=(lambda _: tf.data.Dataset.from_tensors(output),),
           metric_fns=[],
       )
+      sequence_length = copy.deepcopy(self._sequence_length)
+      sequence_length["inputs_rank2"] = 13
+
       list(
-          task.get_dataset(
-              {"inputs": 13, "targets": 13, "inputs_rank2": 13}, "train",
-              use_cached=False
-          ).as_numpy_iterator()
-      )
+          task.get_dataset(sequence_length, "train",
+                           use_cached=False).as_numpy_iterator())
 
     # Missing optional feature: OK
     _materialize({"targets": [0]})
@@ -580,10 +590,7 @@ class TasksTest(test_utils.FakeTaskTest):
         "preprocessing: Got 1, expected 2"):
       _materialize({"targets": [0], "inputs_rank2": [0]})
     # Test ContinuousFeature
-    _materialize({
-        "targets": [0],
-        "continuous_features": [[1, 1], [0, 1]]
-    })
+    _materialize({"targets": [0], "continuous_features": [[1, 1], [0, 1]]})
 
   def test_value_errors(self):
     dataset_fn = (
@@ -598,12 +605,9 @@ class TasksTest(test_utils.FakeTaskTest):
       dataset_providers.Task(
           "multiple_cache_placeholders",
           source=dataset_providers.FunctionDataSource(
-              dataset_fn=dataset_fn,
-              splits=["train", "validation"]
-          ),
+              dataset_fn=dataset_fn, splits=["train", "validation"]),
           preprocessors=[
-              test_utils.test_text_preprocessor,
-              preprocessors.tokenize,
+              test_utils.test_text_preprocessor, preprocessors.tokenize,
               dataset_providers.CacheDatasetPlaceholder(),
               test_utils.test_token_preprocessor,
               dataset_providers.CacheDatasetPlaceholder()
@@ -623,8 +627,7 @@ class TasksTest(test_utils.FakeTaskTest):
               splits=["train"],
           ),
           preprocessors=[
-              test_utils.test_text_preprocessor,
-              preprocessors.tokenize,
+              test_utils.test_text_preprocessor, preprocessors.tokenize,
               test_utils.test_token_preprocessor,
               dataset_providers.CacheDatasetPlaceholder()
           ],
@@ -657,141 +660,205 @@ class TasksTest(test_utils.FakeTaskTest):
   def test_dtype(self):
     default_vocab = test_utils.sentencepiece_vocab()
     features = {
-        "inputs":
-            # defaults to int32
+        "inputs":  # defaults to int32
             dataset_providers.Feature(vocabulary=default_vocab),
         "targets":
             dataset_providers.Feature(dtype=tf.int64, vocabulary=default_vocab),
     }
 
+    # pylint:disable=g-long-lambda
     self.add_task(
         "task_dtypes",
         self.function_source,
-        preprocessors=self.DEFAULT_PREPROCESSORS + (
-            utils.map_over_dataset(
-                lambda x: {k: tf.cast(v, tf.int64) if k == "targets" else v  # pylint:disable=g-long-lambda
-                           for k, v in x.items()}
-            ),
-        ),
-        output_features=features
-    )
+        preprocessors=self.DEFAULT_PREPROCESSORS +
+        (utils.map_over_dataset(lambda x: {
+            k: tf.cast(v, tf.int64) if k == "targets" else v
+            for k, v in x.items()
+        }),),
+        output_features=features)
+    # pylint:enable=g-long-lambda
     self.verify_task_matches_fake_datasets("task_dtypes", use_cached=False)
 
   def test_num_epochs(self):
     # Try repeating after preprocessing the dataset to verify the outputs are
     # the same.
     epoch1_ds = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0)
     # `random_task` has 3 examples per epoch.
     epoch2_ds = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0
-    ).repeat(2).skip(3)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0).repeat(2).skip(3)
     test_utils.assert_datasets_eq(epoch1_ds, epoch2_ds)
 
     # Try repeating before preprocessing the dataset to verify the outputs are
     # different.
     epoch1_ds = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0)
     # `random_task` has 3 examples per epoch.
     epoch2_ds = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0, num_epochs=2
-    ).skip(3)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0,
+        num_epochs=2).skip(3)
     test_utils.assert_datasets_neq(epoch1_ds, epoch2_ds)
 
   def test_same_seeds_cached_match(self):
     dataset1 = self.cached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=True, shuffle=True, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=True,
+        shuffle=True,
+        seed=0)
     dataset2 = self.cached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=True, shuffle=True, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=True,
+        shuffle=True,
+        seed=0)
     test_utils.assert_datasets_eq(dataset1, dataset2)
 
   def test_different_seeds_cached_mismatch(self):
     dataset1 = self.cached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=True, shuffle=True, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=True,
+        shuffle=True,
+        seed=0)
     dataset2 = self.cached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=True, shuffle=True, seed=42)
+        self._sequence_length,
+        split="train",
+        use_cached=True,
+        shuffle=True,
+        seed=42)
     test_utils.assert_datasets_neq(dataset1, dataset2)
 
   def test_same_seeds_uncached_match(self):
     dataset1 = self.uncached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0)
     dataset2 = self.uncached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0)
     test_utils.assert_datasets_eq(dataset1, dataset2)
 
   def test_different_seeds_uncached_mismatch(self):
     dataset1 = self.uncached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0)
     dataset2 = self.uncached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=42)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=42)
     test_utils.assert_datasets_neq(dataset1, dataset2)
 
   def test_same_seeds_random_tp_uncached_match(self):
     dataset1 = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0).repeat(4)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0).repeat(4)
     dataset2 = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0).repeat(4)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0).repeat(4)
     test_utils.assert_datasets_eq(dataset1, dataset2)
 
   def test_different_seeds_random_tp_uncached_mismatch(self):
     dataset1 = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0)
     dataset2 = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=True, seed=42)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=42)
     test_utils.assert_datasets_neq(dataset1, dataset2)
 
   def test_no_shuffle_with_seed_cached_match(self):
     dataset1 = self.cached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=True, shuffle=False, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=True,
+        shuffle=False,
+        seed=0)
     dataset2 = self.cached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=True, shuffle=False, seed=42)
+        self._sequence_length,
+        split="train",
+        use_cached=True,
+        shuffle=False,
+        seed=42)
     test_utils.assert_datasets_eq(dataset1, dataset2)
 
   def test_no_shuffle_with_seed_uncached_match(self):
     dataset1 = self.uncached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=False, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=False,
+        seed=0)
     dataset2 = self.uncached_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=False, seed=42)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=False,
+        seed=42)
     test_utils.assert_datasets_eq(dataset1, dataset2)
 
   def test_no_shuffle_different_seeds_random_tp_uncached_mismatch(self):
     dataset1 = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=False, seed=0)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=False,
+        seed=0)
     dataset2 = self.random_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=False, shuffle=False, seed=42)
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=False,
+        seed=42)
     test_utils.assert_datasets_neq(dataset1, dataset2)
 
   def test_plaintext_to_pretokenized_rename(self):
     ds = self.cached_plaintext_task.get_dataset(
-        {"inputs": 13, "targets": 13},
-        split="train", use_cached=True, shuffle=False)
+        self._sequence_length, split="train", use_cached=True, shuffle=False)
     keys = next(ds.as_numpy_iterator()).keys()
     self.assertSetEqual(
         set(keys),
-        set(["inputs", "inputs_pretokenized",
-             "targets", "targets_pretokenized"]))
+        set([
+            "inputs", "inputs_pretokenized", "targets", "targets_pretokenized"
+        ]))
 
   def test_list_shards(self):
 
@@ -835,6 +902,10 @@ class TasksTest(test_utils.FakeTaskTest):
 
 class MixturesTest(test_utils.FakeTaskTest):
 
+  def setUp(self):
+    super(MixturesTest, self).setUp()
+    self._sequence_length = {"inputs": 13, "targets": 13}
+
   def test_tasks(self):
     self.add_task("task1", self.function_source)
     self.add_task("task2", self.function_source)
@@ -852,10 +923,8 @@ class MixturesTest(test_utils.FakeTaskTest):
     self.assertEqual(mix.num_input_examples(split="train"), 30)
 
   def test_splits(self):
-    MixtureRegistry.add(
-        "test_mix",
-        [(self.cached_task.name, 1), (self.uncached_task.name, 1)]
-    )
+    MixtureRegistry.add("test_mix", [(self.cached_task.name, 1),
+                                     (self.uncached_task.name, 1)])
     mix = MixtureRegistry.get("test_mix")
     self.assertSameElements(["train", "validation"], mix.splits, 30)
 
@@ -863,19 +932,14 @@ class MixturesTest(test_utils.FakeTaskTest):
     MixtureRegistry.add("test_mix3", [(self.cached_task.name, 1)])
 
     task_ds = TaskRegistry.get_dataset(
-        self.cached_task.name, {
-            "inputs": 13,
-            "targets": 13
-        },
+        self.cached_task.name,
+        self._sequence_length,
         "validation",
         use_cached=False,
         shuffle=False)
 
     mix_ds = MixtureRegistry.get("test_mix3").get_dataset(
-        {
-            "inputs": 13,
-            "targets": 13
-        }, "validation", use_cached=False, shuffle=False)
+        self._sequence_length, "validation", use_cached=False, shuffle=False)
 
     # mix.get_dataset strips non-output features
     task_ds = task_ds.map(lambda x: {k: x[k] for k in ["inputs", "targets"]})
@@ -884,6 +948,7 @@ class MixturesTest(test_utils.FakeTaskTest):
     test_utils.assert_datasets_eq(task_ds.repeat(2), mix_ds.take(4))
 
   def test_get_dataset_mix(self):
+
     @utils.map_over_dataset
     def _constant_preprocessor(unused_x, val):
       return {
@@ -894,14 +959,12 @@ class MixturesTest(test_utils.FakeTaskTest):
     self.add_task(
         "two_task",
         self.function_source,
-        preprocessors=(functools.partial(_constant_preprocessor, val=2),)
-    )
+        preprocessors=(functools.partial(_constant_preprocessor, val=2),))
 
     self.add_task(
         "three_task",
         self.function_source,
-        preprocessors=(functools.partial(_constant_preprocessor, val=3),)
-    )
+        preprocessors=(functools.partial(_constant_preprocessor, val=3),))
 
     MixtureRegistry.add("test_mix", [("two_task", 1), ("three_task", 1)])
 
@@ -949,6 +1012,7 @@ class MixturesTest(test_utils.FakeTaskTest):
     self.assertEqual(res, 2481)
 
   def test_copy_pretokenized(self):
+
     @utils.map_over_dataset
     def _constant_preprocessor(unused_x, val):
       return {
@@ -961,14 +1025,12 @@ class MixturesTest(test_utils.FakeTaskTest):
     self.add_task(
         "two_task",
         self.function_source,
-        preprocessors=(functools.partial(_constant_preprocessor, val=2),)
-    )
+        preprocessors=(functools.partial(_constant_preprocessor, val=2),))
 
     self.add_task(
         "three_task",
         self.function_source,
-        preprocessors=(functools.partial(_constant_preprocessor, val=3),)
-    )
+        preprocessors=(functools.partial(_constant_preprocessor, val=3),))
 
     MixtureRegistry.add("test_mix", [("two_task", 1), ("three_task", 1)])
 
@@ -990,9 +1052,11 @@ class MixturesTest(test_utils.FakeTaskTest):
           ["inputs_pretokenized", "targets_pretokenized"], ex.keys())
 
   def test_get_rate_with_callable(self):
+
     def fn(t):
       self.assertEqual(t.name, "task4")
       return 42
+
     self.add_task("task4", self.function_source)
     task = TaskRegistry.get("task4")
     MixtureRegistry.add("test_mix5", [("task4", fn)])
@@ -1046,15 +1110,16 @@ class MixturesTest(test_utils.FakeTaskTest):
     vocab = vocabularies.PassThroughVocabulary(0)
     tasks = []
     for task_name in ["first", "second"]:
-      tasks.append(self.add_task(
-          task_name,
-          dataset_providers.FunctionDataSource(
-              dataset_fn=functools.partial(gen_dataset, val=task_name),
-              splits=["train"]),
-          preprocessors=[],
-          output_features={
-              "inputs": dataset_providers.Feature(vocab, dtype=tf.string)
-          }))
+      tasks.append(
+          self.add_task(
+              task_name,
+              dataset_providers.FunctionDataSource(
+                  dataset_fn=functools.partial(gen_dataset, val=task_name),
+                  splits=["train"]),
+              preprocessors=[],
+              output_features={
+                  "inputs": dataset_providers.Feature(vocab, dtype=tf.string)
+              }))
 
     # Verify that by default, interleaving of datasets is random.
     MixtureRegistry.add("default_mix", [("first", 1), ("second", 1)])
@@ -1079,9 +1144,16 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_get_dataset_enc_dec_unpacked(self):
     mixture_or_task_name = "enc_dec_unpacked"
-    x = [{"inputs": [7, 8, 5, 6, 9, 4, 3], "targets": [3, 9]},
-         {"inputs": [8, 4], "targets": [4]},
-         {"inputs": [5, 6, 7], "targets": [6, 5]}]
+    x = [{
+        "inputs": [7, 8, 5, 6, 9, 4, 3],
+        "targets": [3, 9]
+    }, {
+        "inputs": [8, 4],
+        "targets": [4]
+    }, {
+        "inputs": [5, 6, 7],
+        "targets": [6, 5]
+    }]
     ds = create_default_dataset(x)
     dataset_fn = lambda split, shuffle_files: ds
     register_dummy_task(mixture_or_task_name, dataset_fn=dataset_fn)
@@ -1154,9 +1226,16 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
           expect_trim_targets=False))
   def test_partial_sequence_length(self, task_name, task_feature_lengths,
                                    expect_trim_inputs, expect_trim_targets):
-    x = [{"inputs": [7, 8, 5, 6, 9, 4, 3], "targets": [3, 9]},
-         {"inputs": [8, 4], "targets": [4]},
-         {"inputs": [5, 6, 7], "targets": [6, 5]}]
+    x = [{
+        "inputs": [7, 8, 5, 6, 9, 4, 3],
+        "targets": [3, 9]
+    }, {
+        "inputs": [8, 4],
+        "targets": [4]
+    }, {
+        "inputs": [5, 6, 7],
+        "targets": [6, 5]
+    }]
     ds = create_default_dataset(x)
     dataset_fn = lambda split, shuffle_files: ds
     register_dummy_task(task_name, dataset_fn=dataset_fn)
@@ -1165,8 +1244,7 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
     # infers feature lengths w/trimming.
     task = dataset_providers.get_mixture_or_task(task_name)
     output_ds = task.get_dataset(
-        sequence_length=task_feature_lengths,
-        shuffle=False)
+        sequence_length=task_feature_lengths, shuffle=False)
 
     expected = [{
         "inputs": [7, 8, 5, 6, 9, 4, 3, 1],
@@ -1221,30 +1299,34 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
               "targets": None
           },
           expect_trim_inputs=False,
-          expect_trim_targets=False
-      )
-  )
-  def test_multidimension_sequence_length(self,
-                                          task_name,
-                                          task_feature_lengths,
+          expect_trim_targets=False))
+  def test_multidimension_sequence_length(self, task_name, task_feature_lengths,
                                           expect_trim_inputs,
                                           expect_trim_targets):
-    x = [{"inputs": [[7, 8, 5, 6, 9, 4, 3],
-                     [2, 3, 4, 5, 0, 0, 0],
-                     [6, 7, 1, 0, 0, 0, 0]],
-          "targets": [3, 9]},
-         {"inputs": [[8, 4],
-                     [1, 0],
-                     [2, 3]],
-          "targets": [4]},
-         {"inputs": [[5, 6, 7]],
-          "targets": [6, 5, 1]},
-         {"inputs": [[7, 8, 9, 1, 2, 3, 4, 5, 6]],
-          "targets": [10, 11, 1]}]
+    x = [{
+        "inputs": [[7, 8, 5, 6, 9, 4, 3], [2, 3, 4, 5, 0, 0, 0],
+                   [6, 7, 1, 0, 0, 0, 0]],
+        "targets": [3, 9]
+    }, {
+        "inputs": [[8, 4], [1, 0], [2, 3]],
+        "targets": [4]
+    }, {
+        "inputs": [[5, 6, 7]],
+        "targets": [6, 5, 1]
+    }, {
+        "inputs": [[7, 8, 9, 1, 2, 3, 4, 5, 6]],
+        "targets": [10, 11, 1]
+    }]
     ds = tf.data.Dataset.from_generator(
         lambda: x,
-        output_types={"inputs": tf.int32, "targets": tf.int32},
-        output_shapes={"inputs": (None, None), "targets": (None,)})
+        output_types={
+            "inputs": tf.int32,
+            "targets": tf.int32
+        },
+        output_shapes={
+            "inputs": (None, None),
+            "targets": (None,)
+        })
     dataset_fn = lambda split, shuffle_files: ds
     dataset_providers.TaskRegistry.add(
         task_name,
@@ -1254,10 +1336,11 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
             dataset_providers.CacheDatasetPlaceholder(),
         ],
         output_features={
-            "inputs": dataset_providers.Feature(
-                test_utils.sentencepiece_vocab(), rank=2),
-            "targets": dataset_providers.Feature(
-                test_utils.sentencepiece_vocab())
+            "inputs":
+                dataset_providers.Feature(
+                    test_utils.sentencepiece_vocab(), rank=2),
+            "targets":
+                dataset_providers.Feature(test_utils.sentencepiece_vocab())
         },
         metric_fns=[])
     # Unlike the other tests, don't use a feature converter. Instead, test the
@@ -1265,15 +1348,12 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
     # infers feature lengths w/trimming.
     task = dataset_providers.get_mixture_or_task(task_name)
     output_ds = task.get_dataset(
-        sequence_length=task_feature_lengths,
-        shuffle=False)
+        sequence_length=task_feature_lengths, shuffle=False)
 
     expected = copy.deepcopy(x)
     if expect_trim_inputs:
-      expected[0]["inputs"] = [[7, 8, 5, 6, 9],
-                               [2, 3, 4, 5, 0]]
-      expected[1]["inputs"] = [[8, 4],
-                               [1, 0]]
+      expected[0]["inputs"] = [[7, 8, 5, 6, 9], [2, 3, 4, 5, 0]]
+      expected[1]["inputs"] = [[8, 4], [1, 0]]
       expected[3]["inputs"] = [[7, 8, 9, 1, 2]]
     if expect_trim_targets:
       expected[2]["targets"] = [6, 5]
@@ -1283,9 +1363,16 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_get_dataset_enc_dec_packed(self):
     mixture_or_task_name = "enc_dec_packed"
-    x = [{"inputs": [7, 8, 5, 6, 9, 4, 3], "targets": [3, 9]},
-         {"inputs": [8, 4], "targets": [4]},
-         {"inputs": [5, 6, 7], "targets": [6, 5]}]
+    x = [{
+        "inputs": [7, 8, 5, 6, 9, 4, 3],
+        "targets": [3, 9]
+    }, {
+        "inputs": [8, 4],
+        "targets": [4]
+    }, {
+        "inputs": [5, 6, 7],
+        "targets": [6, 5]
+    }]
     ds = create_default_dataset(x)
     dataset_fn = lambda split, shuffle_files: ds
     register_dummy_task(mixture_or_task_name, dataset_fn=dataset_fn)
@@ -1299,27 +1386,30 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
         shuffle=False,
         feature_converter=converter)
 
-    expected = [{
-        # Example 1 is trimmed
-        "encoder_input_tokens": [7, 8, 5, 6, 9, 4, 1],
-        "encoder_segment_ids": [1, 1, 1, 1, 1, 1, 1],
-        "encoder_positions": [0, 1, 2, 3, 4, 5, 6],
-        "decoder_target_tokens": [3, 9, 1, 0, 0],
-        "decoder_input_tokens": [0, 3, 9, 0, 0],
-        "decoder_loss_weights": [1, 1, 1, 0, 0],
-        "decoder_segment_ids": [1, 1, 1, 0, 0],
-        "decoder_positions": [0, 1, 2, 0, 0],
-    }, {
-        # Example 2 and 3 are packed together
-        "encoder_input_tokens": [8, 4, 1, 5, 6, 7, 1],
-        "encoder_segment_ids": [1, 1, 1, 2, 2, 2, 2],
-        "encoder_positions": [0, 1, 2, 0, 1, 2, 3],
-        "decoder_target_tokens": [4, 1, 6, 5, 1],
-        "decoder_input_tokens": [0, 4, 0, 6, 5],
-        "decoder_loss_weights": [1, 1, 1, 1, 1],
-        "decoder_segment_ids": [1, 1, 2, 2, 2],
-        "decoder_positions": [0, 1, 0, 1, 2],
-    }]
+    expected = [
+        {
+            # Example 1 is trimmed
+            "encoder_input_tokens": [7, 8, 5, 6, 9, 4, 1],
+            "encoder_segment_ids": [1, 1, 1, 1, 1, 1, 1],
+            "encoder_positions": [0, 1, 2, 3, 4, 5, 6],
+            "decoder_target_tokens": [3, 9, 1, 0, 0],
+            "decoder_input_tokens": [0, 3, 9, 0, 0],
+            "decoder_loss_weights": [1, 1, 1, 0, 0],
+            "decoder_segment_ids": [1, 1, 1, 0, 0],
+            "decoder_positions": [0, 1, 2, 0, 0],
+        },
+        {
+            # Example 2 and 3 are packed together
+            "encoder_input_tokens": [8, 4, 1, 5, 6, 7, 1],
+            "encoder_segment_ids": [1, 1, 1, 2, 2, 2, 2],
+            "encoder_positions": [0, 1, 2, 0, 1, 2, 3],
+            "decoder_target_tokens": [4, 1, 6, 5, 1],
+            "decoder_input_tokens": [0, 4, 0, 6, 5],
+            "decoder_loss_weights": [1, 1, 1, 1, 1],
+            "decoder_segment_ids": [1, 1, 2, 2, 2],
+            "decoder_positions": [0, 1, 0, 1, 2],
+        }
+    ]
     expected_dtypes = {feat: tf.int32 for feat in expected[0].keys()}
     assert_dataset(output_ds, expected, expected_dtypes=expected_dtypes)
 
@@ -1365,9 +1455,16 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_get_dataset_enc_dec_sharded(self):
     mixture_or_task_name = "enc_dec_sharded"
-    x = [{"inputs": [7, 8, 5, 6, 9, 4, 3], "targets": [3, 9]},
-         {"inputs": [8, 4], "targets": [4]},
-         {"inputs": [5, 6, 7], "targets": [6, 5]}]
+    x = [{
+        "inputs": [7, 8, 5, 6, 9, 4, 3],
+        "targets": [3, 9]
+    }, {
+        "inputs": [8, 4],
+        "targets": [4]
+    }, {
+        "inputs": [5, 6, 7],
+        "targets": [6, 5]
+    }]
     ds = create_default_dataset(x)
     dataset_fn = lambda split, shuffle_files: ds
     register_dummy_task(mixture_or_task_name, dataset_fn=dataset_fn)
@@ -1400,9 +1497,16 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_get_dataset_enc_dec_sharded_and_packed(self):
     mixture_or_task_name = "enc_dec_sharded_and_packed"
-    x = [{"inputs": [7, 8], "targets": [3, 9]},
-         {"inputs": [8, 4], "targets": [4]},
-         {"inputs": [5, 6, 7], "targets": [6]}]
+    x = [{
+        "inputs": [7, 8],
+        "targets": [3, 9]
+    }, {
+        "inputs": [8, 4],
+        "targets": [4]
+    }, {
+        "inputs": [5, 6, 7],
+        "targets": [6]
+    }]
     ds = create_default_dataset(x)
     dataset_fn = lambda split, shuffle_files: ds
     register_dummy_task(mixture_or_task_name, dataset_fn=dataset_fn)
@@ -1436,7 +1540,8 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
 def register_dummy_task(
     task_name: str,
     dataset_fn: Callable[[str, str], tf.data.Dataset],
-    output_feature_names: Sequence[str] = ("inputs", "targets")) -> None:
+    output_feature_names: Sequence[str] = ("inputs", "targets")
+) -> None:
   """Register a dummy task for GetDatasetTest."""
   dataset_providers.TaskRegistry.add(
       task_name,
