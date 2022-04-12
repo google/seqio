@@ -220,6 +220,9 @@ class FeatureConverter(abc.ABC):
 
   Attributes:
     pack: whether to pack the dataset.
+    pre_packed: whether the dataset was already packed earlier, and it already
+      contains the features related to packing (e.g. "*_segment_ids"). `pack`
+      and `pre_packed` cannot both be True at the same time.
     use_custom_packing_ops: whether to use custom ops for packing.
   """
 
@@ -236,8 +239,10 @@ class FeatureConverter(abc.ABC):
 
   def __init__(self,
                pack: bool = True,
+               pre_packed: bool = False,
                use_custom_packing_ops: bool = False):
     self._pack = pack
+    self._pre_packed = pre_packed
     self._use_custom_packing_ops = use_custom_packing_ops
 
     if self.TASK_FEATURES is None:
@@ -246,9 +251,13 @@ class FeatureConverter(abc.ABC):
     if self.MODEL_FEATURES is None:
       raise ValueError("MODEL_FEATURES must be defined in the subclass.")
 
-    if self.pack and self.PACKING_FEATURE_DTYPES is None:
+    if self.pack and self.pre_packed:
+      raise ValueError("'pack' and 'pre_packed' cannot both be True.")
+
+    if (self.pack or self.pre_packed) and self.PACKING_FEATURE_DTYPES is None:
       raise ValueError(
-          "PACKING_FEATURE_DTYPES must be defined in the subclass if pack=True."
+          "PACKING_FEATURE_DTYPES must be defined in the subclass if pack=True "
+          "or pre_pack=True."
       )
 
   def _validate_dataset(
@@ -405,7 +414,7 @@ class FeatureConverter(abc.ABC):
     ds = self._convert_features(ds, task_feature_lengths)
 
     expected_features = dict(self.MODEL_FEATURES)
-    if self.pack:
+    if self.pack or self.pre_packed:
       for k, v in expected_features.items():
         # Packing requires rank 1.
         if v.rank != 1 and not self._use_custom_packing_ops:
@@ -469,6 +478,10 @@ class FeatureConverter(abc.ABC):
   def pack(self) -> bool:
     return self._pack
 
+  @property
+  def pre_packed(self) -> bool:
+    return self._pre_packed
+
 
 class EncDecFeatureConverter(FeatureConverter):
   """Feature converter for an encoder-decoder architecture.
@@ -511,6 +524,11 @@ class EncDecFeatureConverter(FeatureConverter):
   }]
 
   Note that two examples are packed together into one example.
+
+  If the dataset is already packed before executing this feature converter, and
+  already contains the "input_segment_ids", "input_positions",
+  "target_segment_ids", and "target_positions" features, pass pack = False and
+  pre_packed = True.
   """
 
   TASK_FEATURES = {
@@ -529,6 +547,19 @@ class EncDecFeatureConverter(FeatureConverter):
       "encoder_positions": tf.int32,
       "decoder_positions": tf.int32
   }
+
+  def __init__(self,
+               **kwargs) -> None:
+    super().__init__(**kwargs)
+    # If the dataset is already packed, it will have additional features, that
+    # we need to take into account:
+    if self.pre_packed:
+      for feature in ["inputs_positions",
+                      "inputs_segment_ids",
+                      "targets_positions",
+                      "targets_segment_ids"]:
+        self.TASK_FEATURES[feature] = (
+            FeatureConverter.FeatureSpec(dtype=tf.int32))
 
   def _convert_features(
       self, ds: tf.data.Dataset,
@@ -569,7 +600,7 @@ class EncDecFeatureConverter(FeatureConverter):
            # Loss is computed for all but the padding positions.
            "decoder_loss_weights": non_padding_position(features["targets"])}
 
-      if self.pack:
+      if self.pack or self.pre_packed:
         d["encoder_segment_ids"] = features["inputs_segment_ids"]
         d["decoder_segment_ids"] = features["targets_segment_ids"]
         d["encoder_positions"] = features["inputs_positions"]
@@ -593,7 +624,7 @@ class EncDecFeatureConverter(FeatureConverter):
         "decoder_input_tokens": decoder_length,
         "decoder_loss_weights": decoder_length
     }
-    if self.pack:
+    if self.pack or self.pre_packed:
       model_feature_lengths["encoder_segment_ids"] = encoder_length
       model_feature_lengths["decoder_segment_ids"] = decoder_length
       model_feature_lengths["encoder_positions"] = encoder_length
