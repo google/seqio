@@ -535,7 +535,7 @@ class EncDecFeatureConverter(FeatureConverter):
       task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
     """Convert the dataset to be fed to the encoder-decoder model.
 
-    The conversion process involves three steps
+    The conversion process involves two steps
 
     1. Each feature in the `task_feature_lengths` is trimmed/padded and
        optionally packed depending on the value of self.pack.
@@ -599,6 +599,99 @@ class EncDecFeatureConverter(FeatureConverter):
       model_feature_lengths["encoder_positions"] = encoder_length
       model_feature_lengths["decoder_positions"] = decoder_length
 
+    return model_feature_lengths
+
+
+class PrePackedEncDecFeatureConverter(EncDecFeatureConverter):
+  """Feature converter for encoder-decoder with pre-packed examples.
+
+  The input dataset has "inputs", "targets", "inputs_segment_ids",
+  "inputs_positions", "targets_segment_ids", and "targets_positions". These will
+  be converted to a subset of standard features.
+
+  Since this feature converter assumes the data is already pre-packed, setting
+  'pack=True' is not allowed.
+  """
+
+  TASK_FEATURES = {
+      "inputs": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "targets": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "inputs_positions": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "inputs_segment_ids": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "targets_positions": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "targets_segment_ids": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+  MODEL_FEATURES = {
+      "encoder_input_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_target_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_input_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_loss_weights": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "encoder_positions": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "encoder_segment_ids": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_positions": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_segment_ids": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+
+  def __init__(self,
+               **kwargs) -> None:
+    super().__init__(**kwargs)
+    if self.pack:
+      raise ValueError(
+          "'pack=True' is not allowed in PrePackedEncDecFeatureConverter.")
+
+  def _convert_features(
+      self, ds: tf.data.Dataset,
+      task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+    """Convert the dataset to be fed to the encoder-decoder model.
+
+    See "PrePackedEncDecFeatureConverter._convert.features".
+
+    Args:
+      ds: an input tf.data.Dataset to be converted.
+      task_feature_lengths: a mapping from feature to its length.
+
+    Returns:
+      ds: the converted dataset.
+    """
+
+    def convert_example(
+        features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
+      # targets_segment_id is present only for a packed dataset.
+      decoder_input_tokens = utils.make_autoregressive_inputs(
+          features["targets"],
+          sequence_id=features.get("targets_segment_ids", None))
+
+      d = {"encoder_input_tokens": features["inputs"],
+           "decoder_target_tokens": features["targets"],
+           "decoder_input_tokens": decoder_input_tokens,
+           # Loss is computed for all but the padding positions.
+           "decoder_loss_weights": non_padding_position(features["targets"]),
+           "encoder_segment_ids": features["inputs_segment_ids"],
+           "decoder_segment_ids": features["targets_segment_ids"],
+           "encoder_positions": features["inputs_positions"],
+           "decoder_positions": features["targets_positions"]}
+      return d
+
+    ds = utils.trim_and_pad_dataset(ds, task_feature_lengths)
+
+    return ds.map(
+        convert_example, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+  def get_model_feature_lengths(
+      self, task_feature_lengths: Mapping[str, int]) -> Mapping[str, int]:
+    """Define the length relationship between input and output features."""
+    encoder_length = task_feature_lengths["inputs"]
+    decoder_length = task_feature_lengths["targets"]
+
+    model_feature_lengths = {
+        "encoder_input_tokens": encoder_length,
+        "decoder_target_tokens": decoder_length,
+        "decoder_input_tokens": decoder_length,
+        "decoder_loss_weights": decoder_length,
+        "encoder_segment_ids": encoder_length,
+        "decoder_segment_ids": decoder_length,
+        "encoder_positions": encoder_length,
+        "decoder_positions": decoder_length}
     return model_feature_lengths
 
 
