@@ -348,12 +348,11 @@ class PreprocessorsTest(tf.test.TestCase):
     ds = test_utils.create_default_dataset(
         x, feature_names=('inputs', 'targets', 'redundant_feature'))
     sequence_length = {'inputs': 8, 'targets': 7}
-    feature_converter_cls = feature_converters.EncDecFeatureConverter
+    feature_converter = feature_converters.EncDecFeatureConverter(pack=True)
     packed_ds = preprocessors.apply_feature_converter(
         ds,
         sequence_length=sequence_length,
-        feature_converter_cls=feature_converter_cls,
-        pack=True)
+        feature_converter=feature_converter)
     expected = [
         {
             # first and second examples are packed here.
