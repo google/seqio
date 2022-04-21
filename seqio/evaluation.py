@@ -306,8 +306,10 @@ class Evaluator:
 
     if sequence_length is None:
       logging.info("Setting sequence lengths to %s", max_lengths)
+      task_sequence_lengths = max_lengths
       sequence_length = max_lengths
     else:
+      task_sequence_lengths = sequence_length
       log_long_warning = False
       log_same_warning = False
 
@@ -355,7 +357,7 @@ class Evaluator:
     # Convert the task features to model features
     for task in self._eval_tasks:
       eval_ds = feature_converter(cached_task_datasets[task.name],
-                                  sequence_length)
+                                  task_sequence_lengths)
 
       # The eval dataset is enumerated to ensure that the order is preserved
       # throughout the entire evaluation process.
