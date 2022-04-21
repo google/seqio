@@ -862,5 +862,40 @@ class PassThroughFeatureConverterTest(tf.test.TestCase):
     test_utils.assert_datasets_eq(converted_ds, ds)
 
 
+class PrePackedEncDecFeatureConverterTest(tf.test.TestCase):
+
+  def test_encoder_decoder_packed(self):
+    x = [{"inputs": [7, 8, 5, 1, 8, 4, 9, 3, 1],
+          "inputs_segment_ids": [1, 1, 1, 1, 2, 2, 2, 2, 2],
+          "inputs_positions": [0, 1, 2, 3, 0, 1, 2, 3, 4],
+          "targets": [3, 9, 1, 4, 1],
+          "targets_segment_ids": [1, 1, 1, 2, 2],
+          "targets_positions": [0, 1, 2, 0, 1]}]
+    ds = create_default_dataset(x, feature_names=("inputs",
+                                                  "inputs_segment_ids",
+                                                  "inputs_positions",
+                                                  "targets",
+                                                  "targets_segment_ids",
+                                                  "targets_positions"))
+    task_feature_lengths = {"inputs": 10,
+                            "inputs_segment_ids": 10,
+                            "inputs_positions": 10,
+                            "targets": 7,
+                            "targets_segment_ids": 7,
+                            "targets_positions": 7}
+    converter = feature_converters.PrePackedEncDecFeatureConverter(pack=False)
+    converted_ds = converter(ds, task_feature_lengths)
+    expected = {
+        "encoder_input_tokens": [7, 8, 5, 1, 8, 4, 9, 3, 1, 0],
+        "encoder_segment_ids": [1, 1, 1, 1, 2, 2, 2, 2, 2, 0],
+        "encoder_positions": [0, 1, 2, 3, 0, 1, 2, 3, 4, 0],
+        "decoder_target_tokens": [3, 9, 1, 4, 1, 0, 0],
+        "decoder_input_tokens": [0, 3, 9, 0, 4, 0, 0],
+        "decoder_loss_weights": [1, 1, 1, 1, 1, 0, 0],
+        "decoder_segment_ids": [1, 1, 1, 2, 2, 0, 0],
+        "decoder_positions": [0, 1, 2, 0, 1, 0, 0],
+    }
+    assert_dataset(converted_ds, expected)
+
 if __name__ == "__main__":
   tf.test.main()
