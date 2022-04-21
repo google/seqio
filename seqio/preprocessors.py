@@ -15,7 +15,7 @@
 """Preprocessors for SeqIO Tasks."""
 
 import functools
-from typing import Dict, Mapping, Optional, Type
+from typing import Dict, Mapping, Optional
 
 from seqio import dataset_providers
 from seqio import feature_converters
@@ -329,30 +329,25 @@ def truncate_inputs_left(example, sequence_length):
 
 
 def apply_feature_converter(
-    dataset: tf.data.Dataset,
-    sequence_length: Dict[str, int],
-    feature_converter_cls: Type[feature_converters.FeatureConverter],
-    pack: bool)-> tf.data.Dataset:
+    dataset: tf.data.Dataset, sequence_length: Dict[str, int],
+    feature_converter: feature_converters.FeatureConverter) -> tf.data.Dataset:
   """Applies feature converter on the dataset.
 
   Example:
     Apply `EncDecFeatureConverter` with `pack` set to True to convert
     sequence-to-sequence examples to 'packed examples'.
-    preprocessors =
-      [functools.partial(
-           apply_feature_converter,
-           feature_converter_cls=feature_converters.EncDecFeatureConverter,
-           pack=True)]
+    preprocessors = [
+      functools.partial(
+          apply_feature_converter,
+          feature_converter=feature_converters.EncDecFeatureConverter(pack=True)),
+    ]
 
   Args:
     dataset: a tf.data.Dataset of tokenized examples to pack.
     sequence_length: a mapping from output feature names to max lengths.
-    feature_converter_cls: a subclass of feature_converters.FeatureConverter.
-    pack: A boolean for feature converter.
+    feature_converter: an instance of feature_converters.FeatureConverter.
 
   Returns:
     a tf.data.Dataset of packed examples.
   """
-  feature_converter = feature_converter_cls(pack=pack)
   return feature_converter(dataset, sequence_length)
-
