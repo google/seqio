@@ -556,6 +556,10 @@ class Evaluator:
 
       if task.score_metric_fns:
         task_scores = scores[task.name]
+        task_scores = [
+            task.postprocess_fn(score, example=ex, is_target=False)
+            for score, ex in zip(task_scores, tfds.as_numpy(task_dataset))
+        ]
         if len(targets) != len(task_scores):
           raise ValueError(f"len(targets)({len(targets)}) != "
                            f"len(task_scores)({len(task_scores)})")
