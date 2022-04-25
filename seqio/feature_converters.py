@@ -990,6 +990,12 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
           tf.size(targets) > 0, lambda: targets,
           lambda: tf.zeros(1, dtype="int32"))
 
+      if tf.size(targets) == 0:
+        raise ValueError(
+            "PrefixLMFeatureConverter cannot convert an example with empty "
+            "targets. Targets should at least include an EOS token."
+        )
+
       # Width of the "inputs" portion in the concatenated sequence.
       width = tf.size(inputs)
       inputs_width = tf.fill([tf.size(inputs) + tf.size(targets)], width)
