@@ -17,7 +17,7 @@
 import contextlib
 import functools
 import os
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Set
 
 from absl import logging
 import numpy as np
@@ -222,6 +222,43 @@ def stateless_shuffle(value, seed):
   return tf.reshape(flat_shuffle, tf.shape(value))
 
 
+def _prepad_to_multiple(
+    dataset: tf.data.Dataset,
+    features: Set[str],
+    multiple: int,
+) -> tf.data.Dataset:
+  """Pre-pads sequences in the dataset to a be a multiple of `multiple`.
+
+  See `trim_and_pack_dataset` for additional documentation.
+
+  Args:
+    dataset: tf.data.Dataset, the dataset to trimp/pad examples in.
+    features: The set of features to pre-pad. Typically this is the same set as
+      `feature_lengths`.
+    multiple: The multiple to pad to.
+
+  Returns:
+    tf.data.Dataset with features pre-padded to the desired lengths.
+  """
+  def _prepad_tensor(k: str, t: tf.Tensor) -> tf.Tensor:
+    """Pre-pad to the first axis of `t` to be a multiple of `multiple`."""
+    if k not in features:
+      return t
+    # Scalar int tensors:
+    cur_length = tf.shape(t)[0]
+    remainder = tf.floormod(cur_length, multiple)
+    pad_amt = multiple - remainder
+    new_length = cur_length + pad_amt
+
+    padded_t = tf.pad(t, [(0, pad_amt)] + [(0, 0)] * (len(t.shape) - 1))
+    padded_t.set_shape([new_length] + t.shape.as_list()[1:])
+    return padded_t
+
+  return dataset.map(
+      lambda x: {k: _prepad_tensor(k, t) for k, t in x.items()},
+      num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+
 def trim_and_pad_dataset(
     dataset: tf.data.Dataset,
     feature_lengths: Mapping[str, int]
@@ -260,7 +297,8 @@ def _strip_packed_feature_key(key: str) -> str:
 def trim_and_pack_dataset(
     dataset: tf.data.Dataset,
     feature_lengths: Mapping[str, int],
-    use_custom_ops: bool = False
+    use_custom_ops: bool = False,
+    prepadding_multiple: int = 1,
 ) -> tf.data.Dataset:
   """Creates a 'packed' version of a dataset on-the-fly.
 
@@ -309,6 +347,15 @@ def trim_and_pack_dataset(
       be discarded.
     use_custom_ops: a boolean - custom ops are faster but require a custom-built
       binary, which is not currently possible on cloud-tpu.
+    prepadding_multiple: Length multiple for pre-padding sequences, prior to
+      packing. This is useful when using downsampling operations (e.g. strided
+      convolutions) that could interact with packing, leading to neighboring
+      sequences "leaking" into each other's representations. This
+      `prepadding_multiple` concept is similar to memory alignment: Each
+      sequence is guaranteed to have a length that is a multiple of
+      `prepadding_multiple` such that downsampling by a factor of
+      `prepadding_multiple` will still result in packed sequences remaining
+      fully separated.
 
   Returns:
     a tf.data.Dataset
@@ -333,9 +380,15 @@ def trim_and_pack_dataset(
         "Features not in `features_length` will be removed during packing: %s",
         additional_keys)
 
+  # Trim.
   ds = dataset.map(
       lambda x: {k: x[k][:l, ...] for k, l in feature_lengths.items()},
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+  # Pre-pad if desired.
+  if prepadding_multiple > 1:
+    _prepad_to_multiple(
+        ds, features=set(feature_lengths.keys()), multiple=prepadding_multiple)
 
   # Setting batch_size=length ensures that the concatenated sequences (if they
   # have length >=1) are sufficient to fill at least one packed example.
