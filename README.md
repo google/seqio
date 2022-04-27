@@ -184,7 +184,13 @@ A few **important** notes:
 
   1. When instantiating a `Task`, the preprocessor functions can have the following arguments: `dataset`, `output_features`, and `sequence_length`. The first (positional) dataset argument is always required. If an argument named `output_features` is provided, the [output feature mapping](#output-features) will be passed to the preprocessor. If `sequence_length` is provided, a mapping from feature name to its *maximum* final sequence length ([provided by the caller](#getting-a-preprocessed-dataset) will be passed -- any sequences that are too long after preprocessing will be automatically truncated. If a preprocessor function does have other arguments, they must have default values or be bound (e.g., with `functools.partial` as used in `translate`) before instantiating the `Task`.
 
-  1. Mapping functions operate on and return `tf.Tensor`s using TensorFlow operations, although it is possible to take advantage of automatic [AutoGraph](https://blog.tensorflow.org/2018/07/autograph-converts-python-into-tensorflow-graphs.html) conversion for `numpy` or use [`tf.py_function`](https://www.tensorflow.org/api_docs/python/tf/py_function) to wrap arbitrary Python code. See `tf.data.Dataset` [documentation](https://www.tensorflow.org/api_docs/python/tf/data/Dataset) for more details.
+  1. Mapping functions operate on and return `tf.Tensor`s using TensorFlow operations. This is more flexible than it may sound:
+
+    *  Automatic [AutoGraph](https://www.tensorflow.org/guide/function#autograph_transformations) conversion allow you to write python control flow in your transformations.
+    * [tf.experimental.numpy](https://www.tensorflow.org/guide/tf_numpy) provides a numpy interface.
+    * [`tf.py_function`](https://www.tensorflow.org/api_docs/python/tf/py_function) allows you to wrap arbitrary Python code. Note: `tf.data` pipelines using this function can only be run in the python process where they were defined, and performance is limited by the python GIL.
+
+   See `tf.data.Dataset` [documentation](https://www.tensorflow.org/api_docs/python/tf/data/Dataset) for more details.
 
   1. When calling `map`, it is important to **always** set `num_parallel_calls=tf.data.experimental.AUTOTUNE` to avoid creating a bottleneck. The `seqio.map_over_dataset` decorator helps enforce this as follows.
 
