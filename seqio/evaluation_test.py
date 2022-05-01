@@ -52,6 +52,13 @@ def _sequence_accuracy_metric(targets, predictions):
   return {"sequence_accuracy": seq_acc}
 
 
+def _fake_aux_values_metric(targets, predictions, aux_values):
+  del predictions, targets
+  scores = aux_values["scores"]
+  fake_metric = sum([int(score == 0.1) for score in scores])
+  return {"fake_metric": fake_metric}
+
+
 def _accuracy_metric(targets, predictions):
   acc = 100 * np.mean([np.all(p == t) for p, t in zip(predictions, targets)])
   return {"accuracy": acc}
@@ -88,13 +95,17 @@ def register_dummy_task(task_name: str,
 def get_mocked_task(name: str = "mocked_test",
                     predict_metric_fns: Sequence[Callable] = (
                         _sequence_accuracy_metric,),
+                    predict_with_aux_metric_fns: Sequence[Callable] = (),
                     score_metric_fns: Sequence[Callable] = (),
                     target_field_name: str = "targets") -> mock.Mock:
   task = mock.Mock()
   task.name = name
   task.score_metric_fns = list(score_metric_fns)
   task.predict_metric_fns = list(predict_metric_fns)
-  task.metric_fns = list(predict_metric_fns) + list(score_metric_fns)
+  task.predict_with_aux_metric_fns = list(predict_with_aux_metric_fns)
+  task.metric_fns = (
+      list(predict_metric_fns) + list(score_metric_fns) +
+      list(predict_with_aux_metric_fns))
   # Identity postprocess function
   task.postprocess_fn = lambda d, example, is_target: d
 
@@ -366,7 +377,8 @@ class EvaluationTest(tf.test.TestCase):
   def _evaluate_single_task(self,
                             task,
                             loggers=(),
-                            target_field_name="targets"):
+                            target_field_name="targets",
+                            has_aux_values=False):
     id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
     mock_vocab = task.output_features[target_field_name].vocabulary
     # Define a dummy decoding logic.
@@ -390,10 +402,26 @@ class EvaluationTest(tf.test.TestCase):
       def predict_fn(
           ds: tf.data.Dataset,
           model_feature_shapes: Optional[Mapping[str, int]] = None
-      ) -> Sequence[Tuple[int, Sequence[int]]]:
+      ) -> evaluation.PredictFnReturnType:
         del ds, model_feature_shapes
         return ([(0, [5, 6]), (1, [7]),
                  (2, [7])] if task.predict_metric_fns else self.uncalled_fn)
+
+      def predict_with_aux_fn(
+          ds: tf.data.Dataset,
+          model_feature_shapes: Optional[Mapping[str, int]] = None
+      ) -> evaluation.PredictFnReturnType:
+        del ds, model_feature_shapes
+
+        indices_and_predictions = ([
+            (0, [5, 6]), (1, [7]), (2, [7])
+        ] if task.predict_metric_with_aux_fns else self.uncalled_fn)
+
+        aux_values = {
+            "scores": [0.1, 0.2, 0.2]
+        } if task.predict_metric_with_aux_fns else self.uncalled_fn
+
+        return indices_and_predictions, aux_values
 
       def score_fn(
           ds: tf.data.Dataset,
@@ -403,10 +431,14 @@ class EvaluationTest(tf.test.TestCase):
         return ([(1, 1), (0, 2),
                  (2, 3)] if task.score_metric_fns else self.uncalled_fn)
 
+      if not has_aux_values:
+        predict_with_aux_fn = None
+
       all_metrics, _, _ = evaluator.evaluate(
           compute_metrics=True,
           predict_fn=predict_fn,
           score_fn=score_fn,
+          predict_with_aux_fn=predict_with_aux_fn,
           step=42)
       return all_metrics.result(), evaluator
 
@@ -430,6 +462,76 @@ class EvaluationTest(tf.test.TestCase):
     all_metrics, _ = self._evaluate_single_task(task)
     expected = {"sequence_accuracy": 2.0 / 3 * 100, "total_score": 1305}
     self.assertDictClose(expected, all_metrics[task.name])
+
+  def test_evaluate_using_aux_score(self):
+    task = get_mocked_task(
+        predict_with_aux_metric_fns=[_fake_aux_values_metric])
+    all_metrics, _ = self._evaluate_single_task(task, has_aux_values=True)
+    self.assertEqual(1, all_metrics[task.name]["fake_metric"])
+
+  def test_aux_scores_sorted_with_tokens(self):
+    """Tests that the correct aux scores correspond with the correct tokens."""
+
+    def _aux_metric_that_cares_about_order(targets, predictions, aux_values):
+      del targets
+      result = 0
+      for i in range(len(predictions)):
+        if (int(predictions[i]) == aux_values["scores"][i] ==
+            aux_values["other_key"][i]):
+          result += 1
+      return {"fake_result": result}
+
+    task = get_mocked_task(
+        predict_with_aux_metric_fns=[_aux_metric_that_cares_about_order])
+
+    id_to_vocab = {5: "5", 6: "6", 7: "7"}
+    mock_vocab = task.output_features["targets"].vocabulary
+    # Define a dummy decoding logic.
+    mock_vocab.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
+
+    def mock_init(self):
+      self._cached_model_datasets = {task.name: tf.data.Dataset.range(1, 4)}
+      self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
+      self._cached_targets = {task.name: ["5", "6", "7"]}
+      self._eval_tasks = [task]
+      self._loggers = []
+      self._metrics_future = None
+      self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
+          max_workers=1)
+      self._target_field_name = "targets"
+
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
+
+      def predict_with_aux_fn(
+          ds: tf.data.Dataset,
+          model_feature_shapes: Optional[Mapping[str, int]] = None
+      ) -> evaluation.PredictFnReturnType:
+        del ds, model_feature_shapes
+
+        # pylint: disable=g-long-ternary
+        indices_and_predictions = ([
+            (2, [7]), (0, [5]), (1, [6])
+        ] if task.predict_metric_with_aux_fns else self.uncalled_fn)
+
+        aux_values = {
+            "scores": [7, 5, 6],
+            "other_key": [7, 5, 6],
+        } if task.predict_metric_with_aux_fns else self.uncalled_fn
+        # pylint: enable=g-long-ternary
+
+        return indices_and_predictions, aux_values
+
+      all_metrics, _, _ = evaluator.evaluate(
+          compute_metrics=True,
+          predict_fn=self.uncalled_fn,
+          score_fn=self.uncalled_fn,
+          predict_with_aux_fn=predict_with_aux_fn,
+          step=42)
+
+      # This only passes if the scores are perfectly aligned with the
+      # predictions.
+      self.assertEqual(3, all_metrics.result()[task.name]["fake_result"])
 
   def test_evaluate_single_task_predict_target_field_name(self):
     task = get_mocked_task(
@@ -532,7 +634,7 @@ class EvaluationTest(tf.test.TestCase):
       def predict_fn(
           ds: tf.data.Dataset,
           model_feature_shapes: Optional[Mapping[str, int]] = None
-      ) -> Sequence[Tuple[int, Sequence[int]]]:
+      ) -> evaluation.PredictFnReturnType:
         del ds, model_feature_shapes
         return [(0, [5, 6]), (1, [6, 8])]
 
@@ -573,7 +675,7 @@ class EvaluationTest(tf.test.TestCase):
       def predict_fn(
           ds: tf.data.Dataset,
           model_feature_shapes: Optional[Mapping[str, int]] = None
-      ) -> Sequence[Tuple[int, Sequence[int]]]:
+      ) -> evaluation.PredictFnReturnType:
         del ds, model_feature_shapes
         return [(0, [5]), (1, [6]), (2, [7])]
 
@@ -629,7 +731,7 @@ class EvaluationTest(tf.test.TestCase):
       def predict_fn(
           ds: tf.data.Dataset,
           model_feature_shapes: Optional[Mapping[str, int]] = None
-      ) -> Optional[Sequence[Tuple[int, Sequence[int]]]]:
+      ) -> Optional[evaluation.PredictFnReturnType]:
         del model_feature_shapes
         if ds == mock_ds1:
           return [(0, [5, 6]), (1, [7])]
@@ -943,7 +1045,7 @@ class EvaluationTest(tf.test.TestCase):
       def mixing_order_predict_fn(
           ds: tf.data.Dataset,
           model_feature_shapes: Optional[Mapping[str, int]] = None
-      ) -> Sequence[Tuple[int, Sequence[int]]]:
+      ) -> evaluation.PredictFnReturnType:
         del model_feature_shapes
         exs = list(tfds.as_numpy(ds))
         return [exs[2], exs[0], exs[1]]
@@ -953,7 +1055,11 @@ class EvaluationTest(tf.test.TestCase):
           predict_fn=mixing_order_predict_fn,
           score_fn=self.uncalled_fn)
       expected_metric = {"sequence_accuracy": 100}
-      expected_outputs = [np.array([5]), np.array([6]), np.array([7])]
+      expected_outputs = (
+          np.array([5], dtype=np.int32),
+          np.array([6], dtype=np.int32),
+          np.array([7], dtype=np.int32),
+      )
       self.assertDictEqual(expected_metric, all_metrics.result()[task.name])
       self.assertEqual(expected_outputs, all_outputs[task.name])
 

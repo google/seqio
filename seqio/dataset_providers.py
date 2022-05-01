@@ -801,9 +801,14 @@ class Task(DatasetProviderBase):
       postprocess_fn: callable, an optional function that receives decoded model
         outputs and converts them to a form that is ready for evaluation using
         the metric functions in `metric_fns`.
-      metric_fns: list(callable), an optional list of metric functions with the
-        signature `metric_fn(targets, predictions)` to use during evaluation. If
-        undefined or empty, no evaluation will occur on the task.
+      metric_fns: list(callable), an optional list of metric functions with a
+        signature that matches one of three possible forms:
+        - (targets, scores) - Note that `scores` refers to the score the model
+            assigned the target sequence, given the input.
+        - (targets, predictions)
+        - (targets, predictions, aux_values) - Note that
+            `aux_values` refers to a dictionary of auxiliary values that the
+            model assigned to each sequence.
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
     """
@@ -814,6 +819,7 @@ class Task(DatasetProviderBase):
 
     metric_fns = metric_fns or []
     self._predict_metric_fns = []
+    self._predict_with_aux_metric_fns = []
     self._score_metric_fns = []
     for metric_fn in metric_fns:
       pos_args = tuple(
@@ -823,10 +829,13 @@ class Task(DatasetProviderBase):
         self._score_metric_fns.append(metric_fn)
       elif pos_args == ("targets", "predictions"):
         self._predict_metric_fns.append(metric_fn)
+      elif pos_args == ("targets", "predictions", "aux_values"):
+        self._predict_with_aux_metric_fns.append(metric_fn)
       else:
         raise ValueError(
             "Metric functions must have positional arguments matching either "
-            "('targets', 'predictions') or ('targets', 'scores'). "
+            "('targets', 'scores'), ('targets', 'predictions') or "
+            "('targets', 'predictions', 'aux_values'). "
             f"Got: {pos_args}")
 
     self._name = name
@@ -882,7 +891,8 @@ class Task(DatasetProviderBase):
   @property
   def metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of all metric functions."""
-    return self._predict_metric_fns + self._score_metric_fns
+    return (self._predict_metric_fns + self._score_metric_fns +
+            self._predict_with_aux_metric_fns)
 
   @property
   def score_metric_fns(self) -> Sequence[MetricFnCallable]:
@@ -893,6 +903,11 @@ class Task(DatasetProviderBase):
   def predict_metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of metric functions that use model predictions."""
     return self._predict_metric_fns
+
+  @property
+  def predict_with_aux_metric_fns(self) -> Sequence[MetricFnCallable]:
+    """List of metric functions that use model predictions with aux values."""
+    return self._predict_with_aux_metric_fns
 
   @property
   def output_features(self) -> Mapping[str, Feature]:
