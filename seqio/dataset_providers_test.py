@@ -128,20 +128,30 @@ class TasksTest(test_utils.FakeTaskTest):
     def predict_metric_fn(targets, predictions):
       return {}
 
-    valid_task = add_task(
-        "valid_metrics", metric_fns=[score_metric_fn, predict_metric_fn])
+    def predict_with_aux_metric_fn(targets, predictions, aux_values):
+      return {}
 
-    self.assertSameElements([score_metric_fn, predict_metric_fn],
-                            valid_task.metric_fns)
+    valid_task = add_task(
+        "valid_metrics",
+        metric_fns=[
+            score_metric_fn, predict_metric_fn, predict_with_aux_metric_fn
+        ])
+
+    self.assertSameElements(
+        [score_metric_fn, predict_metric_fn, predict_with_aux_metric_fn],
+        valid_task.metric_fns)
     self.assertSameElements([score_metric_fn], valid_task.score_metric_fns)
     self.assertSameElements([predict_metric_fn], valid_task.predict_metric_fns)
+    self.assertSameElements([predict_with_aux_metric_fn],
+                            valid_task.predict_with_aux_metric_fns)
 
     def extra_arg_metric_fn(targets, predictions, extra_param):
       return {}
 
     expected_error_message_prefix = (
         "Metric functions must have positional arguments matching either "
-        "('targets', 'predictions') or ('targets', 'scores'). Got: ")
+        "('targets', 'scores'), ('targets', 'predictions') or ('targets', "
+        "'predictions', 'aux_values'). Got: ")
 
     with self.assertRaisesWithLiteralMatch(
         ValueError, expected_error_message_prefix +

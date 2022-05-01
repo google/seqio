@@ -19,9 +19,10 @@ import functools
 import inspect
 import itertools
 import time
-from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
+import numpy as np
 from seqio import dataset_providers
 from seqio import feature_converters
 from seqio import loggers as loggers_lib
@@ -36,6 +37,7 @@ FeatureConverter = feature_converters.FeatureConverter
 
 AllOutputTokensType = Mapping[str, Sequence[Sequence[int]]]
 AllOutputScoresType = Mapping[str, Sequence[float]]
+AllOutputAuxValuesType = Mapping[str, Mapping[str, Sequence[Any]]]
 AllMetricsType = Mapping[str, Mapping[str, Any]]
 
 
@@ -66,6 +68,8 @@ def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
     metric_types = []
     if task.predict_metric_fns:
       metric_types.append("predict")
+    if task.predict_with_aux_metric_fns:
+      metric_types.append("predict_with_aux")
     if task.score_metric_fns:
       metric_types.append("score")
     logging.info("Adding task '%s' with %s metric_fn(s).", task.name,
@@ -143,12 +147,21 @@ def get_targets_and_examples(
   return cached_targets, cached_task_datasets, max_sequence_length
 
 
+_BatchId = int
+_Tokens = Sequence[int]
+_AuxValues = Mapping[str, Sequence[Any]]
+
+_IndicesAndPredictions = Sequence[Tuple[_BatchId, _Tokens]]
+_IndicesAndPredictionsWithAuxValues = Tuple[_IndicesAndPredictions, _AuxValues]
+PredictFnReturnType = Union[_IndicesAndPredictions,
+                            _IndicesAndPredictionsWithAuxValues]
+
+
 class PredictFnCallable(typing_extensions.Protocol):
 
   def __call__(
       self, dataset: tf.data.Dataset,
-      model_feature_shapes: Optional[Mapping[str, int]]
-  ) -> Sequence[Tuple[int, Sequence[int]]]:
+      model_feature_shapes: Optional[Mapping[str, int]]) -> PredictFnReturnType:
     ...
 
 
@@ -159,6 +172,39 @@ class ScoreFnCallable(typing_extensions.Protocol):
       model_feature_shapes: Optional[Mapping[str, int]]
   ) -> Sequence[Tuple[int, float]]:
     ...
+
+
+def _extract_tokens_and_aux_values(cached_model_dataset, predict_fn):
+  """Extracts tokens and aux scores from a cached dataset."""
+  predict_fn_result = predict_fn(cached_model_dataset)
+
+  all_aux_values = {}
+  if isinstance(predict_fn_result, tuple):
+    indices_and_tokens, all_aux_values = predict_fn_result
+    indices, tokens = zip(*indices_and_tokens)
+
+    permutation = np.argsort(indices)
+
+    tokens = [tokens[permutation[i]] for i in range(len(permutation))]
+    for aux_keys, aux_values in all_aux_values.items():
+      all_aux_values[aux_keys] = [
+          aux_values[permutation[i]] for i in range(len(permutation))
+      ]
+
+  else:
+    indices_and_tokens = predict_fn_result
+    _, tokens = zip(*sorted(indices_and_tokens, key=lambda x: x[0]))
+
+  return tokens, all_aux_values
+
+
+def _extract_scores(cached_model_dataset, score_fn):
+  indices_and_scores = score_fn(cached_model_dataset)
+  if len(indices_and_scores[0]) != 2:
+    raise ValueError(
+        "Expected a sequence of length-2 tuples with (index, score) "
+        "format.")
+  return [x[1] for x in sorted(indices_and_scores, key=lambda x: x[0])]
 
 
 class Evaluator:
@@ -383,12 +429,15 @@ class Evaluator:
     """Wait for metrics to be written."""
     self._metrics_executor.shutdown(wait=True)
 
-  def evaluate(self,
-               *,
-               compute_metrics: bool,
-               step: Optional[int] = None,
-               predict_fn: PredictFnCallable,
-               score_fn: ScoreFnCallable) -> MetricsAndOutputsType:
+  def evaluate(
+      self,
+      *,
+      compute_metrics: bool,
+      step: Optional[int] = None,
+      predict_fn: PredictFnCallable,
+      score_fn: ScoreFnCallable,
+      predict_with_aux_fn: Optional[PredictFnCallable] = None
+  ) -> MetricsAndOutputsType:
     """Predict and score self.eval_tasks.
 
     Evaluation must preserve the example ordering. This requirement is satisfied
@@ -396,12 +445,14 @@ class Evaluator:
     enumerated tf.data.Dataset where each element has (index, example) format.
     Therefore, each index serves as a unique integer id for the example.
 
-    `predict_fn` takes as input the cached eval dataset. The output must be of
-    the form Sequence[(index, token_ids)] where `token_ids` is the sequence of
-    token ids output by the model with the input `example` whose index matches
-    `index`. Therefore, even if `predict_fn` mixes the order of the examples
-    during prediction, the order can be corrected as long as the correct index
-    for each example is maintained.
+    `predict_fn` takes as input the cached eval dataset. The output
+    may be of the form Sequence[(index, token_ids)] where `token_ids` is the
+    sequence of token ids output by the model with the input `example` whose
+    index matches `index`. Therefore, even if `predict_fn` mixes the order of
+    the examples during prediction, the order can be corrected as long as the
+    correct index for each example is maintained. `predict_with_aux_fn` is
+    almost exactly the same as `predict_fn`, except that it also returns a
+    dictionary of auxiliary values along with each sequence of `token_ids`.
 
     Similarly, `score_fn` takes the cached eval dataset as input and returns
     Sequence[(index, score)] where `score` is the sequence of log likelihood
@@ -414,12 +465,16 @@ class Evaluator:
     There are 4 steps involved in the evaluation using predicted tokens:
 
     1. Model returns indices and output_tokens: Sequence[Tuple[int,
-       Sequence[int]]]
+       Sequence[int]]], potentially with some auxiliary values.
     2. output tokens are decoded by `vocab.decode`
     3. Postprocessors are applied to the decoded output. These are denoted as
        predictions.
     4. Each metric function is applied to the predictions and the cached
        targets.
+
+    Using auxiliary values is exactly the same as predicted tokens, except that
+    a Mapping[str, Sequence[Any]] is also returned. Where len(Sequence[Any])
+    should correspond to the number of elements in the dataset.
 
     There are 2 steps involved in the evaluation using scores:
 
@@ -436,6 +491,10 @@ class Evaluator:
       score_fn: a user-defined function, which takes in a tf.data.Dataset and
         outputs the log likelihood score of the targets. Only called if score
         metrics exist for the task.
+      predict_with_aux_fn: a user-defined function that has exactly the same
+        behaviour as predict_fn, except that it also returns a dictionary of
+        auxiliary values. Only called if predict_with_aux metrics exist for the
+        tasks.
 
     Returns:
       metrics: a Future containing a mapping from task name to computed metrics,
@@ -446,26 +505,43 @@ class Evaluator:
         `score_fn` for tasks that have `score_predict_fns`.
     """
 
+    # Maps task.name to a list of sequences of output tokens from the model.
     all_output_tokens = {}
-    all_output_scores = {}
 
-    def _infer_and_sort_outputs(infer_fn, task_name):
-      indices_and_outputs = infer_fn(self.cached_model_datasets[task_name])
-      if len(indices_and_outputs[0]) != 2:
-        raise ValueError(
-            "Expected a sequence of length-2 tuples with (index, *) format.")
-      return [x[1] for x in sorted(indices_and_outputs, key=lambda x: x[0])]
+    # Maps task.name to dictionary of auxiliary sequences of values.
+    all_aux_values = {}
+
+    # Maps task.name to scores produced by the model of the target sequence
+    # conditioned on the input sequence.
+    all_output_scores = {}
 
     for task in self.eval_tasks:
       logging.info("Evaluating %s", task.name)
-      if task.predict_metric_fns:
-        # output_tokens is a list of token_ids where each token_ids
-        # corresponds to the model output of the input example.
-        all_output_tokens[task.name] = _infer_and_sort_outputs(
-            predict_fn, task.name)
+
+      if task.predict_with_aux_metric_fns:
+        if not predict_with_aux_fn:
+          raise ValueError("Metric function expects auxiliary values but a "
+                           "predict_with_aux_fn not supplied.")
+
+        tokens, aux_values = _extract_tokens_and_aux_values(
+            self._cached_model_datasets[task.name], predict_with_aux_fn)
+        if not aux_values:
+          raise ValueError("Metric function expects auxiliary values but "
+                           "predict_with_aux_fn does not produce auxiliary "
+                           "values.")
+
+        all_output_tokens[task.name] = tokens
+        all_aux_values[task.name] = aux_values
+
+      if task.predict_metric_fns and not task.predict_with_aux_metric_fns:
+        tokens, _ = _extract_tokens_and_aux_values(
+            self._cached_model_datasets[task.name], predict_fn)
+        all_output_tokens[task.name] = tokens
+        all_aux_values[task.name] = []
+
       if task.score_metric_fns:
-        all_output_scores[task.name] = _infer_and_sort_outputs(
-            score_fn, task.name)
+        all_output_scores[task.name] = _extract_scores(
+            self._cached_model_datasets[task.name], score_fn)
 
     if compute_metrics:
       if self._metrics_future:
@@ -479,7 +555,7 @@ class Evaluator:
       def compute_metrics_fn():
         tick = time.time()
         metrics = self._compute_metrics(all_output_tokens, all_output_scores,
-                                        step)
+                                        all_aux_values, step)
         logging.info("Time computing metrics: %f secs.", time.time() - tick)
         return metrics
 
@@ -502,9 +578,31 @@ class Evaluator:
       all_metrics.set_result(None)
     return all_metrics, all_output_tokens, all_output_scores
 
+  def _decode_and_postprocess_predictions(self, task, predicted_tokens,
+                                          task_dataset, targets):
+    """Run the model's predicted outputs through the decoder."""
+    task_vocab = task.output_features[self._target_field_name].vocabulary
+    task_predicted_tokens = predicted_tokens[task.name]
+
+    if len(targets) != len(task_predicted_tokens):
+      raise ValueError(f"len(targets)({len(targets)}) != "
+                       f"len(predictions)({len(task_predicted_tokens)})")
+
+    outputs = [
+        task_vocab.decode([int(token)
+                           for token in tokens])
+        for tokens in task_predicted_tokens
+    ]
+    postprocessed_outputs = [
+        task.postprocess_fn(d, example=ex, is_target=False)
+        for d, ex in zip(outputs, tfds.as_numpy(task_dataset))
+    ]
+    return outputs, postprocessed_outputs
+
   def _compute_metrics(self,
                        predicted_tokens: AllOutputTokensType,
                        scores: AllOutputScoresType,
+                       all_aux_values: AllOutputAuxValuesType,
                        step: Optional[int] = None) -> AllMetricsType:
     """Computes and logs metrics given the predicted tokens and scores.
 
@@ -513,6 +611,8 @@ class Evaluator:
         `predict_fn`, for tasks that have `predict_metric_fns`.
       scores: a mapping from task name to the output scores from `score_fn` for
         tasks that have `score_predict_fns`.
+      all_aux_values: a mapping from task name to the output auxiliary values
+        from `predict_fn` for tasks that have `predict_metric_with_aux_fns`.
       step: an optional step number of the current evaluation. If unspecified, a
         dummy value of -1 will be used.
 
@@ -529,30 +629,26 @@ class Evaluator:
       task_metrics = []
       inferences = {}
 
-      if task.predict_metric_fns:
-        task_vocab = task.output_features[self._target_field_name].vocabulary
-        task_predicted_tokens = predicted_tokens[task.name]
-
-        if len(targets) != len(task_predicted_tokens):
-          raise ValueError(f"len(targets)({len(targets)}) != "
-                           f"len(predictions)({len(task_predicted_tokens)})")
-
-        outputs = [
-            task_vocab.decode([int(token)
-                               for token in tokens])
-            for tokens in task_predicted_tokens
-        ]
+      if task.predict_metric_fns or task.predict_with_aux_metric_fns:
+        (outputs,
+         postprocessed_outputs) = self._decode_and_postprocess_predictions(
+             task, predicted_tokens, task_dataset, targets)
         inferences["output"] = outputs
-        task_predictions = [
-            task.postprocess_fn(d, example=ex, is_target=False)
-            for d, ex in zip(outputs, tfds.as_numpy(task_dataset))
-        ]
-        inferences["prediction"] = task_predictions
+        inferences["prediction"] = postprocessed_outputs
 
+      if task.predict_metric_fns:
         task_metrics.extend([
-            metric_fn(targets, task_predictions)
+            metric_fn(targets, inferences["prediction"])
             for metric_fn in task.predict_metric_fns
         ])
+
+      if task.predict_with_aux_metric_fns:
+        aux_values = all_aux_values[task.name]
+        task_metrics.extend([
+            metric_fn(targets, inferences["prediction"], aux_values)
+            for metric_fn in task.predict_with_aux_metric_fns
+        ])
+        inferences["aux_value"] = aux_values
 
       if task.score_metric_fns:
         task_scores = scores[task.name]
@@ -571,11 +667,13 @@ class Evaluator:
           raise ValueError(f"Duplicate metric key '{k}' in Task '{task.name}'.")
         all_metrics[task.name][k] = v
 
+      # pyformat: disable
       metrics = {
           k: metrics_lib.Scalar(v)
              if not isinstance(v, metrics_lib.MetricValue) else v
           for k, v in all_metrics[task.name].items()
       }
+      # pyformat: enable
       for logger in self.loggers:
         logger(
             task_name=task.name,

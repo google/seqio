@@ -55,8 +55,8 @@ class Logger(abc.ABC):
       metrics: A mapping from series names to numeric datapoints to be added to
         that series.
       dataset: The Task dataset.
-      inferences: Mapping from inference type ("predictions", "scores") to the
-        model outputs, aligned with the dataset.
+      inferences: Mapping from inference type ("predictions", "scores",
+        "aux_value") to the model outputs, aligned with the dataset.
       targets: The postprocessed targets, aligned with the dataset.
     """
     ...
@@ -304,6 +304,16 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
     return json.JSONEncoder.default(self, obj)
 
 
+def _check_json_serializable(field_name: str, value: Any,
+                             json_encoder_cls: Type[json.JSONEncoder]) -> bool:
+  try:
+    json.dumps(value, cls=json_encoder_cls)
+    return True
+  except TypeError:
+    logging.warning("`%s` is not JSON serializable", field_name, exc_info=True)
+    return False
+
+
 class JSONLogger(Logger):
   """A logger that writes metrics and model outputs to JSONL files."""
 
@@ -325,9 +335,7 @@ class JSONLogger(Logger):
     self._write_n_results = write_n_results
     self._json_encoder_cls = json_encoder_cls
 
-  def __call__(self,
-               task_name: str,
-               step: Optional[int],
+  def __call__(self, task_name: str, step: Optional[int],
                metrics: Mapping[str, metrics_lib.MetricValue],
                dataset: Optional[tf.data.Dataset],
                inferences: Optional[Mapping[str, Sequence[Any]]],
@@ -364,7 +372,8 @@ class JSONLogger(Logger):
             json.dumps({
                 "step": step,
                 **serializable_metrics
-            }, cls=self._json_encoder_cls))
+            },
+                       cls=self._json_encoder_cls))
         f.write("\n")
       tf.io.gfile.rename(metrics_fname + ".tmp", metrics_fname, overwrite=True)
 
@@ -382,6 +391,13 @@ class JSONLogger(Logger):
     logging.info("Writing inferences to %s", inferences_fname)
     with tf.io.gfile.GFile(inferences_fname, "w") as f:
       inference_types = list(inferences.keys())
+
+      # The auxiliary values have a different shape than the others to conserve
+      # memory. They are handled separately below.
+      all_aux_values = {}
+      if "aux_value" in inference_types:
+        inference_types.remove("aux_value")
+        all_aux_values = inferences["aux_value"]
       to_zip = ([tfds.as_numpy(dataset), targets] +
                 [inferences.get(t) for t in inference_types])
       examples_with_results = itertools.zip_longest(*to_zip)
@@ -390,7 +406,7 @@ class JSONLogger(Logger):
                                                  self._write_n_results)
       field_names = ["target"] + inference_types
 
-      for inp, *results in examples_with_results:
+      for example_index, (inp, *results) in enumerate(examples_with_results):
         # tfds.as_numpy does not convert ragged tensors
         for k in inp:
           if isinstance(inp[k], tf.RaggedTensor):
@@ -399,13 +415,14 @@ class JSONLogger(Logger):
         json_dict = {"input": inp}
 
         for field_name, res in zip(field_names, results):
-          # Only write if it is JSON serializable.
-          try:
-            json.dumps(res, cls=self._json_encoder_cls)
+          if _check_json_serializable(field_name, res, self._json_encoder_cls):
             json_dict[field_name] = res
-          except TypeError:
-            logging.warning(
-                "`%s` is not JSON serializable", field_name, exc_info=True)
+
+        for aux_value_name in all_aux_values:
+          aux_value = inferences["aux_value"][aux_value_name][example_index]
+          if _check_json_serializable(aux_value_name, aux_value,
+                                      self._json_encoder_cls):
+            json_dict[f"aux_{aux_value_name}"] = aux_value
 
         json_str = json.dumps(json_dict, cls=self._json_encoder_cls)
         f.write(json_str + "\n")
