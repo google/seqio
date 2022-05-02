@@ -24,6 +24,7 @@ import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
+
 _INFO_FILENAME = "info.{split}.json"
 _STATS_FILENAME = "stats.{split}.json"
 _TFRECORD_PREFIX = "{split}.tfrecord"
