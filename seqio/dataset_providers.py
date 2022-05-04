@@ -354,6 +354,12 @@ class FunctionDataSource(DataSource):
           "`FunctionDataSource` does not support low-level sharding. Use "
           "tf.data.Dataset.shard instead.")
 
+    if shuffle:
+      logging.warning(
+          "Using an uncached FunctionDataset for training is not recommended "
+          "since it often results in insufficient shuffling. It is highly "
+          "recommended that you cache this task before training with it.")
+
     if seed is None:
       ds = self._dataset_fn(split=split, shuffle_files=shuffle)
     else:
@@ -501,12 +507,26 @@ class FileDataSource(DataSource):
             f"{shard_info.num_shards} shards requested.")
       files_ds = files_ds.shard(shard_info.num_shards, shard_info.index)
 
+    interleave_amt = 16
+
     if shuffle:
       if self._file_shuffle_buffer_size:
         logging.warning(
             "`file_shuffle_buffer_size` is explicitly set to %d; this may lead "
             "to an imperfect file shuffle. Leave `file_shuffle_buffer_size` "
             "unset for a perfect shuffle.", self._file_shuffle_buffer_size)
+      if len(files) == 1:
+        logging.warning(
+            "Insufficient file shards for proper shuffling (%d). It is "
+            "recommended that you either use dataset checkpointing, cache "
+            "your dataset with more shards, or use less data parallelism.",
+            len(files))
+        interleave_amt = 1
+      if len(files) < interleave_amt:
+        interleave_amt = len(files) // 2
+        logging.info(
+            "Reducing interleave to %d for improved shuffling for %d files.",
+            len(files), interleave_amt)
       file_shuffle_buffer_size = self._file_shuffle_buffer_size or len(files)
       files_ds = files_ds.shuffle(
           buffer_size=file_shuffle_buffer_size, seed=seed)
@@ -802,13 +822,12 @@ class Task(DatasetProviderBase):
         outputs and converts them to a form that is ready for evaluation using
         the metric functions in `metric_fns`.
       metric_fns: list(callable), an optional list of metric functions with a
-        signature that matches one of three possible forms:
-        - (targets, scores) - Note that `scores` refers to the score the model
-            assigned the target sequence, given the input.
-        - (targets, predictions)
-        - (targets, predictions, aux_values) - Note that
-            `aux_values` refers to a dictionary of auxiliary values that the
-            model assigned to each sequence.
+        signature that matches one of three possible forms: - (targets, scores)
+          - Note that `scores` refers to the score the model assigned the target
+          sequence, given the input. - (targets, predictions) - (targets,
+          predictions, aux_values) - Note that `aux_values` refers to a
+          dictionary of auxiliary values that the model assigned to each
+          sequence.
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
     """
