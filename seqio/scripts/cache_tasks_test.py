@@ -17,6 +17,7 @@
 import functools
 import os
 
+from absl import flags
 from absl.testing import absltest
 from apache_beam.testing.test_pipeline import TestPipeline
 import seqio
@@ -25,6 +26,7 @@ import tensorflow.compat.v2 as tf
 
 tf.compat.v1.enable_eager_execution()
 
+flags.FLAGS.min_shards = 0
 TaskRegistry = seqio.TaskRegistry
 test_utils = seqio.test_utils
 

@@ -164,7 +164,7 @@ def run_pipeline(pipeline,
       pat = beam_utils.PreprocessTask(
           task, split, modules_to_import=modules_to_import,
           tfds_data_dir=FLAGS.tfds_data_dir)
-      num_shards = min(len(pat.shards), FLAGS.min_shards)
+      num_shards = max(len(pat.shards), FLAGS.min_shards)
       examples = pipeline | "%s_pat" % label >> pat
       completion_values.append(
           examples
