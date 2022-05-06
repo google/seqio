@@ -26,8 +26,10 @@ in the future in order to support higher dimensional data.
    
    overview.md
 
-.. toctree::
-   :maxdepth: 2
-   :caption: API Reference
+.. automodule:: seqio
+   :imported-members:
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
    seqio.beam_utils
