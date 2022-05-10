@@ -47,6 +47,9 @@ flags.DEFINE_string(
     "String representation of a dictionary for sequence length to be passed to Seqio `get_dataset`."
 )
 
+flags.DEFINE_bool("decode_features", False,
+                  "If true, decode the output features using the vocabulary.")
+
 
 def _import_modules(modules):
   """Function that imports an additional module."""
@@ -73,7 +76,14 @@ def _inspect_task_or_mixture(task_or_mixture):
       )
       print(f"* Split: {split} *")
       for example in dataset:
-        pprint.pprint(example, indent=2)
+        printed_example = {}
+        for key, val in example.items():
+          if FLAGS.decode_features and key in task_or_mixture.output_features:
+            printed_example[key] = task_or_mixture.output_features[
+                key].vocabulary.decode_tf(val)
+          else:
+            printed_example[key] = val
+        pprint.pprint(printed_example, indent=2)
         if input(
             "Press any key for next example. Press 'c' to skip to next split."
         ) == "c":
