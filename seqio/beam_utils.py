@@ -15,6 +15,7 @@
 """SeqIO Beam utilities."""
 
 import functools
+import hashlib
 import importlib
 import json
 import operator
@@ -66,7 +67,7 @@ class PreprocessTask(beam.PTransform):
       task: Task, the task to process.
       split: string, the split to process.
       preprocessors_seed: (Optional) int, a seed for stateless random ops in
-          task preprocessing.
+        task preprocessing.
       modules_to_import: (Optional) list, modules to import.
       add_provenance: If True, provenance is added to each example.
       tfds_data_dir: (Optional) str, directory used to store datasets.
@@ -78,9 +79,8 @@ class PreprocessTask(beam.PTransform):
     self._add_provenance = add_provenance
     self._tfds_data_dir = tfds_data_dir
     self.shards = list(enumerate(task.source.list_shards(split)))
-    logging.info(
-        "%s %s shards: %s", task.name, split, ", ".join(
-            ["%s" % f[1] for f in self.shards]))
+    logging.info("%s %s shards: %s", task.name, split,
+                 ", ".join(["%s" % f[1] for f in self.shards]))
 
   def _increment_counter(self, name):
     metrics.Metrics.counter(
@@ -100,13 +100,18 @@ class PreprocessTask(beam.PTransform):
     ds = self._task.source.get_dataset(
         split=self._split,
         shard_info=seqio.ShardInfo(
-            index=shard_index, num_shards=len(self.shards)
-        ),
+            index=shard_index, num_shards=len(self.shards)),
         shuffle=False)
 
     ds = ds.prefetch(tf.data.AUTOTUNE)
 
-    ds = self._task.preprocess_precache(ds, seed=self._preprocessors_seed)
+    # Create a unique, deterministic preprocessors seed for each task and shard.
+    shard_preprocessors_seed = int.from_bytes(
+        hashlib.md5(
+            (self._task.name + f"shard{shard_index}").encode()).digest(),
+        "little") + (self._preprocessors_seed or 0)
+
+    ds = self._task.preprocess_precache(ds, seed=shard_preprocessors_seed)
 
     def _add_provenance(index_within_shard: int, ex: Dict[str, Any]):
       ex.update({
@@ -152,14 +157,13 @@ class WriteExampleTfRecord(beam.PTransform):
     self._num_shards = num_shards
 
   def expand(self, pcoll):
-    return (
-        pcoll
-        | beam.Map(seqio.dict_to_tfexample)
-        | beam.Reshuffle()
-        | beam.io.tfrecordio.WriteToTFRecord(
-            self._output_path,
-            num_shards=self._num_shards,
-            coder=beam.coders.ProtoCoder(tf.train.Example)))
+    return (pcoll
+            | beam.Map(seqio.dict_to_tfexample)
+            | beam.Reshuffle()
+            | beam.io.tfrecordio.WriteToTFRecord(
+                self._output_path,
+                num_shards=self._num_shards,
+                coder=beam.coders.ProtoCoder(tf.train.Example)))
 
 
 class WriteJson(beam.PTransform):
@@ -184,13 +188,10 @@ class WriteJson(beam.PTransform):
       return json.dumps(el)
 
   def expand(self, pcoll):
-    return (
-        pcoll
-        | beam.Map(self._jsonify)
-        | "write_info" >> beam.io.WriteToText(
-            self._output_path,
-            num_shards=1,
-            shard_name_template=""))
+    return (pcoll
+            | beam.Map(self._jsonify)
+            | "write_info" >> beam.io.WriteToText(
+                self._output_path, num_shards=1, shard_name_template=""))
 
 
 class GetInfo(beam.PTransform):
@@ -229,10 +230,9 @@ class GetInfo(beam.PTransform):
     return info
 
   def expand(self, pcoll):
-    return (
-        pcoll
-        | beam.combiners.Sample.FixedSizeGlobally(1)
-        | beam.Map(self._info_dict))
+    return (pcoll
+            | beam.combiners.Sample.FixedSizeGlobally(1)
+            | beam.Map(self._info_dict))
 
 
 class _CountTokens(beam.DoFn):
@@ -308,7 +308,7 @@ class GetStats(beam.PTransform):
         assert not set(merged_dict).intersection(d)
         merged_dict.update(d)
       return merged_dict
-    return (
-        [example_counts, total_tokens, max_tokens]
-        | "flatten_counts" >> beam.Flatten()
-        | "merge_stats" >> beam.CombineGlobally(_merge_dicts))
+
+    return ([example_counts, total_tokens, max_tokens]
+            | "flatten_counts" >> beam.Flatten()
+            | "merge_stats" >> beam.CombineGlobally(_merge_dicts))
