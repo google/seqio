@@ -589,9 +589,7 @@ class Evaluator:
                        f"len(predictions)({len(task_predicted_tokens)})")
 
     outputs = [
-        task_vocab.decode([int(token)
-                           for token in tokens])
-        for tokens in task_predicted_tokens
+        task_vocab.decode(tokens) for tokens in task_predicted_tokens
     ]
     postprocessed_outputs = [
         task.postprocess_fn(d, example=ex, is_target=False)

@@ -140,7 +140,7 @@ class PassThroughVocabulary(Vocabulary):
   def __init__(
       self,
       size: int,
-      eos_id: Optional[int] = None):
+      eos_id: Optional[Any] = None):
     """PassThroughVocabulary constructor.
 
     Args:
@@ -155,10 +155,10 @@ class PassThroughVocabulary(Vocabulary):
   def _base_vocab_size(self):
     return self._size
 
-  def _encode(self, s: Sequence[int]) -> Sequence[int]:
+  def _encode(self, s: Sequence[Any]) -> Sequence[Any]:
     return s
 
-  def _decode(self, ids: Sequence[int]) -> Sequence[int]:
+  def _decode(self, ids: Sequence[Any]) -> Sequence[Any]:
     return ids
 
   def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
@@ -168,11 +168,11 @@ class PassThroughVocabulary(Vocabulary):
     return ids
 
   @property
-  def eos_id(self) -> Optional[int]:
+  def eos_id(self) -> Optional[Any]:
     return self._eos_id
 
   @property
-  def unk_id(self) -> Optional[int]:
+  def unk_id(self) -> Optional[Any]:
     return None
 
   def __eq__(self, other):
@@ -377,7 +377,7 @@ class SentencePieceVocabulary(Vocabulary):
     # convert all the extra ids (sentinels) to UNK=2
     ids = [
         self.tokenizer.unk_id() if i >= self.tokenizer.GetPieceSize()
-        else i for i in ids]
+        else int(i) for i in ids]
     return self.tokenizer.DecodeIds(ids)
 
   def _encode_tf(self, s):
@@ -519,7 +519,7 @@ class ByteVocabulary(Vocabulary):
     Returns:
       a string
     """
-
+    ids = [int(i) for i in ids]
     ids = self._filter_non_string_ids(ids)
     ids = [i - self._num_special_tokens for i in ids]
     return self._convert_ids_to_strings(ids)
@@ -603,6 +603,7 @@ class FullCodepointVocabulary(Vocabulary):
     return [ord(i) for i in s]
 
   def _decode(self, ids: Sequence[int]) -> str:
+    ids = [int(i) for i in ids]
     return "".join(chr(id_) for id_ in ids if id_ != self.EOS_CODEPOINT)
 
   def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
@@ -709,7 +710,7 @@ class PartialCodepointVocabulary(Vocabulary):
   def _decode(self, ids: Sequence[int]) -> str:
     output_str = ""
     for id_ in ids:
-      codepoint = self._id_to_codepoint.get(id_, self.UNK_CODEPOINT)
+      codepoint = self._id_to_codepoint.get(int(id_), self.UNK_CODEPOINT)
       if codepoint == self.EOS_CODEPOINT: continue
       output_str += chr(codepoint)
     return output_str
