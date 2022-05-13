@@ -20,6 +20,7 @@ from seqio import evaluation
 from seqio import experimental
 from seqio.evaluation import Evaluator
 from seqio.feature_converters import *
+from seqio import helpers
 from seqio.loggers import *
 from seqio import metrics
 from seqio import preprocessors
