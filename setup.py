@@ -43,6 +43,7 @@ setuptools.setup(
     install_requires=[
         'absl-py',
         'numpy',
+        'packaging',
         'sentencepiece',
         'tensorflow-text',
         'tfds-nightly',
