@@ -69,9 +69,9 @@ def mixture_or_task_with_new_vocab(
     if set(og_output_features) != set(new_output_features):
       raise ValueError(f"new_output_features: {new_output_features} doesn't "
                        f"match original output_features: {og_output_features}")
-    # Only `vocabulary` and `add_eos` fields may differ.
+    # Only `vocabulary`, `add_eos` and `required` fields may differ.
     all_fields = [f.name for f in dataclasses.fields(dp.Feature)]
-    ignored_fields = ["vocabulary", "add_eos"]
+    ignored_fields = ["vocabulary", "add_eos", "required"]
     fields_to_check = [f for f in all_fields if f not in ignored_fields]
     for feature_name in og_output_features:
       og_feature = og_output_features[feature_name]
