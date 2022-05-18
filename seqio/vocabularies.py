@@ -16,6 +16,7 @@
 
 import abc
 import hashlib
+import threading
 from typing import Any, Dict, Iterable, Optional, Sequence, Union
 from absl import logging
 import tensorflow.compat.v2 as tf
@@ -278,39 +279,58 @@ class SentencePieceVocabulary(Vocabulary):
     self._reverse_extra_ids = reverse_extra_ids
     self._tokenizer = None
     self._sp_model = None
+    self._load_model_lock = threading.Lock()
     super().__init__(extra_ids=extra_ids)
+
+  def __getstate__(self):
+    state = self.__dict__.copy()
+    # Gin config makes a deep copy of the keyword argumetns of configurables.
+    # When a SentencePieceVocabulary vocabulary is used as a keyword argument
+    # in a Gin configurable, it must be picklable. Lock is not picklable. We
+    # remove the lock when pickling the vocabulary and add it back afterwards.
+    del state["_load_model_lock"]
+    return state
+
+  def __setstate__(self, state):
+    self.__dict__.update(state)
+    self._load_model_lock = threading.Lock()
 
   def _load_model(self):
     """Load SPM and Python tokenizer."""
-    # Handle cases where SP can't load the file, but gfile can.
-    with tf.io.gfile.GFile(self._sentencepiece_model_file, "rb") as f:
-      self._sp_model = f.read()
-      model = sentencepiece_model_pb2.ModelProto.FromString(self._sp_model)
-      # Add placeholder strings for extra IDs.
-      if self._extra_ids:
-        # By default, we them in reverse order to match span corruption.
-        if self._reverse_extra_ids:
-          extra_id_tokens = reversed(range(self._extra_ids))
-        else:
-          extra_id_tokens = range(self._extra_ids)
+    # SentencePieceProcessor::LoadFromSerializedProto is not thread-safe.
+    # Without a lock, users may randomly see SIGSEGV on
+    # sentencepiece::ModelInterface::pad_piece when using the vocabulary in
+    # SeqIO preprocessors.
+    with self._load_model_lock:
+      # Handle cases where SP can't load the file, but gfile can.
+      with tf.io.gfile.GFile(self._sentencepiece_model_file, "rb") as f:
+        self._sp_model = f.read()
+        model = sentencepiece_model_pb2.ModelProto.FromString(self._sp_model)
+        # Add placeholder strings for extra IDs.
+        if self._extra_ids:
+          # By default, we them in reverse order to match span corruption.
+          if self._reverse_extra_ids:
+            extra_id_tokens = reversed(range(self._extra_ids))
+          else:
+            extra_id_tokens = range(self._extra_ids)
 
-        for i in extra_id_tokens:
-          model.pieces.add(
-              piece=f"▁<extra_id_{i}>", score=0.0,
-              type=
-              sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED)
-      if self._normalizer_spec_overrides is not None:
-        model.normalizer_spec.MergeFrom(self._normalizer_spec_overrides)
-        model.denormalizer_spec.MergeFrom(self._normalizer_spec_overrides)
-      self._sp_model = model.SerializeToString()
-    # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
-    self._tokenizer = sentencepiece_processor.SentencePieceProcessor()
-    self._tokenizer.LoadFromSerializedProto(self._sp_model)
-    if self._tokenizer.pad_id() != PAD_ID:
-      logging.warning(
-          "T5 library uses PAD_ID=%s, which is different from the "
-          "sentencepiece vocabulary, which defines pad_id=%s",
-          PAD_ID, self._tokenizer.pad_id())
+          for i in extra_id_tokens:
+            model.pieces.add(
+                piece=f"▁<extra_id_{i}>", score=0.0,
+                type=
+                sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED)
+        if self._normalizer_spec_overrides is not None:
+          model.normalizer_spec.MergeFrom(self._normalizer_spec_overrides)
+          model.denormalizer_spec.MergeFrom(self._normalizer_spec_overrides)
+        self._sp_model = model.SerializeToString()
+      # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
+      self._tokenizer = sentencepiece_processor.SentencePieceProcessor()
+      self._tokenizer.LoadFromSerializedProto(self._sp_model)
+      if self._tokenizer.pad_id() != PAD_ID:
+        logging.warning(
+            "T5 library uses PAD_ID=%s, which is different from the "
+            "sentencepiece vocabulary, which defines pad_id=%s",
+            PAD_ID, self._tokenizer.pad_id())
 
   @property
   def eos_id(self) -> Optional[int]:
