@@ -68,6 +68,11 @@ flags.DEFINE_list(
     "A comma-separated list of command line arguments to be used as options "
     "for the Beam Pipeline.")
 flags.DEFINE_boolean(
+    "ignore_other_caches", False,
+    "If true, cache the task to output_cache_dir, ignoring cached data in "
+    "other directories regardless of the value of `overwrite`."
+)
+flags.DEFINE_boolean(
     "overwrite", False,
     "If true, overwrite the cached task even if it exists in the cached "
     "directories.")
@@ -95,6 +100,7 @@ def run_pipeline(pipeline,
                  excluded_tasks=None,
                  modules_to_import=(),
                  overwrite=False,
+                 ignore_other_caches=False,
                  completed_file_contents=""):
   """Run preprocess pipeline."""
   output_dirs = []
@@ -121,25 +127,34 @@ def run_pipeline(pipeline,
     output_dir = os.path.join(
         cache_dir, seqio.get_task_dir_from_name(task.name))
 
-    if task_cache_dir and not overwrite:
-      logging.info("Skipping task '%s', which exists in cache dir: %s",
-                   task.name, task_cache_dir)
-      continue
-
-    if task_cache_dir and overwrite:
-      if task_cache_dir == output_dir:
-        # We were asked to overwrite the data, and the given directory that we
-        # should generate the data in already has the data, then delete it.
+    if ignore_other_caches:
+      if task_cache_dir != output_dir:
         logging.warning(
-            "Overwriting already cached data for task '%s' in cache_dir %s",
-            task.name, output_dir)
-        tf.io.gfile.rmtree(output_dir)
-      else:
-        # Cannot overwrite, since cache_dir isn't same as task.cache_dir.
-        logging.warning("Not overwriting data in task.cache_dir since it is "
-                        "different from cache_dir - %s vs %s", task.cache_dir,
-                        output_dir)
+            "Task '%s' is already cached at %s but writing cached data to %s "
+            "anyway because the --ignore_other_caches flag is set. Please note"
+            "that the task and cached data may change and must be kept "
+            "track of and re-cached manually by the user as needed.",
+            task.name, task_cache_dir, output_dir)
+    else:
+      if task_cache_dir and not overwrite:
+        logging.info("Skipping task '%s', which exists in cache dir: %s",
+                     task.name, task_cache_dir)
         continue
+
+      if task_cache_dir and overwrite:
+        if task_cache_dir == output_dir:
+          # We were asked to overwrite the data, and the given directory that we
+          # should generate the data in already has the data, then delete it.
+          logging.warning(
+              "Overwriting already cached data for task '%s' in cache_dir %s",
+              task.name, output_dir)
+          tf.io.gfile.rmtree(output_dir)
+        else:
+          # Cannot overwrite, since cache_dir isn't same as task.cache_dir.
+          logging.warning("Not overwriting data in task.cache_dir since it is "
+                          "different from cache_dir - %s vs %s", task.cache_dir,
+                          output_dir)
+          continue
 
     if not task.splits:
       logging.warning("Skipping task '%s' with no splits.", task.name)
@@ -218,6 +233,7 @@ def main(_):
         FLAGS.excluded_tasks,
         FLAGS.module_import,
         FLAGS.overwrite,
+        FLAGS.ignore_other_caches,
     )
 
 
