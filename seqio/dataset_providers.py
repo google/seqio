@@ -1400,6 +1400,7 @@ class Mixture(DatasetProviderBase):
       num_epochs: Optional[int] = None,
       copy_pretokenized: bool = False,
       compute_stats_empirically: bool = False,
+      log_mixing_proportions: bool = True,
       passthrough_features: Optional[Sequence[str]] = None) -> tf.data.Dataset:
     """Returns the dataset of mixed tasks using the object-specified rates.
 
@@ -1422,6 +1423,7 @@ class Mixture(DatasetProviderBase):
       copy_pretokenized: bool, whether to pass through copies of pretokenized
         features a "_pretokenized" suffix added to the key.
       compute_stats_empirically: a boolean - does not work on TPU
+      log_mixing_proportions: whether to log the mixing porportions of the tasks
       passthrough_features: a list of additional features that will be kept
         after the feature filtering. If set to be None, then only the
         output_features defined for the mixture will be kept.
@@ -1470,7 +1472,7 @@ class Mixture(DatasetProviderBase):
     else:
       sample_seed = 42
     dataset = self._sample_fn(datasets, rates, sample_seed)
-    if (split == "train" and use_cached and
+    if (log_mixing_proportions and split == "train" and use_cached and
         all(t.supports_caching for t in tasks)):
       _log_mixing_proportions(tasks, datasets, rates, dataset, sequence_length,
                               compute_stats_empirically)
