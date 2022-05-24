@@ -16,6 +16,7 @@
 
 import abc
 import base64
+import dataclasses
 import itertools
 import json
 import os
@@ -300,6 +301,9 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
         return obj.decode("utf-8")
       except UnicodeDecodeError:
         return base64.b64encode(obj)
+
+    if dataclasses.is_dataclass(obj):
+      return dataclasses.asdict(obj)
 
     return json.JSONEncoder.default(self, obj)
 

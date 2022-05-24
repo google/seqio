@@ -15,6 +15,7 @@
 """Tests for seqio.loggers."""
 # pylint:disable=g-bare-generic,g-long-lambda
 
+import dataclasses
 import json
 import os
 
@@ -677,6 +678,31 @@ class JSONLoggerTest(tf.test.TestCase):
     # Verify inferences not written.
     self.assertFalse(
         tf.io.gfile.exists(os.path.join(tmp_dir, "test-000042.jsonl")))
+
+
+class TensorAndNumpyEncoderLoggerTest(tf.test.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.logger = loggers.TensorAndNumpyEncoder()
+
+  def test_tensor(self):
+    obj = tf.constant([1, 2, 3])
+    self.assertEqual(self.logger.encode(obj), "[1, 2, 3]")
+
+  def test_numpy(self):
+    obj = np.array([1, 2, 3])
+    self.assertEqual(self.logger.encode(obj), "[1, 2, 3]")
+
+  def test_dataclass(self):
+
+    @dataclasses.dataclass
+    class Foo():
+      bar: int
+      baz: str
+
+    obj = Foo(1, "bazbaz")
+    self.assertEqual(self.logger.encode(obj), '{"bar": 1, "baz": "bazbaz"}')
 
 
 if __name__ == "__main__":
