@@ -271,10 +271,90 @@ class _CountTokens(beam.DoFn):
         yield (f"{name}_tokens", num_tokens)
 
 
+class _CountCharacters(beam.DoFn):
+  """Returns character counts for each feature.
+
+  This works with both tokenized (integer array) dataset and string dataset. For
+  the former, each feature is detokenized and the string length is computed. For
+  the latter, the bytes feature is decoded and the string length of that is
+  returned.
+
+  Example 1 (tokenized dataset):
+  ```python
+
+    Assume that these examples are generated with a vocab that decodes "ea" as
+    [4, 5], etc.
+
+    input_examples = [{
+        # Decoded as "ea", i.e., length 2 string
+        "inputs": np.array([4, 5]),
+        # Decoded as "ea test", i.e., length 7 string
+        "targets": np.array([4, 5, 10]),
+    }, {
+        # Decoded as "e", i.e., length 1 string
+        "inputs": np.array([4]),
+        # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
+        "targets": np.array([5, 6, 7, 8, 9, 1])
+    }]
+
+    This `DoFn` returns (yields each of the 4 elements in sequence):
+      [("inputs_chars", 2), ("targets_chars", 7),
+       ("inputs_chars", 1), ("targets_chars", 5)]
+  ```
+
+  Example 2 (string dataset):
+  ```python
+
+    input_examples = [{
+        "text": b"this is a string of length 29"
+    }, {
+        "text": b"this is another string of length 35"
+    }]
+
+    This `DoFn` returns (yields each of the 2 elements in sequence):
+      [("text_chars", 29), ("text_chars", 35)]
+  ```
+  """
+
+  def __init__(self, output_features: Mapping[str, seqio.Feature]):
+    self._output_features = output_features
+
+  def setup(self):
+    # Certain vocabularies are lazy loaded. Since we are running under beam we
+    # try to do the loading only once in the setup phase.
+    for feat in self._output_features.values():
+      v = feat.vocabulary.eos_id
+      v = feat.vocabulary.unk_id
+      v = feat.vocabulary.pad_id
+      del v
+
+  def process(self, ex: Mapping[str, Any]) -> Iterable[Tuple[str, int]]:
+    for name, feat in self._output_features.items():
+      # We only compute the character length for the rank-1 integer array.
+      if (name in ex and isinstance(ex[name], np.ndarray) and
+          ex[name].dtype in (np.int32, np.int64) and feat.rank == 1):
+        value = ex[name]
+        value = value.astype(np.int32)
+        decoded = feat.vocabulary.decode_tf(value).numpy().decode("utf-8")
+
+      # If each example in the dataset has the type tf.string, its type
+      # becomes `bytes` inside the `ds.as_numpy_iterator()`. This `DoFn` is
+      # assumed to be applied to  the examples from such numpy iterator.
+      elif name in ex and isinstance(ex[name], bytes):
+        decoded = ex[name].decode("utf-8")
+      else:
+        continue
+
+      yield (f"{name}_chars", len(decoded))
+
+
 class GetStats(beam.PTransform):
   """Computes statistics for dataset examples.
 
-  Expects a dictionary of string identifiers mapped to PCollections of examples.
+  The `expand` method expects a PCollection of examples where each example is a
+  dictionary of string identifiers (e.g. "inputs" and "targets") mapped to numpy
+  array.
+
   Returns a dictionary with statistics (number of examples, number of tokens)
   prefixed by the identifiers.
   """
@@ -302,6 +382,13 @@ class GetStats(beam.PTransform):
         beam.Map(lambda x: (x[0].replace("tokens", "max_tokens"), x[1]))
         | "token_max_dict" >> beam.combiners.ToDict())
 
+    # Compute the character length
+    char_length = (
+        pcoll
+        | beam.ParDo(_CountCharacters(self._output_features))
+        | "sum_characters" >> beam.CombinePerKey(sum)
+        | "character_length_dict" >> beam.combiners.ToDict())
+
     def _merge_dicts(dicts):
       merged_dict = {}
       for d in dicts:
@@ -309,6 +396,6 @@ class GetStats(beam.PTransform):
         merged_dict.update(d)
       return merged_dict
 
-    return ([example_counts, total_tokens, max_tokens]
+    return ([example_counts, total_tokens, max_tokens, char_length]
             | "flatten_counts" >> beam.Flatten()
             | "merge_stats" >> beam.CombineGlobally(_merge_dicts))

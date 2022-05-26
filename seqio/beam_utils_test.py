@@ -145,31 +145,110 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "seqio_version": seqio.__version__
           }]))
 
-  def test_get_stats(self):
+  def test_count_characters_str_dataset(self):
     input_examples = [{
-        "inputs": np.arange(1, 6),
-        "targets": np.arange(1, 11)
+        "text": b"this is a string of length 29"
     }, {
-        "inputs": np.arange(3, 6),
-        "targets": np.arange(5, 16)
+        "text": b"this is another string of length 35"
     }]
+    output_features = {
+        "text":
+            seqio.Feature(
+                seqio.PassThroughVocabulary(1), dtype=tf.string, rank=0)
+    }
 
     with TestPipeline() as p:
       pcoll = (
           p
           | beam.Create(input_examples)
-          | beam_utils.GetStats(output_features=seqio.test_utils.FakeTaskTest
-                                .DEFAULT_OUTPUT_FEATURES))
+          | beam.ParDo(
+              beam_utils._CountCharacters(output_features=output_features)))
+
+      util.assert_that(
+          pcoll, util.equal_to([("text_chars", 29), ("text_chars", 35)]))
+
+  def test_count_characters_str_dataset_in_get_stats(self):
+    input_examples = [{
+        "text": b"this is a string of length 29"
+    }, {
+        "text": b"this is another string of length 35"
+    }]
+    output_features = {
+        "text":
+            seqio.Feature(
+                seqio.PassThroughVocabulary(1), dtype=tf.string, rank=0)
+    }
+
+    with TestPipeline() as p:
+      pcoll = (
+          p
+          | beam.Create(input_examples)
+          | beam_utils.GetStats(output_features=output_features))
+
+      util.assert_that(
+          pcoll, util.equal_to([{"text_chars": 64, "examples": 2}]))
+
+  def test_get_stats_tokenized_dataset(self):
+    # These examples are assumed to be decoded by
+    # `seqio.test_utils.sentencepiece_vocab()`.
+    input_examples = [{
+        # Decoded as "ea", i.e., length 2 string
+        "inputs": np.array([4, 5]),
+        # Decoded as "ea test", i.e., length 7 string
+        "targets": np.array([4, 5, 10]),
+    }, {
+        # Decoded as "e", i.e., length 1 string
+        "inputs": np.array([4]),
+        # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
+        "targets": np.array([5, 6, 7, 8, 9, 1])
+    }]
+
+    output_features = seqio.test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES
+    with TestPipeline() as p:
+      pcoll = (
+          p
+          | beam.Create(input_examples)
+          | beam_utils.GetStats(output_features=output_features))
 
       util.assert_that(
           pcoll,
           util.equal_to([{
-              "inputs_tokens": 7,
-              "targets_tokens": 20,
-              "inputs_max_tokens": 4,
-              "targets_max_tokens": 11,
-              "examples": 2
+              "inputs_tokens": 3,  # 4 and 3 from the first and second exmaples.
+              "targets_tokens": 8,
+              "inputs_max_tokens": 2,
+              "targets_max_tokens": 5,
+              "examples": 2,
+              "inputs_chars": 3,
+              "targets_chars": 12,
           }]))
+
+  def test_count_characters_tokenized_dataset(self):
+    # These examples are assumed to be decoded by
+    # `seqio.test_utils.sentencepiece_vocab()`.
+    input_examples = [{
+        # Decoded as "ea", i.e., length 2 string
+        "inputs": np.array([4, 5]),
+        # Decoded as "ea test", i.e., length 7 string
+        "targets": np.array([4, 5, 10]),
+    }, {
+        # Decoded as "e", i.e., length 1 string
+        "inputs": np.array([4]),
+        # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
+        "targets": np.array([5, 6, 7, 8, 9, 1])
+    }]
+
+    output_features = seqio.test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES
+    with TestPipeline() as p:
+      pcoll = (
+          p
+          | beam.Create(input_examples)
+          | beam.ParDo(
+              beam_utils._CountCharacters(output_features=output_features)))
+
+      util.assert_that(
+          pcoll,
+          util.equal_to([("inputs_chars", 2), ("targets_chars", 7),
+                         ("inputs_chars", 1), ("targets_chars", 5)]))
 
 
 if __name__ == "__main__":

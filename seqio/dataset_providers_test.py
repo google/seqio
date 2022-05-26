@@ -464,8 +464,10 @@ class TasksTest(test_utils.FakeTaskTest):
   def test_get_cached_stats(self):
     expected_train_stats = {
         "examples": 3,
+        "inputs_chars": 43,
         "inputs_tokens": 36,
         "inputs_max_tokens": 13,
+        "targets_chars": 29,
         "targets_tokens": 18,
         "targets_max_tokens": 6
     }
@@ -476,8 +478,10 @@ class TasksTest(test_utils.FakeTaskTest):
                      self.cached_task.get_cached_stats("train"))
     expected_validation_stats = {
         "examples": 2,
+        "inputs_chars": 28,
         "inputs_tokens": 23,
         "inputs_max_tokens": 12,
+        "targets_chars": 37,
         "targets_tokens": 36,
         "targets_max_tokens": 21
     }

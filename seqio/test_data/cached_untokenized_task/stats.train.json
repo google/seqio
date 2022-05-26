@@ -1,3 +1,5 @@
 {
-  "examples": 3
+  "examples": 3,
+  "inputs_chars": 43,
+  "targets_chars": 29
 }
