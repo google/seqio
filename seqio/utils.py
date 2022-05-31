@@ -261,7 +261,8 @@ def _strip_packed_feature_key(key: str) -> str:
 def trim_and_pack_dataset(
     dataset: tf.data.Dataset,
     feature_lengths: Mapping[str, int],
-    use_custom_ops: bool = False
+    use_custom_ops: bool = False,
+    pack_even_if_partial: bool = False,
 ) -> tf.data.Dataset:
   """Creates a 'packed' version of a dataset on-the-fly.
 
@@ -310,6 +311,11 @@ def trim_and_pack_dataset(
       be discarded.
     use_custom_ops: a boolean - custom ops are faster but require a custom-built
       binary, which is not currently possible on cloud-tpu.
+    pack_even_if_partial: if 'True', it will try to fit a final example at the
+      end even if it doesn't completely fit, as long as at least one token of it
+      can be added to all the example features. This is to try to maximize the
+      number of tokens fit in each example, hence improving training efficiency
+      (Note: this only has an effect if "use_custom_ops=False").
 
   Returns:
     a tf.data.Dataset
@@ -349,7 +355,8 @@ def trim_and_pack_dataset(
   if use_custom_ops:
     ds = _pack_with_custom_ops(ds, feature_lengths)
   else:
-    ds = _pack_with_tf_ops(ds, feature_lengths)
+    ds = _pack_with_tf_ops(ds, feature_lengths,
+                           pack_even_if_partial=pack_even_if_partial)
 
   # Set the Tensor shapes correctly since they get lost in the process.
   def _set_shape(x):
@@ -363,7 +370,8 @@ def trim_and_pack_dataset(
 
 def _pack_with_tf_ops(
     dataset: tf.data.Dataset,
-    feature_lengths: Mapping[str, int]
+    feature_lengths: Mapping[str, int],
+    pack_even_if_partial: bool = False,
 ) -> tf.data.Dataset:
   """Helper-function for packing a dataset which has already been batched.
 
@@ -374,6 +382,10 @@ def _pack_with_tf_ops(
   Args:
     dataset: a dataset containing padded batches of examples.
     feature_lengths: mapping from feature key to packed length.
+    pack_even_if_partial: if 'True', it will try to fit a final example at the
+      end even if it doesn't completely fit, as long as at least one token of it
+      can be added to all the example features. This is to try to maximize the
+      number of tokens fit in each example, hence improving training efficiency.
 
   Returns:
     a dataset.
@@ -385,15 +397,19 @@ def _pack_with_tf_ops(
       empty_example[k + suff].set_shape([None])
   keys_etc = empty_example.keys()
 
-  def _write_packed_example(partial, outputs):
+  def _write_packed_example(partial, outputs, trim=False):
     new_partial = empty_example.copy()
     new_outputs = {}
     for k in keys_etc:
+      if trim:
+        partial_k = partial[k][:feature_lengths[_strip_packed_feature_key(k)]]
+      else:
+        partial_k = partial[k]
       new_outputs[k] = outputs[k].write(
           outputs[k].size(),
-          tf.pad(partial[k],
+          tf.pad(partial_k,
                  [[0, feature_lengths[_strip_packed_feature_key(k)] -
-                   tf.size(partial[k])]]))
+                   tf.size(partial_k)]]))
     return new_partial, new_outputs
 
   def pack_batch(x: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
@@ -435,14 +451,21 @@ def _pack_with_tf_ops(
         val = val[:tf.reduce_sum(tf.cast(tf.not_equal(val, 0), tf.int32))]
         one_example[k] = val
       for k in keys:
+        extra_size_needed = tf.size(one_example[k])
+        if pack_even_if_partial:
+          extra_size_needed = 1
         can_append = tf.logical_and(
             can_append,
             tf.less_equal(
-                tf.size(partial[k]) + tf.size(one_example[k]),
+                tf.size(partial[k]) + extra_size_needed,
                 feature_lengths[k]))
 
       if not can_append:
-        partial, outputs = _write_packed_example(partial, outputs)
+        # If pack_even_if_partial=True, we need to maybe trim, since the last
+        # example packed might push the example to have longer sequence length
+        # than we want, and we need to clip it.
+        partial, outputs = _write_packed_example(partial, outputs,
+                                                 trim=pack_even_if_partial)
 
       new_partial = {}
       for k in keys:
@@ -454,7 +477,7 @@ def _pack_with_tf_ops(
              tf.range(new_seq_len, dtype=tf.int32)], 0)
       partial = new_partial
 
-    partial, outputs = _write_packed_example(partial, outputs)
+    partial, outputs = _write_packed_example(partial, outputs, trim=True)
     packed = {k: outputs[k].stack() for k in keys_etc}
     for k in keys:
       packed[k + "_segment_ids"] = (

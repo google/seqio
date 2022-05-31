@@ -289,6 +289,28 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     assert_dataset(
         packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
 
+  def test_trim_and_pack_dataset_partial(self):
+    x = [{"inputs": [7, 8, 5, 1], "targets": [3, 9, 1], "idx": [0]},
+         {"inputs": [8, 4, 9, 3, 1], "targets": [4, 1], "idx": [1]},
+         {"inputs": [4, 3, 2, 1], "targets": [7, 6], "idx": [2]}]
+    ds = create_default_dataset(x, feature_names=("inputs", "targets", "idx"))
+    packed_ds = utils.trim_and_pack_dataset(
+        ds,
+        feature_lengths={"inputs": 10, "targets": 7},
+        use_custom_ops=False,
+        pack_even_if_partial=True)
+
+    expected = {
+        "inputs": [7, 8, 5, 1, 8, 4, 9, 3, 1, 4],
+        "inputs_segment_ids": [1, 1, 1, 1, 2, 2, 2, 2, 2, 3],
+        "inputs_positions": [0, 1, 2, 3, 0, 1, 2, 3, 4, 0],
+        "targets": [3, 9, 1, 4, 1, 7, 6],
+        "targets_positions": [0, 1, 2, 0, 1, 0, 1],
+        "targets_segment_ids": [1, 1, 1, 2, 2, 3, 3],
+    }
+    assert_dataset(
+        packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
+
 
   @parameterized.parameters(*_PACK_PARAMETERS)
   def test_trim_and_pack_dataset_no_eos(self, use_custom_ops):
