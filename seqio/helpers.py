@@ -17,7 +17,7 @@
 # pylint:disable=protected-access
 
 import dataclasses
-from typing import Mapping, Optional, Union
+from typing import Mapping, Optional, Union, Sequence
 
 from seqio import dataset_providers as dp
 from seqio import vocabularies as vc
@@ -65,6 +65,59 @@ def mixture_or_task_with_new_vocab(
     raise ValueError("exactly one of `new_vocab` and `new_output_features` "
                      "must be specified.")
 
+  return transform_mixture_or_task(
+      mixture_or_task_name,
+      new_mixture_or_task_name,
+      new_vocab=new_vocab,
+      new_output_features=new_output_features,
+      add_to_seqio_registry=add_to_seqio_registry)
+
+
+def transform_mixture_or_task(
+    mixture_or_task_name: str,
+    new_mixture_or_task_name: str,
+    *,
+    new_vocab: Optional[vc.Vocabulary] = None,
+    new_output_features: Optional[Mapping[str, dp.Feature]] = None,
+    new_metric_fns: Optional[Sequence[dp.MetricFnCallable]] = None,
+    add_to_seqio_registry: bool = True) -> Union[dp.Task, dp.Mixture]:
+  """Transforms a Task/Mixture, creating a copy with its parameters changed to the ones passed to this function.
+
+  Args:
+    mixture_or_task_name: The name of the original Task or Mixture.
+    new_mixture_or_task_name: The name of the new Task or Mixture. For Mixtures,
+      this is also used as a prefix for subtasks, e.g. "subtask_1" is registered
+      with the new vocabulary as "new_mixture_or_task_name.subtask_1".
+    new_vocab: The new vocabulary to be used. This is used for all features. If
+      configuring different vocabularies for different features, pass the
+      `new_output_features` arg instead. Note that only one of `new_vocab` or
+      `new_output_features` must be provided.
+    new_output_features: A dict of feature name to `seqio.Feature` to be used
+      for the new Mixture and its subtasks. This dict must (1) have the same
+      keys as the original `mix_or_task.output_features` and (2) for each key,
+      only the `vocabulary` and `add_eos` fields may differ in the new
+      `seqio.Feature`. This can be created from the original
+      `mix_or_task.output_features` as follows:
+      ```
+      new_output_features = {}
+      new_output_features["f1"] = dataclasses.replace(
+          mix_or_task.output_features["f1"], vocaulary=f1_vocab, add_eos=True)
+      new_output_features["f2"] = dataclasses.replace(
+          mix_or_task.output_features["f2"], vocaulary=f2_vocab)
+      ```
+    new_metric_fns: TODO
+    add_to_seqio_registry: If True, adds the new Task/Mixture to the SeqIO
+      Registry. For Mixtures, sub-Tasks/Mixtures are always registered so that
+      the new Mixture can refer to these.
+
+  Returns:
+    The new `Task` or `Mixture` object.
+  """
+  if (new_vocab, new_output_features).count(None) == 0:
+    raise ValueError(
+        "at most one of `new_vocab`, `new_output_features` can specified."
+    )
+
   def _validate_output_features(og_output_features, new_output_features):
     if set(og_output_features) != set(new_output_features):
       raise ValueError(f"new_output_features: {new_output_features} doesn't "
@@ -91,8 +144,13 @@ def mixture_or_task_with_new_vocab(
           f_name: dataclasses.replace(f, vocabulary=new_vocab)
           for f_name, f in og_task.output_features.items()
       }
-    else:
+    elif new_output_features:
       _validate_output_features(og_task.output_features, new_output_features)
+    else:
+      new_output_features = og_task.output_features
+
+    if not new_metric_fns:
+      new_metric_fns = og_task.metric_fns
 
     new_task = dp.Task(
         new_mixture_or_task_name,
@@ -100,7 +158,7 @@ def mixture_or_task_with_new_vocab(
         output_features=new_output_features,
         preprocessors=og_task.preprocessors,
         postprocess_fn=og_task.postprocessor,
-        metric_fns=og_task.metric_fns,
+        metric_fns=new_metric_fns,
         shuffle_buffer_size=og_task._shuffle_buffer_size)
     if add_to_seqio_registry:
       dp.TaskRegistry.add_provider(new_mixture_or_task_name, new_task)
@@ -113,11 +171,12 @@ def mixture_or_task_with_new_vocab(
   new_tasks_and_rates = []
   for task_name, rate in og_mix._task_to_rate.items():
     new_task_name = f"{new_mixture_or_task_name}.{task_name}"
-    _ = mixture_or_task_with_new_vocab(
+    _ = transform_mixture_or_task(
         task_name,
         new_task_name,
         new_vocab=new_vocab,
         new_output_features=new_output_features,
+        new_metric_fns=new_metric_fns,
         add_to_seqio_registry=True)
     new_tasks_and_rates.append((new_task_name, rate))
 
@@ -129,3 +188,4 @@ def mixture_or_task_with_new_vocab(
   if add_to_seqio_registry:
     dp.MixtureRegistry.add_provider(new_mixture_or_task_name, new_mix)
   return new_mix
+

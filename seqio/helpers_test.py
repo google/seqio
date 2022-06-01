@@ -27,6 +27,14 @@ VOCAB1 = test_utils.sentencepiece_vocab(extra_ids=10)
 VOCAB2 = test_utils.sentencepiece_vocab(extra_ids=20)
 
 
+def _metric_1(targets, predictions):
+  return {"test_score": 1}
+
+
+def _metric_2(targets, predictions):
+  return {"test_score": 0.5}
+
+
 def _dataset_fn(split, shuffle_files=False, seed=None, data=None):
   del split, shuffle_files, seed
   exs = {"feature_a": data, "feature_b": data}
@@ -276,6 +284,159 @@ class HelpersTest(test_utils.FakeTaskTest):
               "feature_b": dp.Feature(VOCAB1)
           })
 
+  def test_identity_transform(self):
+    task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
+    test_task = dp.TaskRegistry.add(
+        "my_test_task",
+        source=dp.FunctionDataSource(task_dataset_fn, splits=["train"]),
+        preprocessors=[pr.tokenize],
+        output_features={
+            "feature_a": dp.Feature(VOCAB1),
+            "feature_b": dp.Feature(VOCAB1, add_eos=False)
+        },
+        metric_fns=[_metric_1]
+    )
+    helpers.transform_mixture_or_task(
+        "my_test_task", "my_new_test_task"
+    )
+    new_task = dp.get_mixture_or_task("my_new_test_task")
+    self.assertEqual(new_task.source, test_task.source)
+    self.assertEqual(new_task.preprocessors, test_task.preprocessors)
+    self.assertEqual(new_task.output_features, test_task.output_features)
+    self.assertEqual(new_task.metric_fns, test_task.metric_fns)
+
+  def test_task_with_new_metric(self):
+    task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
+    test_task = dp.TaskRegistry.add(
+        "my_test_task",
+        source=dp.FunctionDataSource(task_dataset_fn, splits=["train"]),
+        preprocessors=[pr.tokenize],
+        output_features={
+            "feature_a": dp.Feature(VOCAB1),
+            "feature_b": dp.Feature(VOCAB1, add_eos=False)
+        },
+        metric_fns=[_metric_1]
+    )
+    helpers.transform_mixture_or_task(
+        "my_test_task", "my_new_test_task", new_metric_fns=[_metric_2]
+    )
+    new_task = dp.get_mixture_or_task("my_new_test_task")
+    self.assertEqual(new_task.source, test_task.source)
+    self.assertEqual(new_task.preprocessors, test_task.preprocessors)
+    self.assertEqual(new_task.output_features, test_task.output_features)
+    self.assertEqual(new_task.metric_fns, [_metric_2])
+
+  def test_task_with_new_vocab_metric(self):
+    task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
+    test_task = dp.TaskRegistry.add(
+        "my_test_task",
+        source=dp.FunctionDataSource(task_dataset_fn, splits=["train"]),
+        preprocessors=[pr.tokenize],
+        output_features={
+            "feature_a": dp.Feature(VOCAB1),
+            "feature_b": dp.Feature(VOCAB1, add_eos=False)
+        },
+        metric_fns=[_metric_1]
+    )
+    helpers.transform_mixture_or_task(
+        "my_test_task", "my_new_test_task",
+        new_vocab=VOCAB2, new_metric_fns=[_metric_2]
+    )
+    new_task = dp.get_mixture_or_task("my_new_test_task")
+    self.assertEqual(new_task.source, test_task.source)
+    self.assertEqual(new_task.preprocessors, test_task.preprocessors)
+    self.assertEqual(
+        new_task.output_features, {
+            "feature_a": dp.Feature(VOCAB2),
+            "feature_b": dp.Feature(VOCAB2, add_eos=False)
+        })
+    self.assertEqual(new_task.metric_fns, [_metric_2])
+
+  def test_mixture_with_new_metric(self):
+    # Step 1: Define test Tasks.
+    test_dataset_fn1 = functools.partial(
+        _dataset_fn, data=["this is", "a test"])
+    test_dataset_fn2 = functools.partial(
+        _dataset_fn, data=["this is", "another test"])
+    og_output_features = {
+        "feature_a": dp.Feature(VOCAB1),
+        "feature_b": dp.Feature(VOCAB1, add_eos=False)
+    }
+    test_task1 = dp.TaskRegistry.add(
+        "my_test_task1",
+        source=dp.FunctionDataSource(test_dataset_fn1, splits=["train"]),
+        preprocessors=[pr.tokenize],
+        output_features=og_output_features,
+        metric_fns=[_metric_1])
+    test_task2 = dp.TaskRegistry.add(
+        "my_test_task2",
+        source=dp.FunctionDataSource(test_dataset_fn2, splits=["train"]),
+        preprocessors=[pr.tokenize],
+        output_features=og_output_features,
+        metric_fns=[_metric_1])
+
+    # Step 2: Define test Mixtures
+    dp.MixtureRegistry.add(
+        "my_test_mix1", [("my_test_task1", 0.5), "my_test_task2"],
+        default_rate=1.0)
+    dp.MixtureRegistry.add(
+        "my_test_mix2", ["my_test_task1", "my_test_mix1"], default_rate=1.0)
+
+    # Step 3: Call helper to convert the mixture
+    new_mix = helpers.transform_mixture_or_task(
+        "my_test_mix2",
+        "my_new_test_mix2",
+        new_metric_fns=[_metric_2],
+        add_to_seqio_registry=True)
+
+    # Step 4: Get new Tasks and Mixtures from the Registry.
+    new_mix = dp.get_mixture_or_task("my_new_test_mix2")
+    new_submix = dp.get_mixture_or_task("my_new_test_mix2.my_test_mix1")
+    new_submix_subtask1 = dp.get_mixture_or_task(
+        "my_new_test_mix2.my_test_mix1.my_test_task1")
+    new_submix_subtask2 = dp.get_mixture_or_task(
+        "my_new_test_mix2.my_test_mix1.my_test_task2")
+    new_subtask = dp.get_mixture_or_task("my_new_test_mix2.my_test_task1")
+
+    # Step 5: Verify mixing rates for new mixtures.
+    self.assertDictEqual(new_mix._task_to_rate, {
+        "my_new_test_mix2.my_test_task1": 1.0,
+        "my_new_test_mix2.my_test_mix1": 1.0
+    })
+    self.assertDictEqual(
+        new_submix._task_to_rate, {
+            "my_new_test_mix2.my_test_mix1.my_test_task1": 0.5,
+            "my_new_test_mix2.my_test_mix1.my_test_task2": 1.0
+        })
+
+    # Step 6: Verify output features for new Tasks and Mixtures.
+    expected_output_features = {
+        "feature_a": dp.Feature(VOCAB1),
+        "feature_b": dp.Feature(VOCAB1, add_eos=False)
+    }
+    self.assertDictEqual(new_mix.output_features, expected_output_features)
+    self.assertDictEqual(new_submix.output_features, expected_output_features)
+    self.assertDictEqual(new_submix_subtask1.output_features,
+                         expected_output_features)
+    self.assertDictEqual(new_submix_subtask2.output_features,
+                         expected_output_features)
+    self.assertDictEqual(new_subtask.output_features, expected_output_features)
+
+    # Step 7: Verify source and preprocessors for new Tasks.
+    self.assertEqual(new_submix_subtask1.source, test_task1.source)
+    self.assertEqual(new_submix_subtask1.preprocessors,
+                     test_task1.preprocessors)
+    self.assertEqual(new_submix_subtask2.source, test_task2.source)
+    self.assertEqual(new_submix_subtask2.preprocessors,
+                     test_task2.preprocessors)
+    self.assertEqual(new_subtask.source, test_task1.source)
+    self.assertEqual(new_subtask.preprocessors, test_task1.preprocessors)
+
+    # Step 8: Verify new metrics
+    self.assertEqual(new_submix_subtask1.metric_fns, [_metric_2])
+    self.assertEqual(new_submix_subtask2.metric_fns, [_metric_2])
+    self.assertEqual(new_subtask.metric_fns, [_metric_2])
+    self.assertEqual(new_subtask.metric_fns, [_metric_2])
 
 if __name__ == "__main__":
   absltest.main()
