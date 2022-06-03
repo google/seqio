@@ -250,6 +250,26 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           util.equal_to([("inputs_chars", 2), ("targets_chars", 7),
                          ("inputs_chars", 1), ("targets_chars", 5)]))
 
+  def test_count_characters_tokenized_dataset_with_non_spm_vocab(self):
+    input_examples = [{
+        "feature": np.array([4, 5]),
+    }]
+    output_features = {
+        "feature":
+            seqio.Feature(
+                seqio.PassThroughVocabulary(1), dtype=tf.int32, rank=1)
+    }
+
+    with TestPipeline() as p:
+      pcoll = (
+          p
+          | beam.Create(input_examples)
+          | beam.ParDo(
+              beam_utils._CountCharacters(output_features=output_features)))
+
+      util.assert_that(
+          pcoll, util.equal_to([]))
+
 
 if __name__ == "__main__":
   absltest.main()

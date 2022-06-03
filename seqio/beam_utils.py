@@ -330,9 +330,11 @@ class _CountCharacters(beam.DoFn):
 
   def process(self, ex: Mapping[str, Any]) -> Iterable[Tuple[str, int]]:
     for name, feat in self._output_features.items():
-      # We only compute the character length for the rank-1 integer array.
+      # We only compute the character length for the rank-1 integer array for
+      # the feature using `seqio.SentencePieceVocabulary`.
       if (name in ex and isinstance(ex[name], np.ndarray) and
-          ex[name].dtype in (np.int32, np.int64) and feat.rank == 1):
+          ex[name].dtype in (np.int32, np.int64) and feat.rank == 1 and
+          isinstance(feat.vocabulary, seqio.SentencePieceVocabulary)):
         value = ex[name]
         value = value.astype(np.int32)
         decoded = feat.vocabulary.decode_tf(value).numpy().decode("utf-8")
