@@ -417,7 +417,6 @@ def _pack_with_tf_ops(
   keys_etc = empty_example.keys()
 
   def _write_packed_example(partial, outputs):
-    new_partial = empty_example.copy()
     new_outputs = {}
     for k in keys_etc:
       new_outputs[k] = outputs[k].write(
@@ -425,7 +424,18 @@ def _pack_with_tf_ops(
           tf.pad(partial[k],
                  [[0, feature_lengths[_strip_packed_feature_key(k)] -
                    tf.size(partial[k])]]))
-    return new_partial, new_outputs
+    return new_outputs
+
+  def _append_to_partial(partial, one_example, keys):
+    new_partial = {}
+    for k in keys:
+      new_seq = one_example[k][:feature_lengths[k]]
+      new_seq_len = tf.size(new_seq)
+      new_partial[k] = tf.concat([partial[k], new_seq], 0)
+      new_partial[k + "_positions"] = tf.concat(
+          [partial[k + "_positions"],
+           tf.range(new_seq_len, dtype=tf.int32)], 0)
+    return new_partial
 
   def pack_batch(x: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
     """Internal function to map over.
@@ -433,14 +443,35 @@ def _pack_with_tf_ops(
     Consumes a batch of input examples and produces a variable number of output
     examples.
 
+    Packing procedure:
+    - initialize 'partial' and 'previous_partial' to be empty examples
+    For every example ('one_example') in the batch 'x'
+      - Check if we can pack 'one_example' into 'partial' or 'previous_partial'
+      - If we can pack it into 'previous_partial':
+        - append 'one_example' to 'previous_partial'
+      - otherwise, if we can pack it into 'partial':
+        - append 'one_example' to 'partial'
+      - otherwise, if we cannot pack it into any of the two:
+        - emit 'previous_partial'
+        - 'partial' becomes the new 'previous_partial'
+        - initialize a new 'partial' as an empty example
+
+    In general the idea is to have more than one 'partial' example we are
+    currently oacking examples into, and only emit a packed example when the
+    next single example does not fit in any of the current partials. The
+    current implementation uses 'partial' and 'previous_partial'. But this could
+    be generalized to having 3 or more 'partials' to further increase packing
+    efficiency.
+
     Args:
-      x: a single example
+      x: a batch of examples.
 
     Returns:
       a tf.data.Dataset
     """
     keys = list(feature_lengths)
     partial = empty_example.copy()
+    previous_partial = empty_example.copy()
     first_key, *_ = keys
     dynamic_batch_size = tf.shape(x[first_key])[0]
     outputs = {}
@@ -456,36 +487,50 @@ def _pack_with_tf_ops(
       tf.autograph.experimental.set_loop_options(
           shape_invariants=[
               (partial, {k: tf.TensorShape([None]) for k in keys_etc}),
+              (previous_partial, {k: tf.TensorShape([None]) for k in keys_etc}),
               (outputs, {k: tf.TensorShape(None) for k in keys_etc})]
       )
 
       can_append = True
+      can_append_to_previous = True
       one_example = {}
       for k in keys:
         val = tf.cast(x[k][i], tf.int32)
         val = val[:tf.reduce_sum(tf.cast(tf.not_equal(val, 0), tf.int32))]
         one_example[k] = val
       for k in keys:
+        can_append_to_previous = tf.logical_and(
+            can_append_to_previous,
+            tf.less_equal(
+                tf.size(previous_partial[k]) + tf.size(one_example[k]),
+                feature_lengths[k]))
         can_append = tf.logical_and(
             can_append,
             tf.less_equal(
                 tf.size(partial[k]) + tf.size(one_example[k]),
                 feature_lengths[k]))
 
-      if not can_append:
-        partial, outputs = _write_packed_example(partial, outputs)
+      if can_append_to_previous:
+        # Append to previous
+        previous_partial = _append_to_partial(previous_partial, one_example,
+                                              keys)
+      else:
+        if can_append:
+          # Append to current
+          partial = _append_to_partial(partial, one_example, keys)
+        else:
+          # Write previous partial, make current partial the previous, and
+          # start a new partial:
+          if tf.size(previous_partial[keys[0]]) > 0:
+            outputs = _write_packed_example(previous_partial, outputs)
+          previous_partial = partial
+          partial = empty_example.copy()
+          partial = _append_to_partial(partial, one_example, keys)
 
-      new_partial = {}
-      for k in keys:
-        new_seq = one_example[k][:feature_lengths[k]]
-        new_seq_len = tf.size(new_seq)
-        new_partial[k] = tf.concat([partial[k], new_seq], 0)
-        new_partial[k + "_positions"] = tf.concat(
-            [partial[k + "_positions"],
-             tf.range(new_seq_len, dtype=tf.int32)], 0)
-      partial = new_partial
-
-    partial, outputs = _write_packed_example(partial, outputs)
+    if tf.size(previous_partial[keys[0]]) > 0:
+      outputs = _write_packed_example(previous_partial, outputs)
+    if tf.size(partial[keys[0]]) > 0:
+      outputs = _write_packed_example(partial, outputs)
     packed = {k: outputs[k].stack() for k in keys_etc}
     for k in keys:
       packed[k + "_segment_ids"] = (
