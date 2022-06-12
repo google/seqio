@@ -83,10 +83,10 @@ import abc
 import dataclasses
 import functools
 from typing import Mapping, Sequence
+from absl import logging
 
 from seqio import utils
 import tensorflow.compat.v2 as tf
-
 
 # TODO(hwchung): remove this.
 # pointer for backward compatilbility.
@@ -221,6 +221,8 @@ class FeatureConverter(abc.ABC):
   Attributes:
     pack: whether to pack the dataset.
     use_custom_packing_ops: whether to use custom ops for packing.
+    apply_length_check: if True, it checks whether output feature lengths are
+        less than the lengths given by `sequence_length`.
   """
 
   @dataclasses.dataclass(frozen=True)
@@ -236,9 +238,11 @@ class FeatureConverter(abc.ABC):
 
   def __init__(self,
                pack: bool = True,
-               use_custom_packing_ops: bool = False):
+               use_custom_packing_ops: bool = False,
+               apply_length_check: bool = True):
     self._pack = pack
     self._use_custom_packing_ops = use_custom_packing_ops
+    self._apply_length_check = apply_length_check
 
     if self.TASK_FEATURES is None:
       raise ValueError("TASK_FEATURES must be defined in the subclass.")
@@ -307,8 +311,12 @@ class FeatureConverter(abc.ABC):
     sequence_axis_mapping = {
         feat: expected_features[feat].sequence_dim for feat in expected_features
     }
-    ds = _check_lengths(ds, expected_lengths, sequence_axis_mapping, strict,
-                        error_label)
+    if self._apply_length_check:
+      ds = _check_lengths(ds, expected_lengths, sequence_axis_mapping, strict,
+                          error_label)
+    else:
+      logging.info(
+          "Length validation is skipped since `apply_length_check=False`")
     return ds
 
   def __call__(self, ds: tf.data.Dataset,
