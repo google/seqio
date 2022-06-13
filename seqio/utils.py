@@ -68,8 +68,7 @@ class LazyTfdsLoader(object):
       name: str, the name of the TFDS dataset.
       data_dir: str (optional), directory to read/write TFDS data.
       split_map: dict (optional), mapping from canonical splits (e.g.,
-        'validation') to TFDS splits or slices
-        (e.g., 'train[':1%']).
+        'validation') to TFDS splits or slices (e.g., 'train[':1%']).
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
         such as tfds.decode.SkipDecoding() for skipping image byte decoding
     """
@@ -675,6 +674,30 @@ def mixing_rate_num_examples(
     ret = ret ** (1.0 / temperature)
   return ret
 
+
+def mixing_rate_num_characters(
+    task,
+    temperature: float = 1.0,
+    char_count_name: str = "text_chars") -> float:
+  """Mixing rate based on the number of characters for the task's 'train' split.
+
+  Args:
+    task: the seqio.Task to compute a rate for.
+    temperature: a temperature (T) to scale rate (r) by as r^(1/T).
+    char_count_name: feature name of the character counts in the cached stats
+      file.
+
+  Returns:
+    The mixing rate for this task.
+  """
+  if task.cache_dir is None:
+    raise ValueError(
+        "`mixing_rate_num_characters` requires that each task has is cached "
+        "with the character count stats.")
+  ret = task.get_cached_stats("train")[char_count_name]
+  if temperature != 1.0:
+    ret = ret ** (1.0 / temperature)
+  return ret
 # ======================== Decorators =========================================
 
 

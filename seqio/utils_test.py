@@ -436,6 +436,12 @@ class MixtureRateTest(test_utils.FakeTaskTest):
         utils.mixing_rate_num_examples(
             self.uncached_task, fallback_to_num_input_examples=True))
 
+  def test_mixing_rate_num_characters(self):
+    task = mock.Mock(
+        cache_dir="", get_cached_stats=lambda split: {"text_chars": 10})
+    rate = utils.mixing_rate_num_characters(task, temperature=0.7)
+    self.assertAlmostEqual(rate, 26.8269579528)  # 10**(1 / 0.7)
+
 
 def create_default_dataset(
     x: Sequence[Mapping[str, int]],
