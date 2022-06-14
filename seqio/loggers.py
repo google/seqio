@@ -21,13 +21,19 @@ import itertools
 import json
 import os
 import time
-from typing import Any, Mapping, Optional, Sequence, Type
+from typing import Any, Mapping, Optional, Sequence, Type, Dict, Tuple
 
 from absl import logging
 import numpy as np
 from seqio import metrics as metrics_lib
 import tensorflow as tf
 import tensorflow_datasets as tfds
+
+
+def skip_none_value_dict_factory(
+    data: Sequence[Tuple[str, Any]]) -> Dict[str, Any]:
+  """Dictionnary factory which skip None value."""
+  return {k: v for k, v in data if v is not None}
 
 
 class Logger(abc.ABC):
@@ -303,7 +309,7 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
         return base64.b64encode(obj)
 
     if dataclasses.is_dataclass(obj):
-      return dataclasses.asdict(obj)
+      return dataclasses.asdict(obj, dict_factory=skip_none_value_dict_factory)
 
     return json.JSONEncoder.default(self, obj)
 

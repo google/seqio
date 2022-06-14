@@ -15,9 +15,11 @@
 """Tests for seqio.loggers."""
 # pylint:disable=g-bare-generic,g-long-lambda
 
+
 import dataclasses
 import json
 import os
+from typing import Optional
 
 import numpy as np
 from seqio import loggers
@@ -695,7 +697,6 @@ class TensorAndNumpyEncoderLoggerTest(tf.test.TestCase):
     self.assertEqual(self.logger.encode(obj), "[1, 2, 3]")
 
   def test_dataclass(self):
-
     @dataclasses.dataclass
     class Foo():
       bar: int
@@ -703,6 +704,15 @@ class TensorAndNumpyEncoderLoggerTest(tf.test.TestCase):
 
     obj = Foo(1, "bazbaz")
     self.assertEqual(self.logger.encode(obj), '{"bar": 1, "baz": "bazbaz"}')
+
+  def test_dataclass_with_none_value(self):
+    @dataclasses.dataclass
+    class Foo():
+      bar: int
+      baz: Optional[str] = None
+
+    obj = Foo(1)
+    self.assertEqual(self.logger.encode(obj), '{"bar": 1}')
 
 
 if __name__ == "__main__":
