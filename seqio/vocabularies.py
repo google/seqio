@@ -416,9 +416,9 @@ class SentencePieceVocabulary(Vocabulary):
     """Decode in TensorFlow.
 
     Args:
-      ids: a 1d tf.Tensor with dtype tf.int32
+      ids: a 1d or 2d tf.Tensor with dtype tf.int32
     Returns:
-      a tf Scalar with dtype tf.string
+      a 1d or 2d tf.Tensor with dtype tf.string
     """
     return self.tf_tokenizer.detokenize(ids)
 
@@ -555,15 +555,36 @@ class ByteVocabulary(Vocabulary):
     tf_ids = tf.io.decode_raw(s, tf.uint8) + self._num_special_tokens
     return tf.dtypes.cast(tf_ids, tf.int32)
 
-  def _decode_tf(self, ids):
+  def _decode_tf_1d(self, ids: Iterable[int]):
+    clean_ids = list(ids)
+    res = self._decode(clean_ids)
+    return res
+
+  def decode_tf_2d(self, ids: tf.Tensor) -> tf.Tensor:
+    result = []
+    for ids_element in ids:
+      result.append(self._decode(ids_element))
+
+    return [result]
+
+  def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
     """Decode in TensorFlow.
 
     Args:
-      ids: a 1d tf.Tensor with dtype tf.int32
+      ids: a 1d or 2d tf.Tensor with dtype tf.int32
     Returns:
-      a tf Scalar with dtype tf.string
+      a 1d or 2d tf.Tensor with dtype tf.string
     """
-    return tf.py_function(func=self.decode, inp=[ids], Tout=tf.string)
+    if tf.math.equal(tf.rank(ids), 1):
+      return tf.py_function(
+          func=self._decode_tf_1d, inp=[ids], Tout=tf.string)
+    if tf.math.equal(tf.rank(ids), 2):
+      res = tf.py_function(
+          func=self.decode_tf_2d, inp=[ids], Tout=[tf.string])
+      res = tf.squeeze(tf.convert_to_tensor(res, dtype=tf.string))
+      return res
+    else:
+      raise ValueError("Only inputs of rank 1 or 2 are supported.")
 
   def __eq__(self, other):
     if not isinstance(other, ByteVocabulary):
