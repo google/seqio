@@ -1067,7 +1067,8 @@ class DecoderFeatureConverter(FeatureConverter):
   def __init__(self,
                loss_on_targets_only: bool = True,
                pack: bool = True,
-               use_custom_packing_ops: bool = False) -> None:
+               use_custom_packing_ops: bool = False,
+               apply_length_check: bool = True) -> None:
 
     self._loss_on_targets_only = loss_on_targets_only
     super().__init__(pack=pack, use_custom_packing_ops=use_custom_packing_ops)
