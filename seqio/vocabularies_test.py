@@ -29,10 +29,14 @@ mock = absltest.mock
 
 def _decode_tf(vocab, tokens):
   results = vocab.decode_tf(tf.constant(tokens, tf.int32)).numpy()
-  if isinstance(results, np.ndarray):
-    return [x.decode("UTF-8") for x in results]
-  else:
-    return results.decode("UTF-8")
+
+  def _apply(fun, sequence):
+    if isinstance(sequence, (list, np.ndarray)):
+      return [_apply(fun, x) for x in sequence]
+    else:
+      return fun(sequence)
+
+  return _apply(lambda x: x.decode("UTF-8"), results)
 
 
 class VocabularyTest(absltest.TestCase):
@@ -249,13 +253,22 @@ class SentencepieceVocabularyTest(absltest.TestCase):
   def test_decode_tf(self):
     vocab = test_utils.sentencepiece_vocab()
 
-    # single sequences to decode
-    self.assertEqual(self.TEST_STRING, _decode_tf(vocab, self.TEST_TOKENS))
+    for rank in range(0, 3):
+      ids = self.TEST_TOKENS
+      expected_str = self.TEST_STRING
 
-    # multiple sequences to decode
-    res = _decode_tf(vocab, (self.TEST_TOKENS, self.TEST_TOKENS))
-    exp = [self.TEST_STRING] * 2
-    self.assertEqual(exp, res)
+      # Creates an arbitrarly nested tensor.
+      for _ in range(rank):
+        ids = [ids]
+        expected_str = [expected_str]
+
+      # single sequences to decode
+      self.assertEqual(expected_str, _decode_tf(vocab, ids))
+
+      # multiple sequences to decode
+      res = _decode_tf(vocab, (ids, ids))
+      exp = [expected_str] * 2
+      self.assertEqual(exp, res)
 
   def test_vocab(self):
     vocab = test_utils.sentencepiece_vocab()
@@ -324,13 +337,31 @@ class ByteVocabularyTest(absltest.TestCase):
   def test_decode_tf(self):
     vocab = vocabularies.ByteVocabulary()
 
-    # single sequences to decode
-    self.assertEqual(self.TEST_STRING, _decode_tf(vocab, self.TEST_BYTE_IDS))
+    for rank in range(0, 3):
+      ids = self.TEST_BYTE_IDS
+      expected_str = self.TEST_STRING
 
-    # multiple sequences to decode
-    res = _decode_tf(vocab, (self.TEST_BYTE_IDS, self.TEST_BYTE_IDS))
-    exp = [self.TEST_STRING] * 2
-    self.assertEqual(exp, res)
+      # Creates an arbitrarly nested tensor.
+      for _ in range(rank):
+        ids = [ids]
+        expected_str = [expected_str]
+
+      # single sequences to decode
+      self.assertEqual(expected_str, _decode_tf(vocab, ids))
+
+      # multiple sequences to decode
+      res = _decode_tf(vocab, (ids, ids))
+      exp = [expected_str] * 2
+      self.assertEqual(exp, res)
+
+  def test_decode_tf_oov_tokens(self):
+    vocab = vocabularies.ByteVocabulary()
+
+    # Add two ids that are outside the allowed interval. They should be ignored.
+    ids = tuple(list(self.TEST_BYTE_IDS) + [3000, -4000])
+    expected_str = self.TEST_STRING
+
+    self.assertEqual(expected_str, _decode_tf(vocab, ids))
 
   def test_vocab(self):
     vocab = vocabularies.ByteVocabulary()
