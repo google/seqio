@@ -216,7 +216,7 @@ class UnigramVocabulary(Vocabulary):
 
   def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
     tf_ids = self._id_by_unigram_tf.lookup(s)
-    return tf.dtypes.cast(tf_ids, tf.int32)
+    return tf.expand_dims(tf.dtypes.cast(tf_ids, tf.int32), -1)
 
   def _decode(self, ids: Sequence[int]) -> str:
     return " ".join(self._unigram_by_id[id] for id in ids)

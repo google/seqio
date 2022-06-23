@@ -231,6 +231,8 @@ class UnigramVocabularyTest(absltest.TestCase):
       self.assertEqual(vocabulary.decode([1]), "this")
       self.assertEqual(vocabulary.decode([3]), "is")
       self.assertEqual(vocabulary.decode([vocabulary.unk_id]), "UNK")
+      self.assertEqual(vocabulary.encode("this"), [1])
+      self.assertEqual(vocabulary.encode("is"), [3])
     with self.subTest(name="tensorflow"):
       # Note that this test must pass under both TF1 and TF2, but the default
       # behavior of TF1 == among tensors is to compare object references, not
@@ -242,7 +244,8 @@ class UnigramVocabularyTest(absltest.TestCase):
       self.assertEqual(
           vocabulary.decode_tf(tf.constant([vocabulary.unk_id])).numpy(),
           b"UNK")
-
+      self.assertEqual(vocabulary.encode_tf(tf.constant("that")).numpy(), [2])
+      self.assertEqual(vocabulary.encode_tf(tf.constant("not")).numpy(), [4])
 
 class SentencepieceVocabularyTest(absltest.TestCase):
 
