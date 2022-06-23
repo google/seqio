@@ -26,6 +26,8 @@ import tensorflow as tf
 VOCAB1 = test_utils.sentencepiece_vocab(extra_ids=10)
 VOCAB2 = test_utils.sentencepiece_vocab(extra_ids=20)
 
+_SEQUENCE_LENGTH = {"inputs": 16, "targets": 8}
+
 
 def _dataset_fn(split, shuffle_files=False, seed=None, data=None):
   del split, shuffle_files, seed
@@ -275,6 +277,25 @@ class HelpersTest(test_utils.FakeTaskTest):
               "feature_a": dp.Feature(VOCAB2, rank=3),
               "feature_b": dp.Feature(VOCAB1)
           })
+
+  def test_task_with_truncated_data(self):
+    task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
+    _ = dp.TaskRegistry.add(
+        "my_test_task",
+        source=dp.FunctionDataSource(task_dataset_fn, splits=["train"]),
+        preprocessors=[pr.tokenize],
+        output_features={
+            "feature_a": dp.Feature(VOCAB1),
+            "feature_b": dp.Feature(VOCAB1, add_eos=False)
+        })
+    helpers.mixture_or_task_with_truncated_data(
+        "my_test_task", "my_new_test_task", split_sizes={"train": 1})
+    new_task = dp.get_mixture_or_task("my_new_test_task")
+    ds = new_task.get_dataset(_SEQUENCE_LENGTH, "train")
+    examples = list(ds.as_numpy_iterator())
+    self.assertEqual(len(examples), 1)
+    self.assertEqual(examples[0]["feature_a_pretokenized"].decode("utf-8"),
+                     "this is")
 
 
 if __name__ == "__main__":
