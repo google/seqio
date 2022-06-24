@@ -1071,13 +1071,19 @@ class DecoderFeatureConverter(FeatureConverter):
                apply_length_check: bool = True) -> None:
 
     self._loss_on_targets_only = loss_on_targets_only
-    super().__init__(pack=pack, use_custom_packing_ops=use_custom_packing_ops)
+    super().__init__(
+        pack=pack,
+        use_custom_packing_ops=use_custom_packing_ops,
+        apply_length_check=apply_length_check)
     self.prefixlm_feature_converter = PrefixLMFeatureConverter(
         loss_on_targets_only=loss_on_targets_only,
         pack=pack,
-        use_custom_packing_ops=use_custom_packing_ops)
+        use_custom_packing_ops=use_custom_packing_ops,
+        apply_length_check=apply_length_check)
     self.strictlm_feature_converter = LMFeatureConverter(
-        pack=pack, use_custom_packing_ops=use_custom_packing_ops)
+        pack=pack,
+        use_custom_packing_ops=use_custom_packing_ops,
+        apply_length_check=apply_length_check)
 
   def __call__(self, ds: tf.data.Dataset,
                task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
