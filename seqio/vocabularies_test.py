@@ -218,10 +218,12 @@ class UnigramVocabularyTest(absltest.TestCase):
       # values. So this test inspects the value of the tensor returned by
       # encode_tf() rather than the tensor itself. See
       # https://www.tensorflow.org/guide/migrate/tf1_vs_tf2#tensor_equality_by_value
-      self.assertEqual(vocabulary.encode_tf(tf.constant(["that"])).numpy(), [2])
-      self.assertEqual(vocabulary.encode_tf(tf.constant(["not"])).numpy(), [4])
-      self.assertEqual(
-          vocabulary.encode_tf(tf.constant(["apple"])).numpy(),
+      np.testing.assert_array_equal(
+          vocabulary.encode_tf(tf.constant("that")).numpy(), [2])
+      np.testing.assert_array_equal(
+          vocabulary.encode_tf(tf.constant("not")).numpy(), [4])
+      np.testing.assert_array_equal(
+          vocabulary.encode_tf(tf.constant("apple")).numpy(),
           [vocabulary.unk_id])
 
   def test_decode_converts_ints_to_unigrams_correctly(self):
@@ -231,8 +233,6 @@ class UnigramVocabularyTest(absltest.TestCase):
       self.assertEqual(vocabulary.decode([1]), "this")
       self.assertEqual(vocabulary.decode([3]), "is")
       self.assertEqual(vocabulary.decode([vocabulary.unk_id]), "UNK")
-      self.assertEqual(vocabulary.encode("this"), [1])
-      self.assertEqual(vocabulary.encode("is"), [3])
     with self.subTest(name="tensorflow"):
       # Note that this test must pass under both TF1 and TF2, but the default
       # behavior of TF1 == among tensors is to compare object references, not
@@ -244,8 +244,6 @@ class UnigramVocabularyTest(absltest.TestCase):
       self.assertEqual(
           vocabulary.decode_tf(tf.constant([vocabulary.unk_id])).numpy(),
           b"UNK")
-      self.assertEqual(vocabulary.encode_tf(tf.constant("that")).numpy(), [2])
-      self.assertEqual(vocabulary.encode_tf(tf.constant("not")).numpy(), [4])
 
 class SentencepieceVocabularyTest(absltest.TestCase):
 
