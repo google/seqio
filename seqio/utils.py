@@ -252,6 +252,27 @@ def trim_and_pad_dataset(
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
 
+def trim_dataset(dataset: tf.data.Dataset, sequence_length,
+                 output_features) -> tf.data.Dataset:
+  """Trim output features to sequence length."""
+
+  def _trim(k: str, v: tf.Tensor) -> tf.Tensor:
+    if (k not in output_features or not sequence_length or
+        k not in sequence_length or sequence_length[k] is None):
+      return v
+    # Unify lengths into an iterable so we can create a slice for each
+    # dimension, even if the length is a single int.
+    lengths = sequence_length[k]
+    if isinstance(lengths, int):
+      lengths = [lengths]
+    slices = tuple((slice(0, limit) for limit in lengths))
+    return v[slices]
+
+  return dataset.map(
+      lambda ex: {k: _trim(k, v) for k, v in ex.items()},
+      num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+
 def _strip_packed_feature_key(key: str) -> str:
   strip_suffix = lambda k, s: k[:-len(s)] if k.endswith(s) else k
   return strip_suffix(strip_suffix(key, "_positions"), "_segment_ids")

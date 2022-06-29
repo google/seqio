@@ -986,28 +986,6 @@ class Task(DatasetProviderBase):
 
     return dataset
 
-  def _trim_output_features(
-      self, dataset: tf.data.Dataset,
-      sequence_length: Optional[Mapping[str, Union[int, Sequence[int]]]]
-  ) -> tf.data.Dataset:
-    """Trim output features to sequence length."""
-
-    def _trim(k: str, v: tf.Tensor) -> tf.Tensor:
-      if (k not in self.output_features or not sequence_length or
-          k not in sequence_length or sequence_length[k] is None):
-        return v
-      # Unify lengths into an iterable so we can create a slice for each
-      # dimension, even if the length is a single int.
-      lengths = sequence_length[k]
-      if isinstance(lengths, int):
-        lengths = [lengths]
-      slices = tuple((slice(0, limit) for limit in lengths))
-      return v[slices]
-
-    return dataset.map(
-        lambda ex: {k: _trim(k, v) for k, v in ex.items()},
-        num_parallel_calls=tf.data.experimental.AUTOTUNE)
-
   def preprocess_precache(self,
                           dataset: tf.data.Dataset,
                           seed: Optional[int] = None) -> tf.data.Dataset:
@@ -1212,7 +1190,10 @@ class Task(DatasetProviderBase):
         ds, sequence_length=sequence_length, seed=seed)
     ds = self._validate_preprocessing(ds)
     if trim_output_features:
-      ds = self._trim_output_features(ds, sequence_length=sequence_length)
+      ds = utils.trim_dataset(
+          ds,
+          sequence_length=sequence_length,
+          output_features=self.output_features)
     if shuffle:
       if self._shuffle_buffer_size is None:
         raise ValueError(
