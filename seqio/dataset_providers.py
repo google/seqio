@@ -991,22 +991,7 @@ class Task(DatasetProviderBase):
       sequence_length: Optional[Mapping[str, Union[int, Sequence[int]]]]
   ) -> tf.data.Dataset:
     """Trim output features to sequence length."""
-
-    def _trim(k: str, v: tf.Tensor) -> tf.Tensor:
-      if (k not in self.output_features or not sequence_length or
-          k not in sequence_length or sequence_length[k] is None):
-        return v
-      # Unify lengths into an iterable so we can create a slice for each
-      # dimension, even if the length is a single int.
-      lengths = sequence_length[k]
-      if isinstance(lengths, int):
-        lengths = [lengths]
-      slices = tuple((slice(0, limit) for limit in lengths))
-      return v[slices]
-
-    return dataset.map(
-        lambda ex: {k: _trim(k, v) for k, v in ex.items()},
-        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    return utils.trim_dataset(dataset, sequence_length, self.output_features)
 
   def preprocess_precache(self,
                           dataset: tf.data.Dataset,
