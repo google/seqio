@@ -130,7 +130,7 @@ class DatasetProviderRegistry(object):
       raise ValueError("Attempting to register a class of an invalid type. "
                        "Expecting instance of %s, got %s" %
                        (cls._PROVIDER_TYPE, provider_cls))
-    provider = provider_cls(*provider_args, **provider_kwargs)
+    provider = provider_cls(*provider_args, **provider_kwargs)  # pytype: disable=wrong-arg-types  # dynamic-method-lookup
     cls.add_provider(name, provider)
     return provider
 
