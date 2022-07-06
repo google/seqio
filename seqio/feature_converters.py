@@ -538,6 +538,28 @@ class EncDecFeatureConverter(FeatureConverter):
       "decoder_positions": tf.int32
   }
 
+  def _convert_example(
+      self, features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
+    """Convert a seq2seq example into an example with model features."""
+    # targets_segment_id is present only for a packed dataset.
+    decoder_input_tokens = utils.make_autoregressive_inputs(
+        features["targets"],
+        sequence_id=features.get("targets_segment_ids", None))
+
+    d = {"encoder_input_tokens": features["inputs"],
+         "decoder_target_tokens": features["targets"],
+         "decoder_input_tokens": decoder_input_tokens,
+         # Loss is computed for all but the padding positions.
+         "decoder_loss_weights": non_padding_position(features["targets"])}
+
+    if self.pack:
+      d["encoder_segment_ids"] = features["inputs_segment_ids"]
+      d["decoder_segment_ids"] = features["targets_segment_ids"]
+      d["encoder_positions"] = features["inputs_positions"]
+      d["decoder_positions"] = features["targets_positions"]
+
+    return d
+
   def _convert_features(
       self, ds: tf.data.Dataset,
       task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
@@ -563,31 +585,9 @@ class EncDecFeatureConverter(FeatureConverter):
     Returns:
       ds: the converted dataset.
     """
-
-    def convert_example(
-        features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
-      # targets_segment_id is present only for a packed dataset.
-      decoder_input_tokens = utils.make_autoregressive_inputs(
-          features["targets"],
-          sequence_id=features.get("targets_segment_ids", None))
-
-      d = {"encoder_input_tokens": features["inputs"],
-           "decoder_target_tokens": features["targets"],
-           "decoder_input_tokens": decoder_input_tokens,
-           # Loss is computed for all but the padding positions.
-           "decoder_loss_weights": non_padding_position(features["targets"])}
-
-      if self.pack:
-        d["encoder_segment_ids"] = features["inputs_segment_ids"]
-        d["decoder_segment_ids"] = features["targets_segment_ids"]
-        d["encoder_positions"] = features["inputs_positions"]
-        d["decoder_positions"] = features["targets_positions"]
-
-      return d
-
     ds = self._pack_or_pad(ds, task_feature_lengths)
     return ds.map(
-        convert_example, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        self._convert_example, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
   def get_model_feature_lengths(
       self, task_feature_lengths: Mapping[str, int]) -> Mapping[str, int]:
