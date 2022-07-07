@@ -157,7 +157,7 @@ def translate(dataset: tf.data.Dataset,
       'targets': 'That is good.'}
 
     Args:
-      x: an example to process.
+      ex: an example to process.
       source_language: source language code (e.g. 'en') to translate from.
       target_language: target language code (e.g. 'de') to translate to.
 
@@ -209,7 +209,7 @@ A few **important** notes:
       'targets': 'That is good.'}
 
     Args:
-      x: an example to process.
+      ex: an example to process.
       source_language: source language code (e.g. 'en') to translate from.
       target_language: target language code (e.g. 'de') to translate to.
 
