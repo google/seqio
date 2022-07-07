@@ -23,6 +23,7 @@ from absl import logging
 import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
+from typing import Sequence
 
 
 _INFO_FILENAME = "info.{split}.json"
@@ -47,8 +48,10 @@ def set_global_cache_dirs(global_cache_dirs):
   _GLOBAL_CACHE_DIRECTORIES = global_cache_dirs
 
 
-def add_global_cache_dirs(global_cache_dirs):
+def add_global_cache_dirs(global_cache_dirs:Sequence[str]):
   global _GLOBAL_CACHE_DIRECTORIES
+  if isinstance(global_cache_dirs, str):
+    global_cache_dirs = [global_cache_dirs]
   _GLOBAL_CACHE_DIRECTORIES += global_cache_dirs
 
 
