@@ -266,6 +266,36 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     assert_dataset(
         padded_ds, expected, {"inputs": tf.int32, "targets": tf.float32})
 
+  def test_trim_and_pad_dataset_with_multirank_features(self):
+    x = [{
+        "inputs": [[[7, 8, 5, 6, 1]], [[1, 2, 3, 4, 5]]],
+        "targets": [[3, 0.5], [9, 0], [1, 2]],
+    }, {
+        "inputs": [[[8, 4, 9, 3, 5, 7, 9, 5]]],
+        "targets": [[4, 1.2], [1, 1]],
+    }]
+    ds = tf.data.Dataset.from_generator(
+        lambda: x,
+        output_signature={
+            "inputs": tf.TensorSpec([None, None, None], tf.int32),
+            "targets": tf.TensorSpec([None, None], tf.float32),
+        })
+    padded_ds = utils.trim_and_pad_dataset(
+        ds,
+        feature_lengths={"inputs": [2, 1, 5], "targets": [3, 3]})
+    expected = [
+        {
+            "inputs": [[[7, 8, 5, 6, 1]], [[1, 2, 3, 4, 5]]],
+            "targets": [[3, 0.5, 0], [9, 0, 0], [1, 2, 0]],
+        },
+        {
+            "inputs": [[[8, 4, 9, 3, 5]], [[0, 0, 0, 0, 0]]],
+            "targets": [[4, 1.2, 0], [1, 1, 0], [0, 0, 0]],
+        }
+    ]
+    assert_dataset(
+        padded_ds, expected, {"inputs": tf.int32, "targets": tf.float32})
+
   _PACK_PARAMETERS = ({"use_custom_ops": False},)
 
   @parameterized.parameters(*_PACK_PARAMETERS)

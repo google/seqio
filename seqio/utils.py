@@ -240,11 +240,22 @@ def trim_and_pad_dataset(
     """Trim/pad to the first axis of `t` to be of size `length`."""
     if k not in feature_lengths:
       return t
+    if isinstance(t, tf.RaggedTensor):
+      t = t.to_tensor()
+
     length_k = feature_lengths[k]
-    t = t[:length_k]
-    pad_amt = length_k - tf.shape(t)[0]
-    padded_t = tf.pad(t, [(0, pad_amt)] + [(0, 0)] * (len(t.shape) - 1))
-    padded_t.set_shape([length_k] + t.shape.as_list()[1:])
+    if isinstance(length_k, int):
+      t = t[:length_k]
+      pad_amt = length_k - tf.shape(t)[0]
+      padded_t = tf.pad(t, [(0, pad_amt)] + [(0, 0)] * (len(t.shape) - 1))
+      padded_t.set_shape([length_k] + t.shape.as_list()[1:])
+      return padded_t
+
+    slices = tuple((slice(0, limit) for limit in length_k))
+    t = t[slices]
+    pad_amt = tf.pad((length_k - tf.shape(t))[..., None], ((0, 0), (1, 0)))
+    padded_t = tf.pad(t, pad_amt)
+    padded_t.set_shape(length_k)
     return padded_t
 
   return dataset.map(
