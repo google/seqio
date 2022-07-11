@@ -82,7 +82,7 @@ input dataset.
 import abc
 import dataclasses
 import functools
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, Union
 from absl import logging
 
 from seqio import utils
@@ -93,7 +93,8 @@ import tensorflow.compat.v2 as tf
 autoregressive_inputs = utils.make_autoregressive_inputs
 
 
-def _check_lengths(ds: tf.data.Dataset, expected_lengths: Mapping[str, int],
+def _check_lengths(ds: tf.data.Dataset,
+                   expected_lengths: Mapping[str, Union[int, Sequence[int]]],
                    sequence_axis_mapping: Mapping[str, int], strict: bool,
                    error_label: str) -> tf.data.Dataset:
   """Check the length of each feature in `ds` against `expected_lengths`.
@@ -113,10 +114,10 @@ def _check_lengths(ds: tf.data.Dataset, expected_lengths: Mapping[str, int],
     ds: a tf.data.Dataset to be checked.
     expected_lengths: a mapping from a feature name to an expected length.
     sequence_axis_mapping: a mapping from feature name to its sequence
-        dimension.
+      dimension.
     strict: if true, the length of each feature should exactly match the
-      expected length whereas false condition allows the length to be less
-      than or equal to the expected length.
+      expected length whereas false condition allows the length to be less than
+      or equal to the expected length.
     error_label: a label used to indicate the validation stage
 
   Returns:
@@ -140,8 +141,12 @@ def _check_lengths(ds: tf.data.Dataset, expected_lengths: Mapping[str, int],
       assertion_op = functools.partial(
           tf.debugging.assert_less_equal, message=error_message)
 
-    expected_length = tf.constant(expected_lengths[feat], dtype=tf.int64)
     sequence_axis = sequence_axis_mapping[feat]
+    if isinstance(expected_lengths[feat], int):
+      expected_length = tf.constant(expected_lengths[feat], dtype=tf.int64)
+    else:
+      expected_length = tf.constant(
+          expected_lengths[feat][sequence_axis], dtype=tf.int64)
     actual_length = tf.shape(v, out_type=tf.int64)[sequence_axis]
     assertion_op(actual_length, expected_length)
     return v
@@ -259,7 +264,7 @@ class FeatureConverter(abc.ABC):
       self,
       ds: tf.data.Dataset,
       expected_features: Mapping[str, "FeatureConverter.FeatureSpec"],
-      expected_lengths: Mapping[str, int],
+      expected_lengths: Mapping[str, Union[int, Sequence[int]]],
       strict: bool,
       error_label: str) -> tf.data.Dataset:
     """Validate properties of the dataset, raising Exceptions if needed.
@@ -319,8 +324,10 @@ class FeatureConverter(abc.ABC):
           "Length validation is skipped since `apply_length_check=False`")
     return ds
 
-  def __call__(self, ds: tf.data.Dataset,
-               task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+  def __call__(
+      self, ds: tf.data.Dataset,
+      task_feature_lengths: Mapping[str, Union[int, Sequence[int]]]
+  ) -> tf.data.Dataset:
     r"""Convert the features of `ds` into output features.
 
     This method should not be overridden by subclasses.
@@ -1085,9 +1092,10 @@ class DecoderFeatureConverter(FeatureConverter):
         use_custom_packing_ops=use_custom_packing_ops,
         apply_length_check=apply_length_check)
 
-  def __call__(self, ds: tf.data.Dataset,
-               task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
-
+  def __call__(
+      self, ds: tf.data.Dataset,
+      task_feature_lengths: Mapping[str, Union[int, Sequence[int]]]
+  ) -> tf.data.Dataset:
     if "inputs" in task_feature_lengths:
       return self.prefixlm_feature_converter(ds, task_feature_lengths)
     else:
@@ -1230,8 +1238,10 @@ class PassThroughFeatureConverter(FeatureConverter):
   def __init__(self, **unused_kwargs):  # pylint: disable=super-init-not-called
     pass
 
-  def __call__(self, ds: tf.data.Dataset,
-               task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+  def __call__(
+      self, ds: tf.data.Dataset,
+      task_feature_lengths: Mapping[str, Union[int, Sequence[int]]]
+  ) -> tf.data.Dataset:
     del task_feature_lengths
     return ds
 
