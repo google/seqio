@@ -21,16 +21,19 @@ jobs:
       # Get current version, increment by 1
       # Replace in version.py
       # Push and publish to PyPI
-      - name: Merge main branch into nightly branch and update package info
+      - name: Merge main branch into release branch and update package info
         run: |
           git config user.email "noreply@google.com"
           git config user.name "SeqIO Team"
+          git fetch
+          git checkout release
+          git reset --hard main
           version=$(tail -1 seqio/version.py | sed 's/.*\.//'| sed 's/.$//')
           newversion=$((version+1))
           sed -i  "$ s/"$version"/"$newversion"/" "seqio/version.py"
           git add *
           git commit -m "Updated maintenance version"
-          git push --force
+          git push
 
       - name: Set up Python 3.9
         uses: actions/setup-python@v1
