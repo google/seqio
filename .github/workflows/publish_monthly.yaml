@@ -33,7 +33,7 @@ jobs:
           sed -i  "$ s/"$version"/"$newversion"/" "seqio/version.py"
           git add *
           git commit -m "Updated maintenance version"
-          git push
+          git push --force
 
       - name: Set up Python 3.9
         uses: actions/setup-python@v1
