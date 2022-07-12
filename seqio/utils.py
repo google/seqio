@@ -42,9 +42,14 @@ def get_global_cache_dirs():
   return _GLOBAL_CACHE_DIRECTORIES
 
 
-def set_global_cache_dirs(global_cache_dirs):
+def set_global_cache_dirs(global_cache_dirs, append_only=True):
   global _GLOBAL_CACHE_DIRECTORIES
-  _GLOBAL_CACHE_DIRECTORIES = global_cache_dirs
+  if append_only:
+    _GLOBAL_CACHE_DIRECTORIES += global_cache_dirs
+  else:
+    # Note: depending on import order, this may clear global cache dirs
+    # specified by other modules. See for example b/236770158.
+    _GLOBAL_CACHE_DIRECTORIES = global_cache_dirs
 
 
 def add_global_cache_dirs(global_cache_dirs):
