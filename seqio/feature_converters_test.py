@@ -748,6 +748,55 @@ class DecoderFeatureConverterTest(FeatureConvertersTest):
     }]
     assert_dataset(converted_ds, expected)
 
+  def test_prefixlm_task(self):
+    x = [{"inputs": [7, 8, 5, 1], "targets": [3, 9, 1], "task_id": [1]}]
+    ds = create_default_dataset(
+        x, feature_names=["inputs", "targets", "task_id"])
+
+    task_feature_lengths = {"inputs": 5, "targets": 5, "task_id": 1}
+    converter = feature_converters.DecoderFeatureConverter(
+        pack=False, loss_on_targets_only=False,
+        use_task_id_feature=True)
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "decoder_target_tokens": [7, 8, 5, 1, 3, 9, 1, 0, 0, 0],
+        "decoder_input_tokens": [0, 7, 8, 5, 1, 3, 9, 1, 0, 0],
+        "decoder_loss_weights": [1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+        "decoder_causal_attention": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+        "task_id": [1]
+    }
+    assert_dataset(converted_ds, expected)
+
+  def test_lm_task(self):
+    x = [{
+        "targets": [3, 9, 4, 5, 1],
+        "task_id": [1]
+    }, {
+        "targets": [4, 3, 2, 1],
+        "task_id": [2]
+    }]
+    ds = create_default_dataset(x, feature_names=["targets", "task_id"])
+    task_feature_lengths = {"targets": 5, "task_id": 1}
+
+    converter = feature_converters.DecoderFeatureConverter(
+        pack=False, loss_on_targets_only=False,
+        use_task_id_feature=True)
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = [{
+        "decoder_target_tokens": [3, 9, 4, 5, 1],
+        "decoder_input_tokens": [0, 3, 9, 4, 5],
+        "decoder_loss_weights": [1, 1, 1, 1, 1],
+        "task_id": [1],
+    }, {
+        "decoder_target_tokens": [4, 3, 2, 1, 0],
+        "decoder_input_tokens": [0, 4, 3, 2, 1],
+        "decoder_loss_weights": [1, 1, 1, 1, 0],
+        "task_id": [2]
+    }]
+    assert_dataset(converted_ds, expected)
+
 
 class EncoderFeatureConverterTest(FeatureConvertersTest):
 
@@ -894,6 +943,48 @@ class PrePackedEncDecFeatureConverterTest(tf.test.TestCase):
         "decoder_loss_weights": [1, 1, 1, 1, 1, 0, 0],
         "decoder_segment_ids": [1, 1, 1, 2, 2, 0, 0],
         "decoder_positions": [0, 1, 2, 0, 1, 0, 0],
+    }
+    assert_dataset(converted_ds, expected)
+
+
+class LMTaskFeatureConverter(tf.test.TestCase):
+
+  def test_lm_with_task_feature(self):
+    x = [{"targets": [3, 9, 1], "task_id": [1]}]
+    ds = create_default_dataset(x, feature_names=["targets", "task_id"])
+    task_feature_lengths = {"targets": 5, "task_id": 1}
+
+    converter = feature_converters.LMTaskFeatureConverter(pack=False)
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "decoder_target_tokens": [3, 9, 1, 0, 0],
+        "decoder_input_tokens": [0, 3, 9, 1, 0],
+        "decoder_loss_weights": [1, 1, 1, 0, 0],
+        "task_id": [1]
+    }
+    assert_dataset(converted_ds, expected)
+
+
+class PrefixLMTaskFeatureConverter(tf.test.TestCase):
+
+  def test_prefix_lm_with_task_feature(self):
+    x = [{"inputs": [9, 4, 6, 1], "targets": [3, 9, 1], "task_id": [2]}]
+    ds = create_default_dataset(
+        x, feature_names=["inputs", "targets", "task_id"])
+
+    task_feature_lengths = {"inputs": 5, "targets": 4, "task_id": 1}
+    converter = feature_converters.PrefixLMTaskFeatureConverter(pack=False)
+    print("test ds", ds)
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "decoder_target_tokens": [9, 4, 6, 1, 3, 9, 1, 0, 0],
+        # The last EOS token is kept if unpacked.
+        "decoder_input_tokens": [0, 9, 4, 6, 1, 3, 9, 1, 0],
+        "decoder_loss_weights": [0, 0, 0, 0, 1, 1, 1, 0, 0],
+        "decoder_causal_attention": [1, 1, 1, 1, 1, 0, 0, 0, 0],
+        "task_id": [2]
     }
     assert_dataset(converted_ds, expected)
 

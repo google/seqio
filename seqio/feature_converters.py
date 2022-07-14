@@ -1051,6 +1051,7 @@ class DecoderFeatureConverter(FeatureConverter):
   TASK_FEATURES = {
       "inputs": FeatureConverter.FeatureSpec(dtype=tf.int32),  # Optional field
       "targets": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "task_id": FeatureConverter.FeatureSpec(dtype=tf.int32),  # Optional field
   }
   MODEL_FEATURES = {
       "decoder_target_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
@@ -1058,6 +1059,7 @@ class DecoderFeatureConverter(FeatureConverter):
       "decoder_loss_weights": FeatureConverter.FeatureSpec(dtype=tf.int32),
       # Only if `inputs` field is present:
       "decoder_causal_attention": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "task_id": FeatureConverter.FeatureSpec(dtype=tf.int32),  # Optional field
   }
   PACKING_FEATURE_DTYPES = {
       "decoder_segment_ids": tf.int32,
@@ -1068,9 +1070,11 @@ class DecoderFeatureConverter(FeatureConverter):
                loss_on_targets_only: bool = True,
                pack: bool = True,
                use_custom_packing_ops: bool = False,
+               use_task_id_feature: bool = False,
                apply_length_check: bool = True) -> None:
 
     self._loss_on_targets_only = loss_on_targets_only
+    self._use_task_id_feature = use_task_id_feature
     super().__init__(
         pack=pack,
         use_custom_packing_ops=use_custom_packing_ops,
@@ -1085,13 +1089,34 @@ class DecoderFeatureConverter(FeatureConverter):
         use_custom_packing_ops=use_custom_packing_ops,
         apply_length_check=apply_length_check)
 
+    # Feature converters with additional task_id feature.
+    self.prefixlm_task_feature_converter = PrefixLMTaskFeatureConverter(
+        loss_on_targets_only=loss_on_targets_only,
+        pack=pack,
+        use_custom_packing_ops=use_custom_packing_ops,
+        apply_length_check=apply_length_check)
+    self.strictlm_task_feature_converter = LMTaskFeatureConverter(
+        pack=pack,
+        use_custom_packing_ops=use_custom_packing_ops,
+        apply_length_check=apply_length_check)
+
   def __call__(self, ds: tf.data.Dataset,
                task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
 
     if "inputs" in task_feature_lengths:
-      return self.prefixlm_feature_converter(ds, task_feature_lengths)
+      if "task_id" in task_feature_lengths and self._use_task_id_feature:
+        if self.pack:
+          raise RuntimeError("Sequence packing is not support with task_id.")
+        return self.prefixlm_task_feature_converter(ds, task_feature_lengths)
+      else:
+        return self.prefixlm_feature_converter(ds, task_feature_lengths)
     else:
-      return self.strictlm_feature_converter(ds, task_feature_lengths)
+      if "task_id" in task_feature_lengths and self._use_task_id_feature:
+        if self.pack:
+          raise RuntimeError("Sequence packing is not support with task_id.")
+        return self.strictlm_task_feature_converter(ds, task_feature_lengths)
+      else:
+        return self.strictlm_feature_converter(ds, task_feature_lengths)
 
   def _convert_features(
       self, ds: tf.data.Dataset,
@@ -1104,11 +1129,19 @@ class DecoderFeatureConverter(FeatureConverter):
     """Define the length relationship between task and model features."""
 
     if "inputs" in task_feature_lengths:
-      model_feature_lengths = self.prefixlm_feature_converter.get_model_feature_lengths(
-          task_feature_lengths)
+      if "task_id" in task_feature_lengths and self._use_task_id_feature:
+        model_feature_lengths = self.prefixlm_task_feature_converter.get_model_feature_lengths(
+            task_feature_lengths)
+      else:
+        model_feature_lengths = self.prefixlm_feature_converter.get_model_feature_lengths(
+            task_feature_lengths)
     else:
-      model_feature_lengths = self.strictlm_feature_converter.get_model_feature_lengths(
-          task_feature_lengths)
+      if "task_id" in task_feature_lengths and self._use_task_id_feature:
+        model_feature_lengths = self.strictlm_task_feature_converter.get_model_feature_lengths(
+            task_feature_lengths)
+      else:
+        model_feature_lengths = self.strictlm_feature_converter.get_model_feature_lengths(
+            task_feature_lengths)
     return model_feature_lengths
 
 
@@ -1243,3 +1276,202 @@ class PassThroughFeatureConverter(FeatureConverter):
   def get_model_feature_lengths(self, task_feature_lengths: Mapping[str, int]):
     """This method is required to be overridden but unused."""
     pass
+
+
+class LMTaskFeatureConverter(LMFeatureConverter):
+  """Feature converter for a language model (decoder-only) architecture.
+
+  The input dataset must have "targets" and "task_id" features.
+  """
+  TASK_FEATURES = {
+      "targets": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "task_id": FeatureConverter.FeatureSpec(dtype=tf.int32)
+  }
+  MODEL_FEATURES = {
+      "decoder_target_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_input_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_loss_weights": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "task_id": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+
+  def _convert_example(
+      self, features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
+    """Convert an LM example into an example with model features."""
+    # targets_segment_id is present only for a packed dataset.
+    decoder_input_tokens = utils.make_autoregressive_inputs(
+        features["targets"],
+        sequence_id=features.get("targets_segment_ids", None))
+
+    d = {
+        "decoder_target_tokens": features["targets"],
+        "decoder_input_tokens": decoder_input_tokens,
+        "decoder_loss_weights": non_padding_position(features["targets"])
+    }
+
+    if self.pack:
+      d["decoder_segment_ids"] = features["targets_segment_ids"]
+      d["decoder_positions"] = features["targets_positions"]
+
+    d["task_id"] = features["task_id"]
+
+    return d
+
+  def get_model_feature_lengths(
+      self, task_feature_lengths: Mapping[str, int]) -> Mapping[str, int]:
+    """Define the length relationship between task and model features."""
+    decoder_length = task_feature_lengths["targets"]
+    model_feature_lengths = {
+        "decoder_target_tokens": decoder_length,
+        "decoder_input_tokens": decoder_length,
+        "decoder_loss_weights": decoder_length
+    }
+    if self.pack:
+      model_feature_lengths["decoder_segment_ids"] = decoder_length
+      model_feature_lengths["decoder_positions"] = decoder_length
+
+    model_feature_lengths["task_id"] = task_feature_lengths["task_id"]
+
+    return model_feature_lengths
+
+
+class PrefixLMTaskFeatureConverter(LMFeatureConverter):
+  """Feature converter for a prefix language model architecture.
+
+  The input dataset must have both "inputs" and "targets" fields. In addition,
+  it also has the "task_id" field.
+  """
+  TASK_FEATURES = {
+      "inputs": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "targets": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "task_id": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+  MODEL_FEATURES = {
+      "decoder_target_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_input_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_loss_weights": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_causal_attention": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "task_id": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+  PACKING_FEATURE_DTYPES = {
+      "decoder_segment_ids": tf.int32,
+      "decoder_positions": tf.int32
+  }
+
+  def __init__(self, loss_on_targets_only: bool = True, **kwargs) -> None:
+    self._loss_on_targets_only = loss_on_targets_only
+    super().__init__(**kwargs)
+
+  def _convert_example(
+      self, features: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
+    """Convert a Prefix LM example into an example with model features.
+
+    Args:
+      features: an input tf.data.Dataset to be converted.
+
+    Returns:
+      d: the converted features.
+    """
+    # First use the standard LM conversion.
+    lm_features = super()._convert_example(features)
+
+    # Initialize the return dictionary with the lm features.
+    d = dict(lm_features)
+
+    if self.pack:
+      positions = features["targets_positions"]
+    # Without packing, targets_positions field does not exist.
+    else:
+      positions = tf.range(tf.size(features["targets"]))
+
+    inputs_width = features["inputs_width_add_pos"]
+    # Binary mask where 1 represents a position in a non-causal attention region
+    d["decoder_causal_attention"] = tf.cast(
+        positions < inputs_width, dtype=features["targets"].dtype)
+
+    # When computing the loss weights with self.loss_on_targets_only = True, we
+    # use features["inputs_width"], which encodes the number of "inputs" tokens.
+    if self.loss_on_targets_only:
+      # 1's on inputs and 0's on targets and padding.
+      inputs = positions < features["inputs_width"]
+
+      # 1's on inputs and targets and 0's on padding.
+      padding_mask = tf.cast(d["decoder_loss_weights"], dtype=tf.bool)
+
+      # XOR picks targets only. See docstring for an example.
+      d["decoder_loss_weights"] = tf.cast(
+          tf.math.logical_xor(inputs, padding_mask),
+          dtype=features["targets"].dtype)
+
+    d["task_id"] = features["task_id"]
+
+    return d
+
+  def _convert_features(
+      self, ds: tf.data.Dataset,
+      task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+    """Convert the input dataset to an output dataset to be fed to the model.
+
+    Args:
+      ds: an input tf.data.Dataset to be converted.
+      task_feature_lengths: a mapping from task feature name to its length.
+
+    Returns:
+      ds: the converted dataset.
+    """
+
+    def concat_and_add_masks(features):
+      inputs = features["inputs"]
+      targets = features["targets"]
+      # If the targets are empty, we add one padding target.
+      targets = tf.cond(
+          tf.size(targets) > 0, lambda: targets,
+          lambda: tf.zeros(1, dtype="int32"))
+
+      # Width of the "inputs" portion in the concatenated sequence.
+      width = tf.size(inputs)
+      inputs_width = tf.fill([tf.size(inputs) + tf.size(targets)], width)
+
+      # Width with an extra position to the right in the inputs mask. See
+      # docstring for details.
+      inputs_width_add_pos = tf.fill([tf.size(inputs) + tf.size(targets)],
+                                     width + 1)
+
+      return {
+          "targets": tf.concat([inputs, targets], axis=-1),
+          "inputs_width": inputs_width,
+          "inputs_width_add_pos": inputs_width_add_pos,
+          "task_id": features["task_id"]
+      }
+
+    ds = ds.map(
+        concat_and_add_masks, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    concat_length = task_feature_lengths["inputs"] + task_feature_lengths[
+        "targets"]
+    concat_task_feature_lengths = {
+        "targets": concat_length,
+        "inputs_width": concat_length,
+        "inputs_width_add_pos": concat_length,
+        "task_id": 1
+    }
+
+    ds = self._pack_or_pad(ds, concat_task_feature_lengths)
+    return ds.map(
+        self._convert_example, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+  def get_model_feature_lengths(
+      self, task_feature_lengths: Mapping[str, int]) -> Mapping[str, int]:
+    """Define the length relationship between task and model features."""
+    decoder_length = task_feature_lengths["inputs"] + task_feature_lengths[
+        "targets"]
+    concat_length = {"targets": decoder_length}
+    lm_model_feature_lengths = super().get_model_feature_lengths(concat_length)
+    model_feature_lengths = dict(lm_model_feature_lengths)
+    model_feature_lengths["decoder_causal_attention"] = decoder_length
+
+    model_feature_lengths["task_id"] = task_feature_lengths["task_id"]
+    return model_feature_lengths
+
+  @property
+  def loss_on_targets_only(self) -> bool:
+    return self._loss_on_targets_only
