@@ -313,7 +313,12 @@ class DatasetFnCallable(typing_extensions.Protocol):
 
 
 class FunctionDataSource(DataSource):
-  """A `DataSource` that uses a function to provide the input data."""
+  """A `DataSource` that uses a function to provide the input data.
+
+  This source is not recommended when shuffling is required unless it is
+  cached/materialized in advance. Using this source without caching for training
+  will result in insufficient shuffling and lead to repeated data on restarts.
+  """
 
   def __init__(self,
                dataset_fn: DatasetFnCallable,
@@ -353,6 +358,14 @@ class FunctionDataSource(DataSource):
       raise ValueError(
           "`FunctionDataSource` does not support low-level sharding. Use "
           "tf.data.Dataset.shard instead.")
+
+    if shuffle:
+      logging.warning(
+          "Using an uncached FunctionDataset for training is not recommended "
+          "since it often results in insufficient shuffling on restarts, "
+          "resulting in overfitting. It is highly recommended that you cache "
+          "this task before training with it or use a data source that "
+          "supports lower-level shuffling (e.g., FileDataSource).")
 
     if seed is None:
       ds = self._dataset_fn(split=split, shuffle_files=shuffle)
