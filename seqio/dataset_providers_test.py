@@ -209,6 +209,22 @@ class TasksTest(test_utils.FakeTaskTest):
 
     # pylint:enable=unused-argument
 
+  def test_function_data_source_splits(self):
+    def good_fn(split, shuffle_files):
+      del split
+      del shuffle_files
+
+    self.assertSameElements(["train", "validation"],
+                            dataset_providers.FunctionDataSource(
+                                dataset_fn=good_fn,
+                                splits=["train", "validation"]).splits)
+    self.assertSameElements(["validation"],
+                            dataset_providers.FunctionDataSource(
+                                dataset_fn=good_fn,
+                                splits={
+                                    "validation": "train"
+                                }).splits)
+
   def test_no_tfds_version(self):
     with self.assertRaisesWithLiteralMatch(
         ValueError, "TFDS name must contain a version number, got: fake"):
