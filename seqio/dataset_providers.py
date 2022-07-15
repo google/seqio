@@ -317,7 +317,7 @@ class FunctionDataSource(DataSource):
 
   def __init__(self,
                dataset_fn: DatasetFnCallable,
-               splits: Iterable[str],
+               splits: Union[Iterable[str], Mapping[str, str]],
                num_input_examples: Optional[Mapping[str, int]] = None,
                caching_permitted: bool = True):
     """FunctionDataSource constructor.
@@ -326,7 +326,8 @@ class FunctionDataSource(DataSource):
       dataset_fn: a function with the signature `dataset_fn(split,
         shuffle_files)' (and optionally the variable `seed`) that returns a
         `tf.data.Dataset`.
-      splits: an iterable of applicable string split names.
+      splits: an iterable of applicable string split names, or a dict mapping
+        between splits (e.g., {'train':'dev', 'validation':'test'}).
       num_input_examples: dict or None, an optional dictionary mapping split to
         its size in number of input examples (before preprocessing). The
         `num_input_examples` method will return None if not provided.
@@ -335,6 +336,10 @@ class FunctionDataSource(DataSource):
     """
     _validate_args(dataset_fn, ["split", "shuffle_files"])
     self._dataset_fn = dataset_fn
+    if isinstance(splits, dict):
+      self.split_map = splits
+    else:
+      self.split_map = None
     super().__init__(
         splits=splits,
         num_input_examples=num_input_examples,
@@ -353,6 +358,9 @@ class FunctionDataSource(DataSource):
       raise ValueError(
           "`FunctionDataSource` does not support low-level sharding. Use "
           "tf.data.Dataset.shard instead.")
+
+    if self.split_map:
+      split = self.split_map[split]
 
     if seed is None:
       ds = self._dataset_fn(split=split, shuffle_files=shuffle)
