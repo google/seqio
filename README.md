@@ -417,7 +417,7 @@ The first step to doing so is to add a `seqio.CacheDatasetPlaceholder(required=F
 Caveats:
 
 * Any stochastic operations that you wish to be re-run when `num_epochs > 1` or with a different `seed` *should* go after the placeholder since only a single sample will be cached.
-* Any preprocessing steps that use the `sequence_length` argument *must* come after the `seqio.CacheDatasetPlaceholder` preproessor since this is only known at runtime, or an exception will be raised. If you wish to cache for a specific sequence length, you can use [`seqio.experimental.add_fully_cached_task`](https://github.com/google/seqio/tree/main/seqio/experimental.py).
+* Any preprocessing steps that use the `sequence_length` argument *must* come after the `seqio.CacheDatasetPlaceholder` preprocessor since this is only known at runtime, or an exception will be raised. If you wish to cache for a specific sequence length, you can use [`seqio.experimental.add_fully_cached_task`](https://github.com/google/seqio/tree/main/seqio/experimental.py).
 
 Once your `Task` is registered, you can run [`cache_tasks_main`](scripts/cache_tasks_main.py) to execute the offline preprocessing, providing it with the module containing your task definitions via the `--module_import` flag. For very large datasets, it's recommended you run this [Apache Beam](https://beam.apache.org/) script on a distributed framework like [Google Cloud DataFlow](https://beam.apache.org/documentation/runners/dataflow/).
 
