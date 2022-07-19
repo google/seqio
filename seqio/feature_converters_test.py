@@ -156,6 +156,25 @@ class HelperFunctionsTest(tf.test.TestCase):
           expected_feature_source="task_features",
           actual_feature_source="input_dataset")
 
+  def test_check_lengths_multirank(self):
+    x = [{
+        "targets": [[1, 2, 3], [4, 5, 6]],
+        "targets_pretokenized": "some text"
+    }]
+    output_types = {"targets": tf.int64, "targets_pretokenized": tf.string}
+    output_shapes = {"targets": [2, 3], "targets_pretokenized": []}
+    ds = tf.data.Dataset.from_generator(
+        lambda: x, output_types=output_types, output_shapes=output_shapes)
+    task_feature_lengths = {"targets": [2, 3]}
+    sequence_axis_mapping = {"targets": 1}
+    ds = feature_converters._check_lengths(
+        ds,
+        task_feature_lengths,
+        sequence_axis_mapping,
+        strict=True,
+        error_label="initial")
+    list(ds.as_numpy_iterator())
+
 
 class FeatureConvertersTest(tf.test.TestCase):
 
