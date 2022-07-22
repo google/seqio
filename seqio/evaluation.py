@@ -22,6 +22,7 @@ import time
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
+import jax
 import numpy as np
 from seqio import dataset_providers
 from seqio import feature_converters
@@ -36,7 +37,7 @@ EncDecFeatureConverter = feature_converters.EncDecFeatureConverter
 FeatureConverter = feature_converters.FeatureConverter
 
 AllOutputTokensType = Mapping[str, Sequence[Sequence[int]]]
-AllOutputScoresType = Mapping[str, Sequence[float]]
+AllOutputScoresType = Any  # Mapping[str, Sequence[float]]
 AllOutputAuxValuesType = Mapping[str, Mapping[str, Sequence[Any]]]
 AllMetricsType = Mapping[str, Mapping[str, Any]]
 
@@ -156,6 +157,11 @@ _IndicesAndPredictionsWithAuxValues = Tuple[_IndicesAndPredictions, _AuxValues]
 PredictFnReturnType = Union[_IndicesAndPredictions,
                             _IndicesAndPredictionsWithAuxValues]
 
+_IndicesAndScores = Sequence[Tuple[_BatchId, float]]
+_IndicesAndScoresWithIntermediates = Tuple[_IndicesAndScores,
+                                           Sequence[Mapping[str, Any]]]
+ScoreFnReturnType = Union[_IndicesAndScores, _IndicesAndScoresWithIntermediates]
+
 
 class PredictFnCallable(typing_extensions.Protocol):
 
@@ -169,8 +175,7 @@ class ScoreFnCallable(typing_extensions.Protocol):
 
   def __call__(
       self, dataset: tf.data.Dataset,
-      model_feature_shapes: Optional[Mapping[str, int]]
-  ) -> Sequence[Tuple[int, float]]:
+      model_feature_shapes: Optional[Mapping[str, int]]) -> ScoreFnReturnType:
     ...
 
 
@@ -199,7 +204,22 @@ def _extract_tokens_and_aux_values(cached_model_dataset, predict_fn):
 
 
 def _extract_scores(cached_model_dataset, score_fn):
+  """Extracts scores and intermediate values from a cached dataset."""
   indices_and_scores = score_fn(cached_model_dataset)
+
+  if isinstance(indices_and_scores, tuple) and len(indices_and_scores) == 2:
+    indices_and_scores, intermediates = indices_and_scores
+    indices, scores = zip(*indices_and_scores)
+    sorted_order = np.argsort(indices)
+
+    def _permute(x):
+      return [x[sorted_order[i]] for i in range(len(sorted_order))]
+
+    sorted_scores = _permute(scores)
+    sorted_intermediates = jax.tree_map(
+        _permute, intermediates, is_leaf=lambda x: isinstance(x, list))
+    return sorted_scores, sorted_intermediates
+
   if len(indices_and_scores[0]) != 2:
     raise ValueError(
         "Expected a sequence of length-2 tuples with (index, score) "
@@ -588,9 +608,7 @@ class Evaluator:
       raise ValueError(f"len(targets)({len(targets)}) != "
                        f"len(predictions)({len(task_predicted_tokens)})")
 
-    outputs = [
-        task_vocab.decode(tokens) for tokens in task_predicted_tokens
-    ]
+    outputs = [task_vocab.decode(tokens) for tokens in task_predicted_tokens]
     postprocessed_outputs = [
         task.postprocess_fn(d, example=ex, is_target=False)
         for d, ex in zip(outputs, tfds.as_numpy(task_dataset))
@@ -650,7 +668,9 @@ class Evaluator:
 
       if task.score_metric_fns:
         task_scores = scores[task.name]
-        if len(targets) != len(task_scores):
+        is_tuple = isinstance(task_scores, tuple)
+        if ((not is_tuple and len(targets) != len(task_scores)) or
+            (is_tuple and len(targets) != len(task_scores[0]))):
           raise ValueError(f"len(targets)({len(targets)}) != "
                            f"len(task_scores)({len(task_scores)})")
         task_metrics.extend([

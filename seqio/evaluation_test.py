@@ -17,7 +17,7 @@
 
 import concurrent
 import functools
-from typing import Callable, Sequence, Mapping, Optional, Tuple
+from typing import Any, Callable, Sequence, Mapping, Optional, Tuple
 from unittest import mock
 
 import numpy as np
@@ -67,6 +67,16 @@ def _accuracy_metric(targets, predictions):
 def _sum_scores_metric(targets, scores):
   weights = [sum(ord(c) for c in t) for t in targets]
   return {"total_score": (np.array(scores) * np.array(weights)).sum()}
+
+
+def _sum_scores_metric_with_intermediates(targets, scores):
+  _, intermediates = scores
+  scores = intermediates["score"]
+  weights = [sum(ord(c) for c in t) for t in targets]
+  return {
+      "total_score_with_intermediates":
+          (np.array(scores) * np.array(weights)).sum()
+  }
 
 
 def register_dummy_task(task_name: str,
@@ -1141,6 +1151,46 @@ class EvaluationTest(tf.test.TestCase):
     self.assertSequenceEqual(evaluator.cached_targets[task_name], ["ex 1"])
     task.output_features["targets"].vocabulary.decode.assert_called_once_with(
         [42, 48, 1])
+
+  def test_task_with_score_fn_with_intermediates(self):
+
+    def score_fn_with_intermediates(
+        ds: tf.data.Dataset,
+        model_feature_shapes: Optional[Mapping[str, int]] = None
+    ) -> Tuple[Sequence[Tuple[int, float]], Sequence[Mapping[str, Any]]]:
+      del ds, model_feature_shapes
+      indices_and_scores = [(1, 1), (0, 2), (2, 3)]
+      intermediates = {"score": [101, 102, 103]}
+      return indices_and_scores, intermediates
+
+    task = get_mocked_task(
+        predict_metric_fns=[],
+        score_metric_fns=[_sum_scores_metric_with_intermediates])
+
+    def mock_init(self):
+      self._cached_model_datasets = {task.name: tf.data.Dataset.range(1, 4)}
+      self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
+      self._cached_targets = {task.name: ["e5 e6", "e6", "e7"]}
+      self._eval_tasks = [task]
+      self._loggers = ()
+      self._metrics_future = None
+      self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
+          max_workers=1)
+      self._target_field_name = "targets"
+
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
+
+      all_metrics, _, _ = evaluator.evaluate(
+          compute_metrics=True,
+          predict_fn=self.uncalled_fn,
+          predict_with_aux_fn=self.uncalled_fn,
+          score_fn=score_fn_with_intermediates,
+          step=42)
+      results = all_metrics.result()
+
+    self.assertDictClose({"total_score_with_intermediates": 66505},
+                         results["mocked_test"])
 
 
 if __name__ == "__main__":
