@@ -404,6 +404,8 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
       self._target_field_name = target_field_name
+      self.eval_on_mixture = False
+      self._add_averages = False
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
@@ -509,6 +511,8 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
       self._target_field_name = "targets"
+      self.eval_on_mixture = False
+      self._add_averages = False
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
@@ -635,6 +639,8 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
       self._target_field_name = "targets"
+      self.eval_on_mixture = False
+      self._add_averages = False
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
@@ -676,6 +682,8 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
       self._target_field_name = "targets"
+      self.eval_on_mixture = False
+      self._add_averages = False
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
@@ -735,6 +743,9 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
       self._target_field_name = "targets"
+      self.eval_on_mixture = True
+      self._add_averages = False
+      self.mixture_or_task_name = "mixture"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
 
@@ -771,6 +782,91 @@ class EvaluationTest(tf.test.TestCase):
       all_metrics = all_metrics.result()
       self.assertDictClose(expected[task1.name], all_metrics[task1.name])
       self.assertDictClose(expected[task2.name], all_metrics[task2.name])
+
+  def test_evaluate_mixture_with_averages(self):
+    id_to_vocab = {5: "e5", 6: "e6", 7: "e7"}
+
+    task1 = get_mocked_task(name="task1",
+                            predict_metric_fns=[],
+                            score_metric_fns=[_accuracy_metric])
+    task1.postprocess_fn = functools.partial(
+        _string_label_to_class_id_postprocessor,
+        label_classes=["e5", "e6", "e7"])
+    mock_vocab1 = task1.output_features["targets"].vocabulary
+    mock_vocab1.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
+
+    task2 = get_mocked_task(
+        name="task2",
+        predict_metric_fns=[_accuracy_metric],
+        score_metric_fns=[])
+    task2.postprocess_fn = functools.partial(
+        _string_label_to_class_id_postprocessor,
+        label_classes=["e5", "e6", "e7"])
+    mock_vocab2 = task2.output_features["targets"].vocabulary
+    mock_vocab2.decode = lambda ids: id_to_vocab[ids[0]]
+
+    mock_ds1 = tf.data.Dataset.range(2)
+    mock_ds2 = tf.data.Dataset.range(4)
+
+    def mock_init(self):
+      self._cached_model_datasets = {
+          task1.name: mock_ds1,
+          task2.name: mock_ds2,
+      }
+      self._cached_task_datasets = {
+          task1.name: tf.data.Dataset.range(2),
+          task2.name: tf.data.Dataset.range(4),
+      }
+      self._cached_targets = {
+          task1.name: [0, 2],
+          task2.name: [0, 1, 2, 2]
+      }
+      self._eval_tasks = [task1, task2]
+      self._loggers = ()
+      self._metrics_future = None
+      self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
+          max_workers=1)
+      self._target_field_name = "targets"
+      self._add_averages = True
+      self.eval_on_mixture = True
+      self.mixture_or_task_name = "mixture"
+
+    with mock.patch.object(Evaluator, "__init__", new=mock_init):
+
+      def predict_fn(
+          ds: tf.data.Dataset,
+          model_feature_shapes: Optional[Mapping[str, int]] = None
+      ) -> Optional[evaluation.PredictFnReturnType]:
+        del model_feature_shapes
+        if ds == mock_ds1:
+          return [(0, [5]), (1, [7])]
+        elif ds == mock_ds2:
+          return [(0, [5]), (1, [6]), (2, [7]), (3, [6])]
+
+      def score_fn(
+          ds: tf.data.Dataset,
+          model_feature_shapes: Optional[Mapping[str, int]] = None
+      ) -> Sequence[Tuple[int, float]]:
+        del model_feature_shapes
+        self.assertEqual(ds, mock_ds1)
+        return [(0, 0), (1, 1)]
+
+      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      all_metrics, _, _ = evaluator.evaluate(
+          compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn)
+      expected = {
+          task1.name: {
+              "accuracy": 50
+          },
+          task2.name: {
+              "accuracy": 75.0
+          },
+          "mixture": {"accuracy": 62.5}
+      }
+      all_metrics = all_metrics.result()
+      self.assertDictClose(expected[task1.name], all_metrics[task1.name])
+      self.assertDictClose(expected[task2.name], all_metrics[task2.name])
+      self.assertDictClose(expected["mixture"], all_metrics["mixture"])
 
   def test_short_inputs_targets(self):
     task_name = "short_inputs_targets"
@@ -1047,6 +1143,8 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
       self._target_field_name = "targets"
+      self.eval_on_mixture = False
+      self._add_averages = False
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
@@ -1177,6 +1275,8 @@ class EvaluationTest(tf.test.TestCase):
       self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
           max_workers=1)
       self._target_field_name = "targets"
+      self.eval_on_mixture = False
+      self._add_averages = False
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter

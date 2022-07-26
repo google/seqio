@@ -250,10 +250,12 @@ class Evaluator:
   original task datasets. The latter is passed to `predict_fn` for evaluation.
 
   Attributes:
+    eval_on_mixture: True if evaluation is on a Mixture.
     eval_tasks: a mapping from a mixture or a task name to seqio.Task object(s).
     cached_model_datasets: cached evaluation datasets with model features.
     cached_task_datasets: cached evaluation datasets with task features.
     cached_targets: cached evaluation targets.
+    mixture_or_task_name: name of the evaluation mixture or task.
     model_feature_shapes: mapping from model feature to its shape in the
       `cached_model_datasets`.
     loggers: a sequence of subclasses of `Logger`.
@@ -271,7 +273,8 @@ class Evaluator:
                logger_cls: Sequence[Type[loggers_lib.Logger]] = (),
                log_dir: Optional[str] = None,
                use_memory_cache: bool = True,
-               target_field_name: str = "targets"):
+               target_field_name: str = "targets",
+               add_averages: bool = False):
     """Evaluator constructor.
 
     Args:
@@ -305,6 +308,11 @@ class Evaluator:
       use_memory_cache: whether to use tf.data.Dataset#cache. may cause memory
         issues for large datasets.
       target_field_name: Field name of the target in the input dataset examples.
+      add_averages: if True, in the case in which evaluation takes place
+        over a mixture, it will also compute the average of the metrics across
+        the tasks. One example where this is useful is if one has a common
+        metric across tasks in a mixture and one wants to use it to select
+        the best checkpoint.
 
     Raises:
       ValueError if `sequence_length` is None but a preprocessor depends on its
@@ -314,11 +322,14 @@ class Evaluator:
     eval_tasks = dataset_providers.get_subtasks(
         dataset_providers.get_mixture_or_task(mixture_or_task_name))
     self._eval_tasks = get_valid_eval_tasks(eval_tasks, eval_split)
+    self.eval_on_mixture = len(self._eval_tasks) > 1
+    self.mixture_or_task_name = mixture_or_task_name
 
     self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
         max_workers=1)
     self._metrics_future = None
     self._target_field_name = target_field_name
+    self._add_averages = add_averages
 
     if not self._eval_tasks:
       logging.warning(
@@ -701,7 +712,51 @@ class Evaluator:
             inferences=inferences,
             targets=targets)
 
+    # Compute and log the averages.
+    if self.eval_on_mixture and self._add_averages:
+      mixture_name = self.mixture_or_task_name
+      logging.info("Adding metric averages.")
+      averages = self._compute_averages(all_metrics)
+
+      for k, v in averages.items():
+        if mixture_name not in all_metrics:
+          all_metrics[mixture_name] = {}
+        all_metrics[mixture_name][k] = v
+
+      mixture_metrics = {}
+      for key, value in all_metrics[mixture_name].items():
+        if not isinstance(value, metrics_lib.MetricValue):
+          mixture_metrics[key] = metrics_lib.Scalar(value)
+        else:
+          mixture_metrics[key] = value
+
+      for logger in self.loggers:
+        logger(
+            task_name=mixture_name,
+            step=step,
+            metrics=mixture_metrics,
+            dataset=None,  # dataset not make sense for the mixture.
+            inferences=None,  # inferences not make sense for the mixture.
+            targets=None)  # targets not make sense for the mixture.
+
     return all_metrics
+
+  def _compute_averages(self,
+                        all_metrics: AllMetricsType) -> Mapping[str, float]:
+    """Computes averages of all_metrics across tasks."""
+    averages = {}
+    for task_metrics in all_metrics.values():
+      for metric_name, metric_value in task_metrics.items():
+        if metric_name not in averages:
+          averages[metric_name] = (0, 0)
+        if isinstance(metric_value, metrics_lib.MetricValue):
+          raw_value = metric_value.value
+        else:
+          raw_value = metric_value
+        old_value = averages[metric_name]
+        new_value = (old_value[0] + raw_value, old_value[1] + 1)
+        averages[metric_name] = new_value
+    return {k: v[0]/v[1] for k, v in averages.items()}
 
   @property
   def eval_tasks(self) -> Sequence[Task]:
