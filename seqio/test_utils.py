@@ -405,12 +405,12 @@ def assert_dataset(
     for key, actual_value in actual_dict.items():
       if isinstance(actual_value, dict):
         _compare_dict(actual_value, expected_dict[key])
-        continue
-      if (isinstance(actual_value, tf.RaggedTensor) or
-          isinstance(actual_value, tf.compat.v1.ragged.RaggedTensorValue)):
+      elif isinstance(actual_value, tf.RaggedTensor) or isinstance(
+          actual_value, tf.compat.v1.ragged.RaggedTensorValue):
         actual_value = actual_value.to_list()
-      if isinstance(actual_value, np.ndarray) and np.issubdtype(
-          actual_value.dtype, np.floating):
+      elif isinstance(actual_value, np.floating) or isinstance(
+          actual_value, np.ndarray) and np.issubdtype(actual_value.dtype,
+                                                      np.floating):
         np.testing.assert_allclose(actual_value, expected_dict[key])
       else:
         np.testing.assert_array_equal(

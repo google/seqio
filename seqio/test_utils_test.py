@@ -31,15 +31,47 @@ class TestUtilsTest(absltest.TestCase):
   def test_assert_dataset(self):
     first_dataset = tf.data.Dataset.from_tensor_slices(
         {'key1': ['val1'], 'key2': ['val2']})
+    float_dataset = tf.data.Dataset.from_tensor_slices({
+        'float_key1': [0.2, 0.3],
+        'float_key2': [0.4, 0.5]
+    })
 
     # Equal
     assert_dataset(first_dataset, {'key1': [b'val1'], 'key2': [b'val2']})
     assert_dataset(first_dataset, {'key1': [b'val1'], 'key2': [b'val2']},
                    expected_dtypes={'key1': tf.string})
 
+    # Equal floating-point
+    assert_dataset(float_dataset, [{
+        'float_key1': 0.2,
+        'float_key2': 0.4
+    }, {
+        'float_key1': 0.3,
+        'float_key2': 0.5
+    }])
+
+    # Close enough floating-point
+    assert_dataset(float_dataset, [{
+        'float_key1': 0.20000001,
+        'float_key2': 0.39999999
+    }, {
+        'float_key1': 0.30000001,
+        'float_key2': 0.49999999
+    }])
+
     # Unequal value
     with self.assertRaises(AssertionError):
       assert_dataset(first_dataset, {'key1': [b'val1'], 'key2': [b'val2x']})
+
+    # Unequal floating-point, not close enough.
+    with self.assertRaises(AssertionError):
+      assert_dataset(float_dataset, [{
+          'float_key1': 0.201,
+          'float_key2': 0.399
+      }, {
+          'float_key1': 0.301,
+          'float_key2': 0.499
+      }])
 
     # Wrong dtype
     with self.assertRaises(AssertionError):
