@@ -28,14 +28,14 @@ with open('README.md') as fp:
   _LONG_DESCRIPTION = fp.read()
 
 setuptools.setup(
-    name='seqio',
+    name='seqio-nightly',
     version=__version__,
     description='SeqIO: Task-based datasets, preprocessing, and evaluation for sequence models.',
     long_description=_LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
     author='Google Inc.',
     author_email='no-reply@google.com',
-    url='http://github.com/google/seqio',
+    url='https://github.com/google/seqio/tree/nightly',
     license='Apache 2.0',
     packages=setuptools.find_packages(),
     include_package_data=True,
