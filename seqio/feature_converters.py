@@ -969,6 +969,39 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
 
     return d
 
+  def _concat_and_add_masks(self, features: tf.data.Dataset) -> tf.data.Dataset:
+    """Creates concatenated inputs and targets fields and adds masks."""
+    inputs = features["inputs"]
+    targets = features["targets"]
+    # If the targets are empty, we add one padding target.
+    targets = tf.cond(
+        tf.size(targets) > 0, lambda: targets,
+        lambda: tf.zeros(1, dtype="int32"))
+
+    # Width of the "inputs" portion in the concatenated sequence.
+    width = tf.size(inputs)
+    inputs_width = tf.fill([tf.size(inputs) + tf.size(targets)], width)
+
+    # Width with an extra position to the right in the inputs mask. See
+    # docstring for details.
+    inputs_width_add_pos = tf.fill([tf.size(inputs) + tf.size(targets)],
+                                   width + 1)
+
+    return {
+        "targets": tf.concat([inputs, targets], axis=-1),
+        "inputs_width": inputs_width,
+        "inputs_width_add_pos": inputs_width_add_pos
+    }
+
+  def _concat_task_feature_lengths(
+      self, task_feature_lengths: Mapping[str, int]) -> Mapping[str, int]:
+    concat_length = sum(task_feature_lengths.values())
+    return {
+        "targets": concat_length,
+        "inputs_width": concat_length,
+        "inputs_width_add_pos": concat_length
+    }
+
   def _convert_features(
       self, ds: tf.data.Dataset,
       task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
@@ -990,38 +1023,12 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
     Returns:
       ds: the converted dataset.
     """
-    def concat_and_add_masks(features):
-      inputs = features["inputs"]
-      targets = features["targets"]
-      # If the targets are empty, we add one padding target.
-      targets = tf.cond(
-          tf.size(targets) > 0, lambda: targets,
-          lambda: tf.zeros(1, dtype="int32"))
-
-      # Width of the "inputs" portion in the concatenated sequence.
-      width = tf.size(inputs)
-      inputs_width = tf.fill([tf.size(inputs) + tf.size(targets)], width)
-
-      # Width with an extra position to the right in the inputs mask. See
-      # docstring for details.
-      inputs_width_add_pos = tf.fill([tf.size(inputs) + tf.size(targets)],
-                                     width + 1)
-
-      return {
-          "targets": tf.concat([inputs, targets], axis=-1),
-          "inputs_width": inputs_width,
-          "inputs_width_add_pos": inputs_width_add_pos
-      }
-
     ds = ds.map(
-        concat_and_add_masks, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        self._concat_and_add_masks,
+        num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-    concat_length = sum(task_feature_lengths.values())
-    concat_task_feature_lengths = {
-        "targets": concat_length,
-        "inputs_width": concat_length,
-        "inputs_width_add_pos": concat_length
-    }
+    concat_task_feature_lengths = self._concat_task_feature_lengths(
+        task_feature_lengths)
 
     ds = self._pack_or_pad(ds, concat_task_feature_lengths)
     return ds.map(
