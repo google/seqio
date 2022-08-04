@@ -161,7 +161,7 @@ def run_pipeline(pipeline,
       continue
 
     # Log this task to the terminal.
-    print("Caching task '%s' with splits: %s" % (task.name, task.splits))
+    logging.info("Caching task '%s' with splits: %s", task.name, task.splits)
 
     output_dirs.append(output_dir)
     completion_values = []
