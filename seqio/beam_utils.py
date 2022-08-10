@@ -137,9 +137,7 @@ class PreprocessTask(beam.PTransform):
     # The Reshuffles allow for better parallelism.
     return (pipeline
             | "create_shards" >> beam.Create(self.shards)
-            | "shard_reshuffle" >> beam.Reshuffle()
-            | "emit_examples" >> beam.FlatMap(self._emit_examples)
-            | "example_reshuffle" >> beam.Reshuffle())
+            | "emit_examples" >> beam.FlatMap(self._emit_examples))
 
 
 class WriteExampleTfRecord(beam.PTransform):
