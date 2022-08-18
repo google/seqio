@@ -334,7 +334,7 @@ class _CountCharacters(beam.DoFn):
           ex[name].dtype in (np.int32, np.int64) and feat.rank == 1 and
           isinstance(feat.vocabulary, seqio.SentencePieceVocabulary)):
         value = ex[name]
-        value = value.astype(np.int32)
+        value = np.abs(value.astype(np.int32))
         decoded = feat.vocabulary.decode_tf(value).numpy().decode("utf-8")
 
       # If each example in the dataset has the type tf.string, its type
