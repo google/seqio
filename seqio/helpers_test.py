@@ -297,6 +297,57 @@ class HelpersTest(test_utils.FakeTaskTest):
     self.assertEqual(examples[0]["feature_a_pretokenized"].decode("utf-8"),
                      "this is")
 
+  def test_mixture_without_missing_task_splits(self):
+    # Step 1: Register Tasks with different splits.
+    task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
+    task_preprocessors = [pr.tokenize]
+    task_output_features = {
+        "feature_a": dp.Feature(VOCAB1),
+        "feature_b": dp.Feature(VOCAB1, add_eos=False)
+    }
+    dp.TaskRegistry.add(  # train + test
+        "my_test_task_train_test",
+        source=dp.FunctionDataSource(task_dataset_fn, splits=["train", "test"]),
+        preprocessors=task_preprocessors,
+        output_features=task_output_features)
+    dp.TaskRegistry.add(  # train
+        "my_test_task_train",
+        source=dp.FunctionDataSource(task_dataset_fn, splits=["train"]),
+        preprocessors=task_preprocessors,
+        output_features=task_output_features)
+    dp.TaskRegistry.add(  # test
+        "my_test_task_test",
+        source=dp.FunctionDataSource(task_dataset_fn, splits=["test"]),
+        preprocessors=task_preprocessors,
+        output_features=task_output_features)
+
+    # Step 2: Create super-mixture of all splits.
+    mix = dp.MixtureRegistry.add("super_mix", [("my_test_task_train_test", 0.3),
+                                               ("my_test_task_train", 0.9),
+                                               ("my_test_task_test", 0.7)])
+
+    # Step 3: Create and verify per-split mixtures.
+    mix_train = helpers.mixture_with_missing_task_splits_removed(
+        mix.name,
+        split="train",
+        new_mixture_name="super_mix_train",
+        add_to_seqio_registry=False)
+    mix_test = helpers.mixture_with_missing_task_splits_removed(
+        mix.name,
+        split="test",
+        new_mixture_name="super_mix_test",
+        add_to_seqio_registry=True)
+    self.assertNotIn("super_mix_train", list(dp.MixtureRegistry.names()))
+    self.assertIn("super_mix_test", list(dp.MixtureRegistry.names()))
+    self.assertDictEqual(mix_train._task_to_rate, {
+        "my_test_task_train_test": 0.3,
+        "my_test_task_train": 0.9
+    })
+    self.assertDictEqual(mix_test._task_to_rate, {
+        "my_test_task_train_test": 0.3,
+        "my_test_task_test": 0.7
+    })
+
 
 if __name__ == "__main__":
   absltest.main()

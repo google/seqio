@@ -268,3 +268,45 @@ def mixture_or_task_with_truncated_data(
     if add_to_seqio_registry:
       dp.MixtureRegistry.add_provider(new_mixture_or_task_name, new_mix)
     return new_mix
+
+
+def mixture_with_missing_task_splits_removed(
+    mixture_name: str,
+    split: str,
+    new_mixture_name: str,
+    *,
+    add_to_seqio_registry: bool = True) -> dp.Mixture:
+  """Creates a new mixture removing all subtasks missing the given split.
+
+  In Mixture.get_dataset(...), if a subtask is missing the desired split, it is
+  ignored. This means that actual mixing rates could be different from what is
+  desired, although it is helpful in defining super-Mixtures that contain
+  multiple splits. This helper provides a way to split these super-Mixtures in
+  per-split Mixtures by taking a Mixture and a split, and creating a new Mixture
+  removing all subtasks missing that split. Mixing rates for other subtasks
+  remain unchanged.
+
+  Args:
+    mixture_name: The name of the original Mixture.
+    split: The split for which to check valid sub-tasks.
+    new_mixture_name: The name of the new Mixture.
+    add_to_seqio_registry: If True, adds the new Mixture to the SeqIO
+      Registry.
+
+  Returns:
+    The new `Mixture` object.
+  """
+  og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_name)
+  new_tasks_and_rates = []
+  for task_name, rate in og_mix._task_to_rate.items():
+    subtask: dp.Task = dp.get_mixture_or_task(task_name)
+    if split in subtask.splits:
+      new_tasks_and_rates.append((subtask.name, rate))
+  new_mix = dp.Mixture(
+      new_mixture_name,
+      new_tasks_and_rates,
+      default_rate=None,
+      sample_fn=og_mix._sample_fn)
+  if add_to_seqio_registry:
+    dp.MixtureRegistry.add_provider(new_mixture_name, new_mix)
+  return new_mix
