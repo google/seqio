@@ -5,8 +5,5 @@
   "inputs_tokens": 23,
   "targets_chars": 37,
   "targets_max_tokens": 21,
-  "targets_tokens": 36,
-  "task_ids": {
-    "task_name": 1
-  }
+  "targets_tokens": 36
 }

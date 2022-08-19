@@ -359,11 +359,8 @@ class GetStats(beam.PTransform):
   prefixed by the identifiers.
   """
 
-  def __init__(self,
-               output_features: Mapping[str, seqio.Feature],
-               task_ids: Optional[Mapping[str, int]] = None):
+  def __init__(self, output_features: Mapping[str, seqio.Feature]):
     self._output_features = output_features
-    self._task_ids = task_ids or {}
 
   def expand(self, pcoll):
     example_counts = (
@@ -399,15 +396,6 @@ class GetStats(beam.PTransform):
         merged_dict.update(d)
       return merged_dict
 
-    stats = [example_counts, total_tokens, max_tokens, char_length]
-    if self._task_ids:
-      task_ids_dict = {"task_ids": self._task_ids}
-      task_ids = (
-          pcoll
-          | "sample_for_task_ids" >> beam.combiners.Sample.FixedSizeGlobally(1)
-          | "create_task_ids" >> beam.Map(lambda _: task_ids_dict))
-      stats.append(task_ids)
-
-    return (stats
+    return ([example_counts, total_tokens, max_tokens, char_length]
             | "flatten_counts" >> beam.Flatten()
             | "merge_stats" >> beam.CombineGlobally(_merge_dicts))
