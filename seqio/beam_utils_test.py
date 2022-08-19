@@ -222,6 +222,49 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "targets_chars": 12,
           }]))
 
+  def test_get_stats_task_ids(self):
+    # These examples are assumed to be decoded by
+    # `seqio.test_utils.sentencepiece_vocab()`.
+    input_examples = [{
+        # Decoded as "ea", i.e., length 2 string
+        "inputs": np.array([4, 5]),
+        # Decoded as "ea test", i.e., length 7 string
+        "targets": np.array([4, 5, 10]),
+    }, {
+        # Decoded as "e", i.e., length 1 string
+        "inputs": np.array([4]),
+        # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
+        "targets": np.array([5, 6, 7, 8, 9, 1])
+    }]
+
+    output_features = seqio.test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES
+    with TestPipeline() as p:
+      pcoll = (
+          p
+          | beam.Create(input_examples)
+          | beam_utils.GetStats(
+              output_features=output_features,
+              task_ids={
+                  "task_name_1": 1,
+                  "task_name_2": 2
+              }))
+
+      util.assert_that(
+          pcoll,
+          util.equal_to([{
+              "inputs_tokens": 3,  # 4 and 3 from the first and second exmaples.
+              "targets_tokens": 8,
+              "inputs_max_tokens": 2,
+              "targets_max_tokens": 5,
+              "examples": 2,
+              "inputs_chars": 3,
+              "targets_chars": 12,
+              "task_ids": {
+                  "task_name_1": 1,
+                  "task_name_2": 2
+              }
+          }]))
+
   def test_count_characters_tokenized_dataset(self):
     # These examples are assumed to be decoded by
     # `seqio.test_utils.sentencepiece_vocab()`.
