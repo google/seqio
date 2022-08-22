@@ -132,7 +132,7 @@ Each `Feature` includes:
 
 **Note:** specifying these options on `Feature` does not by itself ensure the proper transformations are applied -- you must also include the necessary preprocessors.
 
-The [tasks used in T5](TODO) all produce "inputs" and "targets" features to be consumed by the text-to-text model. For a decoder-only language model, only a single feature (e.g., "targets") would be necessary.
+The [tasks used in T5](https://github.com/google-research/text-to-text-transfer-transformer/blob/main/t5/data/dataset_providers.py) all produce "inputs" and "targets" features to be consumed by the text-to-text model. For a decoder-only language model, only a single feature (e.g., "targets") would be necessary.
 Nevertheless, SeqIO is flexible enough to generate arbitrary output features what will be converted into model features by the [`FeatureConverter`](#featureconverter) later in the pipeline.
 
 #### Preprocessors
