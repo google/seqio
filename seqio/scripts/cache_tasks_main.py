@@ -180,7 +180,12 @@ def run_pipeline(pipeline,
           task, split, modules_to_import=modules_to_import,
           tfds_data_dir=FLAGS.tfds_data_dir)
       num_shards = max(len(pat.shards), FLAGS.min_shards)
-      examples = pipeline | "%s_pat" % label >> pat
+      examples = (
+          pipeline | "%s_pat" % label >> pat
+          # this reshuffle globally shuffles examples as a side-effect,
+          # and should not be removed.
+          | "%s_global_example_shuffle" % label >> beam.Reshuffle())
+
       completion_values.append(
           examples
           | "%s_write_tfrecord" % label >> beam_utils.WriteExampleTfRecord(

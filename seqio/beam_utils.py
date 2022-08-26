@@ -134,7 +134,6 @@ class PreprocessTask(beam.PTransform):
       yield ex
 
   def expand(self, pipeline):
-    # The Reshuffles allow for better parallelism.
     return (pipeline
             | "create_shards" >> beam.Create(self.shards)
             | "emit_examples" >> beam.FlatMap(self._emit_examples))
