@@ -319,6 +319,36 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     assert_dataset(
         packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
 
+  @parameterized.parameters(*_PACK_PARAMETERS)
+  def test_trim_and_pack_dataset_tight_packing(self, use_custom_ops):
+    # Even if example with idx = 2 does not fit in the first packed example,
+    # the example with idx = 3 does. This test checks that the packing code
+    # will detect that, and pack idx = 3 in the first packed example.
+    x = [{"inputs": [8, 5, 1], "targets": [3, 9, 1], "idx": [0]},
+         {"inputs": [8, 4, 9, 3, 1], "targets": [4, 1], "idx": [1]},
+         {"inputs": [8, 4, 9, 3, 1], "targets": [3, 1], "idx": [2]},
+         {"inputs": [3, 1], "targets": [2, 1], "idx": [3]}]
+    ds = create_default_dataset(x, feature_names=("inputs", "targets", "idx"))
+    packed_ds = utils.trim_and_pack_dataset(
+        ds,
+        feature_lengths={"inputs": 10, "targets": 7},
+        use_custom_ops=use_custom_ops)
+    expected = [
+        {"inputs": [8, 5, 1, 8, 4, 9, 3, 1, 3, 1],
+         "inputs_segment_ids": [1, 1, 1, 2, 2, 2, 2, 2, 3, 3],
+         "inputs_positions": [0, 1, 2, 0, 1, 2, 3, 4, 0, 1],
+         "targets": [3, 9, 1, 4, 1, 2, 1],
+         "targets_positions": [0, 1, 2, 0, 1, 0, 1],
+         "targets_segment_ids": [1, 1, 1, 2, 2, 3, 3]},
+        {"inputs": [8, 4, 9, 3, 1, 0, 0, 0, 0, 0],
+         "inputs_segment_ids": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+         "inputs_positions": [0, 1, 2, 3, 4, 0, 0, 0, 0, 0],
+         "targets": [3, 1, 0, 0, 0, 0, 0],
+         "targets_positions": [0, 1, 0, 0, 0, 0, 0],
+         "targets_segment_ids": [1, 1, 0, 0, 0, 0, 0]}]
+    assert_dataset(
+        packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
+
 
   @parameterized.parameters(*_PACK_PARAMETERS)
   def test_trim_and_pack_dataset_no_eos(self, use_custom_ops):
