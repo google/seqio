@@ -387,6 +387,8 @@ def assert_dataset(
     expected_dtypes: Optional[Mapping[str, tf.DType]] = None):
   """Tests whether the entire dataset == expected or [expected].
 
+  Here's some extra verbiage just to see if GitHub sync is working for SeqIO.
+
   Args:
     dataset: a tf.data dataset
     expected: either a single example, or a list of examples. Each example is a
