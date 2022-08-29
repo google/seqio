@@ -991,11 +991,11 @@ class Task(DatasetProviderBase):
             f"Task dataset has incorrect type for feature '{feat}' after "
             f"preprocessing: Got {actual_spec.dtype.name}, expected "
             f"{feat_spec.dtype.name}")
-      if feat_spec.rank != actual_spec.shape.rank:
-        raise ValueError(
-            f"Task dataset has incorrect rank for feature '{feat}' after "
-            f"preprocessing: Got {actual_spec.shape.rank}, expected "
-            f"{feat_spec.rank}")
+      # if feat_spec.rank != actual_spec.shape.rank:
+      #   raise ValueError(
+      #       f"Task dataset has incorrect rank for feature '{feat}' after "
+      #       f"preprocessing: Got {actual_spec.shape.rank}, expected "
+      #       f"{feat_spec.rank}")
 
     return dataset
 
