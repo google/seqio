@@ -223,11 +223,12 @@ class TensorBoardLoggerV1(Logger):
             os.path.join(self.output_dir, task_name))
     return self._summary_writers[task_name]
 
-  def __call__(self, task_name: str, step: Optional[int],
-               metrics: Mapping[str, metrics_lib.Scalar],
-               dataset: Optional[tf.data.Dataset],
-               inferences: Optional[Mapping[str, Sequence[Any]]],
-               targets: Optional[Sequence[Any]]) -> None:
+  def __call__(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
+      self, task_name: str, step: Optional[int],
+      metrics: Mapping[str,
+                       metrics_lib.Scalar], dataset: Optional[tf.data.Dataset],
+      inferences: Optional[Mapping[str, Sequence[Any]]],
+      targets: Optional[Sequence[Any]]) -> None:
     """Log the eval results and optionally write summaries for TensorBoard.
 
     Note:

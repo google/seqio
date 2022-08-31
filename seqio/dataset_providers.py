@@ -1390,7 +1390,7 @@ class Mixture(DatasetProviderBase):
           raise ValueError(
               "Features across tasks in a mixture must use the same dtype.")
 
-  def get_dataset(
+  def get_dataset(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
       self,
       sequence_length: Optional[Mapping[str, int]],
       split: str = tfds.Split.TRAIN,
