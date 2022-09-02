@@ -696,6 +696,12 @@ class TensorAndNumpyEncoderLoggerTest(tf.test.TestCase):
     obj = np.array([1, 2, 3])
     self.assertEqual(self.logger.encode(obj), "[1, 2, 3]")
 
+  def test_long_numpy(self):
+    obj = np.arange(100, dtype=np.int32)
+    self.assertEqual(self.logger.encode(obj),
+                     '"ndarray(shape=(100,), dtype=int32); summary: 0, 1, 2, '
+                     '3, 4 ... 95, 96, 97, 98, 99"')
+
   def test_dataclass(self):
     @dataclasses.dataclass
     class Foo():

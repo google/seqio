@@ -294,8 +294,9 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
         # If the ndarray is larger than allowed, return a summary string
         # instead of the entire array.
         first_five_str = str(obj.reshape([-1])[:5].tolist())[1:-1]
+        last_five_str = str(obj.reshape([-1])[-5:].tolist())[1:-1]
         return (f"{type(obj).__name__}(shape={obj.shape}, dtype={obj_dtype}); "
-                f"first: {first_five_str} ...")
+                f"summary: {first_five_str} ... {last_five_str}")
     elif (np.issubdtype(type(obj), np.number) or
           np.issubdtype(type(obj), np.bool_)):
       return obj.item()  # Convert most primitive np types to py-native types.
