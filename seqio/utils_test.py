@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Tests for seqio.utils."""
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, Union
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -44,8 +44,7 @@ class LazyTfdsLoaderTest(absltest.TestCase):
   @mock.patch("tensorflow_datasets.builder")
   def test_builder_memoization(self, mock_tfds_builder):
     mock_tfds_builder.side_effect = (
-        lambda name, data_dir: ",".join([name, data_dir or ""])
-    )
+        lambda name, data_dir: ",".join([name, data_dir or ""]))
 
     ds1 = utils.LazyTfdsLoader("ds1")
     self.assertEqual("ds1,", ds1.builder)
@@ -83,17 +82,19 @@ class LazyTfdsLoaderTest(absltest.TestCase):
   def test_split_map(self, mock_tfds_load):
     seed = 0
     utils.LazyTfdsLoader._MEMOIZED_BUILDERS[("ds/c1", None)] = mock.Mock(
-        info=mock.Mock(splits={
-            "validation": mock.Mock(
-                num_examples=420,
-                file_instructions=["f1", "f2"]),
-            "test": mock.Mock(
-                num_examples=42,
-                file_instructions=["f3"]),
-        }))
+        info=mock.Mock(
+            splits={
+                "validation":
+                    mock.Mock(num_examples=420, file_instructions=["f1", "f2"]),
+                "test":
+                    mock.Mock(num_examples=42, file_instructions=["f3"]),
+            }))
 
     ds = utils.LazyTfdsLoader(
-        "ds/c1", split_map={"train": "validation", "validation": "test"})
+        "ds/c1", split_map={
+            "train": "validation",
+            "validation": "test"
+        })
 
     # test .load()
     ds.load("train", shuffle_files=False, seed=seed)
@@ -121,8 +122,195 @@ class LazyTfdsLoaderTest(absltest.TestCase):
 
 
 class UtilsTest(parameterized.TestCase, tf.test.TestCase):
+  _tfdict = {
+      "bool":
+          tf.constant([True, False], dtype=tf.bool),
+      "int32":
+          tf.constant([1], dtype=tf.int32),
+      "int64":
+          tf.constant([1], dtype=tf.int64),
+      "float":
+          tf.constant([1.]),
+      "string":
+          tf.constant(["a"]),
+      "2d_tensor":
+          tf.reshape(tf.range(4), [2, 2]),
+      "3d_tensor":
+          tf.reshape(tf.range(6), [2, 1, 3]),
+      "2d_ragged":
+          tf.ragged.constant([[1], [2, 3]]),
+      "3d_ragged":
+          tf.ragged.constant([[[1]], [[2, 3], [4, 5, 6]]]),
+      "2d_sparse":
+          tf.sparse.SparseTensor(
+              indices=[[0, 1], [2, 3]],
+              values=[10, 20],
+              dense_shape=[3, 4],
+          ),
+      "3d_sparse":
+          tf.sparse.SparseTensor(
+              indices=[[0, 1, 2], [3, 4, 5]],
+              values=[10, 20],
+              dense_shape=[4, 5, 6],
+          ),
+  }
+  _tfexample = tf.train.Example(
+      features=tf.train.Features(
+          feature={
+              "bool":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 0])),
+              # NOTE: TFExamples only stores int64s, so we can't avoid the
+              # up-casting here.
+              "int32":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1])),
+              "int64":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1])),
+              "float":
+                  tf.train.Feature(float_list=tf.train.FloatList(value=[1.])),
+              "string":
+                  tf.train.Feature(bytes_list=tf.train.BytesList(value=[b"a"])),
+              "2d_tensor":
+                  tf.train.Feature(
+                      int64_list=tf.train.Int64List(value=[0, 1, 2, 3])),
+              "_sh:2d_tensor":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[2, 2])),
+              "3d_tensor":
+                  tf.train.Feature(
+                      int64_list=tf.train.Int64List(value=[0, 1, 2, 3, 4, 5])),
+              "_sh:3d_tensor":
+                  tf.train.Feature(
+                      int64_list=tf.train.Int64List(value=[2, 1, 3])),
+              "2d_ragged":
+                  tf.train.Feature(
+                      int64_list=tf.train.Int64List(value=[1, 2, 3])),
+              "_rl:0:2d_ragged":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 2])),
+              "3d_ragged":
+                  tf.train.Feature(
+                      int64_list=tf.train.Int64List(value=[1, 2, 3, 4, 5, 6])),
+              "_rl:0:3d_ragged":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 2])),
+              "_rl:1:3d_ragged":
+                  tf.train.Feature(
+                      int64_list=tf.train.Int64List(value=[1, 2, 3])),
+              "2d_sparse":
+                  tf.train.Feature(
+                      int64_list=tf.train.Int64List(value=[10, 20])),
+              "_sp:0:2d_sparse":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[0, 2])),
+              "_sp:1:2d_sparse":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 3])),
+              "_sh:2d_sparse":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[3, 4])),
+              "3d_sparse":
+                  tf.train.Feature(
+                      int64_list=tf.train.Int64List(value=[10, 20])),
+              "_sp:0:3d_sparse":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[0, 3])),
+              "_sp:1:3d_sparse":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 4])),
+              "_sp:2:3d_sparse":
+                  tf.train.Feature(int64_list=tf.train.Int64List(value=[2, 5])),
+              "_sh:3d_sparse":
+                  tf.train.Feature(
+                      int64_list=tf.train.Int64List(value=[4, 5, 6])),
+          }))
+
+  def assertTensorDictEqual(
+      self,
+      expected: Mapping[str, Union[tf.Tensor, tf.RaggedTensor,
+                                   tf.SparseTensor]],
+      actual: Mapping[str, Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor]],
+  ):
+    # Default assertEqual implementation does not check equality of sparse
+    # tensors.
+    self.assertEqual(expected.keys(), actual.keys())
+    for key, expected_value in expected.items():
+      if isinstance(expected_value, tf.SparseTensor):
+        self.assertAllEqual(
+            tf.sparse.to_dense(expected_value), tf.sparse.to_dense(actual[key]))
+      else:
+        self.assertAllEqual(expected_value, actual[key])
 
   def test_dict_to_tfexample(self):
+    expected = self._tfexample
+    actual = utils.dict_to_tfexample(self._tfdict, store_shapes=True)
+    self.assertProtoEquals(expected, actual)
+
+  def test_parse_dict_to_tfexample(self):
+    expected = self._tfdict
+    # NOTE: TFExamples only store int64s so we must upcast bools and int32s.
+    expected["bool"] = tf.cast(expected["bool"], tf.int64)
+    expected["int32"] = tf.cast(expected["int32"], tf.int64)
+
+    actual = tf.io.parse_single_example(
+        serialized=tf.constant(self._tfexample.SerializeToString(), tf.string),
+        features={
+            "bool":
+                tf.io.FixedLenFeature([2], dtype=tf.int64),
+            "int32":
+                tf.io.FixedLenFeature([1], dtype=tf.int64),
+            "int64":
+                tf.io.FixedLenFeature([1], dtype=tf.int64),
+            "float":
+                tf.io.FixedLenFeature([1], dtype=tf.float32),
+            "string":
+                tf.io.FixedLenFeature([1], dtype=tf.string),
+            "2d_tensor":
+                tf.io.FixedLenFeature([2, 2], dtype=tf.int64),
+            "3d_tensor":
+                tf.io.FixedLenFeature([2, 1, 3], dtype=tf.int64),
+            "2d_ragged":
+                tf.io.RaggedFeature(
+                    dtype=tf.int64,
+                    value_key="2d_ragged",
+                    partitions=(tf.io.RaggedFeature.RowLengths(
+                        utils.tfexample_ragged_length_key("2d_ragged", 0)),)),
+            "3d_ragged":
+                tf.io.RaggedFeature(
+                    dtype=tf.int64,
+                    value_key="3d_ragged",
+                    partitions=(
+                        tf.io.RaggedFeature.RowLengths(
+                            utils.tfexample_ragged_length_key("3d_ragged", 0)),
+                        tf.io.RaggedFeature.RowLengths(
+                            utils.tfexample_ragged_length_key("3d_ragged", 1)),
+                    )),
+            "2d_sparse":
+                tf.io.SparseFeature(
+                    value_key="2d_sparse",
+                    index_key=[
+                        utils.tfexample_sparse_indices_key("2d_sparse", 0),
+                        utils.tfexample_sparse_indices_key("2d_sparse", 1),
+                    ],
+                    size=[3, 4],
+                    dtype=tf.int64,
+                ),
+            "3d_sparse":
+                tf.io.SparseFeature(
+                    value_key="3d_sparse",
+                    index_key=[
+                        utils.tfexample_sparse_indices_key("3d_sparse", 0),
+                        utils.tfexample_sparse_indices_key("3d_sparse", 1),
+                        utils.tfexample_sparse_indices_key("3d_sparse", 2),
+                    ],
+                    size=[4, 5, 6],
+                    dtype=tf.int64,
+                ),
+        })
+
+    self.assertTensorDictEqual(expected, actual)
+
+  def test_tfexample_to_dict(self):
+    expected = dict(self._tfdict)
+    # NOTE: TFExamples only store int64s so we must upcast bools and int32s.
+    expected["bool"] = tf.cast(expected["bool"], tf.int64)
+    expected["int32"] = tf.cast(expected["int32"], tf.int64)
+
+    actual = utils.tfexample_to_dict(self._tfexample)
+    self.assertTensorDictEqual(expected, actual)
+
+  def test_dict_to_tfexample_legacy(self):
     features = {
         "inputs": "this is an input",
         "targets": "this is a target",
@@ -141,12 +329,10 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(tfe.features.feature["targets"].bytes_list.value,
                      [b"this is a target"])
     self.assertEqual(tfe.features.feature["weight"].float_list.value, [5.0])
-    np.testing.assert_array_equal(
-        tfe.features.feature["idx1"].int64_list.value,
-        np.array([1, 2], np.int64))
-    np.testing.assert_array_equal(
-        tfe.features.feature["idx2"].int64_list.value,
-        np.array([3, 4], np.int64))
+    np.testing.assert_array_equal(tfe.features.feature["idx1"].int64_list.value,
+                                  np.array([1, 2], np.int64))
+    np.testing.assert_array_equal(tfe.features.feature["idx2"].int64_list.value,
+                                  np.array([3, 4], np.int64))
     np.testing.assert_array_equal(
         tfe.features.feature["is_correct"].int64_list.value,
         np.array([0], np.int64))
@@ -162,14 +348,12 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     expected_output_1 = np.array([0, 3, 4, 2, 1, 5])
     expected_output_2 = np.array([3, 4, 0, 2, 5, 1])
     np.testing.assert_array_equal(
-        utils.stateless_shuffle(value, (0, 1)),
-        expected_output_1)
+        utils.stateless_shuffle(value, (0, 1)), expected_output_1)
     np.testing.assert_array_equal(
         utils.stateless_shuffle(value.reshape((2, 3)), (0, 1)),
         expected_output_1.reshape((2, 3)))
     np.testing.assert_array_equal(
-        utils.stateless_shuffle(value, (2, 3)),
-        expected_output_2)
+        utils.stateless_shuffle(value, (2, 3)), expected_output_2)
 
   def test_map_over_dataset(self):
     inputs = tf.data.Dataset.range(5)
@@ -189,6 +373,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
     tf.random.set_seed(None)
     utils._NEXT_MAP_SEED = 42
+
     @utils.map_over_dataset(num_seeds=1)
     def test_fn(x, seed):
       return x + seed
@@ -205,6 +390,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
     tf.random.set_seed(None)
     utils._NEXT_MAP_SEED = 42
+
     @utils.map_over_dataset(num_seeds=2)
     def test_fn(x, seeds):
       return x + seeds
@@ -249,22 +435,23 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
             "idx": tf.TensorSpec([None], tf.int32)
         })
     padded_ds = utils.trim_and_pad_dataset(
-        ds,
-        feature_lengths={"inputs": 7, "targets": 3})
-    expected = [
-        {
-            "inputs": [7, 8, 5, 6, 1, 0, 0],
-            "targets": [[3, 0.5], [9, 0], [1, 2]],
-            "idx": [0],
-        },
-        {
-            "inputs": [8, 4, 9, 3, 5, 7, 9],
-            "targets": [[4, 1.2], [1, 1], [0, 0]],
-            "idx": [1, 2],
-        }
-    ]
-    assert_dataset(
-        padded_ds, expected, {"inputs": tf.int32, "targets": tf.float32})
+        ds, feature_lengths={
+            "inputs": 7,
+            "targets": 3
+        })
+    expected = [{
+        "inputs": [7, 8, 5, 6, 1, 0, 0],
+        "targets": [[3, 0.5], [9, 0], [1, 2]],
+        "idx": [0],
+    }, {
+        "inputs": [8, 4, 9, 3, 5, 7, 9],
+        "targets": [[4, 1.2], [1, 1], [0, 0]],
+        "idx": [1, 2],
+    }]
+    assert_dataset(padded_ds, expected, {
+        "inputs": tf.int32,
+        "targets": tf.float32
+    })
 
   def test_trim_and_pad_dataset_with_multirank_features(self):
     x = [{
@@ -281,31 +468,42 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
             "targets": tf.TensorSpec([None, None], tf.float32),
         })
     padded_ds = utils.trim_and_pad_dataset(
-        ds,
-        feature_lengths={"inputs": [2, 1, 5], "targets": [3, 3]})
-    expected = [
-        {
-            "inputs": [[[7, 8, 5, 6, 1]], [[1, 2, 3, 4, 5]]],
-            "targets": [[3, 0.5, 0], [9, 0, 0], [1, 2, 0]],
-        },
-        {
-            "inputs": [[[8, 4, 9, 3, 5]], [[0, 0, 0, 0, 0]]],
-            "targets": [[4, 1.2, 0], [1, 1, 0], [0, 0, 0]],
-        }
-    ]
-    assert_dataset(
-        padded_ds, expected, {"inputs": tf.int32, "targets": tf.float32})
+        ds, feature_lengths={
+            "inputs": [2, 1, 5],
+            "targets": [3, 3]
+        })
+    expected = [{
+        "inputs": [[[7, 8, 5, 6, 1]], [[1, 2, 3, 4, 5]]],
+        "targets": [[3, 0.5, 0], [9, 0, 0], [1, 2, 0]],
+    }, {
+        "inputs": [[[8, 4, 9, 3, 5]], [[0, 0, 0, 0, 0]]],
+        "targets": [[4, 1.2, 0], [1, 1, 0], [0, 0, 0]],
+    }]
+    assert_dataset(padded_ds, expected, {
+        "inputs": tf.int32,
+        "targets": tf.float32
+    })
 
   _PACK_PARAMETERS = ({"use_custom_ops": False},)
 
   @parameterized.parameters(*_PACK_PARAMETERS)
   def test_trim_and_pack_dataset(self, use_custom_ops):
-    x = [{"inputs": [7, 8, 5, 1], "targets": [3, 9, 1], "idx": [0]},
-         {"inputs": [8, 4, 9, 3, 1], "targets": [4, 1], "idx": [1]}]
+    x = [{
+        "inputs": [7, 8, 5, 1],
+        "targets": [3, 9, 1],
+        "idx": [0]
+    }, {
+        "inputs": [8, 4, 9, 3, 1],
+        "targets": [4, 1],
+        "idx": [1]
+    }]
     ds = create_default_dataset(x, feature_names=("inputs", "targets", "idx"))
     packed_ds = utils.trim_and_pack_dataset(
         ds,
-        feature_lengths={"inputs": 10, "targets": 7},
+        feature_lengths={
+            "inputs": 10,
+            "targets": 7
+        },
         use_custom_ops=use_custom_ops)
 
     expected = {
@@ -316,18 +514,28 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
         "targets_positions": [0, 1, 2, 0, 1, 0, 0],
         "targets_segment_ids": [1, 1, 1, 2, 2, 0, 0],
     }
-    assert_dataset(
-        packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
+    assert_dataset(packed_ds, expected, {
+        "inputs": tf.int32,
+        "targets": tf.int32
+    })
 
 
   @parameterized.parameters(*_PACK_PARAMETERS)
   def test_trim_and_pack_dataset_no_eos(self, use_custom_ops):
-    x = [{"inputs": [7, 8, 5], "targets": [3, 9]},
-         {"inputs": [8, 4, 9, 3], "targets": [4]}]
+    x = [{
+        "inputs": [7, 8, 5],
+        "targets": [3, 9]
+    }, {
+        "inputs": [8, 4, 9, 3],
+        "targets": [4]
+    }]
     ds = create_default_dataset(x)
     packed_ds = utils.trim_and_pack_dataset(
         ds,
-        feature_lengths={"inputs": 8, "targets": 5},
+        feature_lengths={
+            "inputs": 8,
+            "targets": 5
+        },
         use_custom_ops=use_custom_ops)
 
     # Packing still works without the eos.
@@ -339,36 +547,51 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
         "targets_positions": [0, 1, 0, 0, 0],
         "targets_segment_ids": [1, 1, 2, 0, 0],
     }
-    assert_dataset(
-        packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
+    assert_dataset(packed_ds, expected, {
+        "inputs": tf.int32,
+        "targets": tf.int32
+    })
 
   @parameterized.parameters(*_PACK_PARAMETERS)
   def test_trim_and_pack_dataset_long_seq(self, use_custom_ops):
-    x = [{"inputs": [7, 8, 5, 6, 9, 4, 1], "targets": [3, 9, 1]},
-         {"inputs": [8, 4, 9, 3, 5, 7, 9, 1], "targets": [4, 1]}]
+    x = [{
+        "inputs": [7, 8, 5, 6, 9, 4, 1],
+        "targets": [3, 9, 1]
+    }, {
+        "inputs": [8, 4, 9, 3, 5, 7, 9, 1],
+        "targets": [4, 1]
+    }]
     ds = create_default_dataset(x)
     packed_ds = utils.trim_and_pack_dataset(
         ds,
-        feature_lengths={"inputs": 7, "targets": 3},
+        feature_lengths={
+            "inputs": 7,
+            "targets": 3
+        },
         use_custom_ops=use_custom_ops)
-    expected = [{
-        "inputs": [7, 8, 5, 6, 9, 4, 1],
-        "inputs_segment_ids": [1, 1, 1, 1, 1, 1, 1],
-        "inputs_positions": [0, 1, 2, 3, 4, 5, 6],
-        "targets": [3, 9, 1],
-        "targets_positions": [0, 1, 2],
-        "targets_segment_ids": [1, 1, 1],
-    }, {
-        # EOS is trimmed
-        "inputs": [8, 4, 9, 3, 5, 7, 9],
-        "inputs_segment_ids": [1, 1, 1, 1, 1, 1, 1],
-        "inputs_positions": [0, 1, 2, 3, 4, 5, 6],
-        "targets": [4, 1, 0],
-        "targets_positions": [0, 1, 0],
-        "targets_segment_ids": [1, 1, 0],
-    }]
-    assert_dataset(
-        packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32})
+    expected = [
+        {
+            "inputs": [7, 8, 5, 6, 9, 4, 1],
+            "inputs_segment_ids": [1, 1, 1, 1, 1, 1, 1],
+            "inputs_positions": [0, 1, 2, 3, 4, 5, 6],
+            "targets": [3, 9, 1],
+            "targets_positions": [0, 1, 2],
+            "targets_segment_ids": [1, 1, 1],
+        },
+        {
+            # EOS is trimmed
+            "inputs": [8, 4, 9, 3, 5, 7, 9],
+            "inputs_segment_ids": [1, 1, 1, 1, 1, 1, 1],
+            "inputs_positions": [0, 1, 2, 3, 4, 5, 6],
+            "targets": [4, 1, 0],
+            "targets_positions": [0, 1, 0],
+            "targets_segment_ids": [1, 1, 0],
+        }
+    ]
+    assert_dataset(packed_ds, expected, {
+        "inputs": tf.int32,
+        "targets": tf.int32
+    })
 
   def test_autoregressive_inputs_unpacked(self):
     x = tf.constant([3, 8, 9, 5, 1, 0, 0])
@@ -400,8 +623,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     x = tf.constant([[3, 8, 1, 0, 0], [9, 5, 2, 0, 6]])
     sequence_id = tf.constant([1, 2])
     with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        "Only 1-D sequences are supported with packing. "
+        ValueError, "Only 1-D sequences are supported with packing. "
         "Got a packed 2-D sequence."):
       utils.make_autoregressive_inputs(x, sequence_id=sequence_id)
 
@@ -435,13 +657,10 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 class MixtureRateTest(test_utils.FakeTaskTest):
 
   def test_mixing_rate_num_examples(self):
-    self.assertEqual(
-        3.0,
-        utils.mixing_rate_num_examples(self.cached_task))
+    self.assertEqual(3.0, utils.mixing_rate_num_examples(self.cached_task))
 
-    self.assertEqual(
-        81.0,
-        utils.mixing_rate_num_examples(self.cached_task, scale=27))
+    self.assertEqual(81.0,
+                     utils.mixing_rate_num_examples(self.cached_task, scale=27))
 
     self.assertEqual(
         9.0,
@@ -475,13 +694,15 @@ class MixtureRateTest(test_utils.FakeTaskTest):
 
 def create_default_dataset(
     x: Sequence[Mapping[str, int]],
-    feature_names: Sequence[str] = ("inputs", "targets")) -> tf.data.Dataset:
+    feature_names: Sequence[str] = ("inputs", "targets")
+) -> tf.data.Dataset:
   output_types = {feature_name: tf.int32 for feature_name in feature_names}
   output_shapes = {feature_name: [None] for feature_name in feature_names}
 
   ds = tf.data.Dataset.from_generator(
       lambda: x, output_types=output_types, output_shapes=output_shapes)
   return ds
+
 
 if __name__ == "__main__":
   absltest.main()
