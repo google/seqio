@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Tests for seqio.utils."""
-from typing import Mapping, Sequence, Union
+from typing import Mapping, Sequence
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -218,15 +218,18 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
   def assertTensorDictEqual(
       self,
-      expected: Mapping[str, Union[tf.Tensor, tf.RaggedTensor,
-                                   tf.SparseTensor]],
-      actual: Mapping[str, Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor]],
+      expected: utils.NestedTFDict,
+      actual: utils.NestedTFDict,
   ):
-    # Default assertEqual implementation does not check equality of sparse
-    # tensors.
     self.assertEqual(expected.keys(), actual.keys())
     for key, expected_value in expected.items():
-      if isinstance(expected_value, tf.SparseTensor):
+      if isinstance(expected_value, dict):
+        # Default assertEqual implementation does not check equality of nested
+        # dictionaries.
+        self.assertTensorDictEqual(expected_value, actual[key])
+      elif isinstance(expected_value, tf.SparseTensor):
+        # Default assertEqual implementation does not check equality of sparse
+        # tensors.
         self.assertAllEqual(
             tf.sparse.to_dense(expected_value), tf.sparse.to_dense(actual[key]))
       else:
@@ -298,7 +301,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
                     dtype=tf.int64,
                 ),
         })
-
     self.assertTensorDictEqual(expected, actual)
 
   def test_tfexample_to_dict(self):
@@ -342,6 +344,47 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     np.testing.assert_array_equal(
         tfe.features.feature["3d_shape"].int64_list.value,
         np.arange(6).reshape((1, 2, 3)).flatten())
+
+  def test_flatten_dict(self):
+    expected = {
+        "key1/subkey1": tf.constant([1]),
+        "key1/subkey2": tf.constant([2]),
+        "key2/subkey3": tf.constant([3]),
+        "key3": tf.constant([4]),
+    }
+
+    actual = utils.flatten_dict({
+        "key1": {
+            "subkey1": tf.constant([1]),
+            "subkey2": tf.constant([2]),
+        },
+        "key2": {
+            "subkey3": tf.constant([3]),
+        },
+        "key3": tf.constant([4]),
+    })
+
+    self.assertDictEqual(expected, actual)
+
+  def test_unflatten_dict(self):
+    expected = {
+        "key1": {
+            "subkey1": tf.constant([1]),
+            "subkey2": tf.constant([2]),
+        },
+        "key2": {
+            "subkey3": tf.constant([3]),
+        },
+        "key3": tf.constant([4]),
+    }
+
+    actual = utils.unflatten_dict({
+        "key1/subkey1": tf.constant([1]),
+        "key1/subkey2": tf.constant([2]),
+        "key2/subkey3": tf.constant([3]),
+        "key3": tf.constant([4]),
+    })
+    self.assertTensorDictEqual(expected, actual)
 
   def test_stateless_shuffle(self):
     value = np.arange(6)

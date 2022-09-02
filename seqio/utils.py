@@ -381,6 +381,97 @@ def tfexample_to_dict(example: tf.train.Example) -> TFDict:
   return dct
 
 
+# Type alias that supports nested TFDicts.
+NestedTFDict = Dict[str, Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor,
+                               "NestedTFDict"]]
+# Used to linearize keys in nested TFDicts
+_TFEXAMPLE_NESTED_DELIMITER = "/"
+
+
+def unflatten_dict(dct: TFDict,
+                   delimiter=_TFEXAMPLE_NESTED_DELIMITER) -> NestedTFDict:
+  """Create a nested dictionary from one with nested keys.
+
+  This method converts a "flat" TFDict with nested keys like:
+  >>> {
+  >>>     "key1/subkey1": ...,
+  >>>     "key1/subkey2": ...,
+  >>>     "key2/subkey1": ...,
+  >>> }
+  into a nested dictionary:
+  >>> {
+  >>>     "key1": {
+  >>>       "subkey1": ...,
+  >>>       "subkey2": ...,
+  >>>     },
+  >>>     "key2": {
+  >>>       "subkey3": ...
+  >>>     },
+  >>> }
+
+  Args:
+    dct: An dictionary of tensors.
+    delimiter: A delimiter used to separate keys from subkeys.
+
+  Returns:
+    A nested-version of `dct`.
+  """
+  nested_dct: NestedTFDict = {}
+
+  for key_path, value in dct.items():
+    keys = key_path.split(delimiter)
+    # We'll index the value at the last key.
+    last_key = keys.pop()
+
+    sub_dct = nested_dct
+    for key in keys:
+      sub_dct = sub_dct.setdefault(key, {})
+    sub_dct[last_key] = value
+  return nested_dct
+
+
+def flatten_dict(nested_dct: NestedTFDict,
+                 delimiter=_TFEXAMPLE_NESTED_DELIMITER) -> TFDict:
+  """Create a "flattened" dictionary from one with nested keys.
+
+  This method converts a nested TFDict like:
+  >>> {
+  >>>     "key1": {
+  >>>       "subkey1": ...,
+  >>>       "subkey2": ...,
+  >>>     },
+  >>>     "key2": {
+  >>>       "subkey1": ...
+  >>>     },
+  >>> }
+  into a flattened dictionary:
+  >>> {
+  >>>     "key1/subkey1": ...,
+  >>>     "key1/subkey2": ...,
+  >>>     "key2/subkey1": ...,
+  >>> }
+
+  Args:
+    nested_dct: A nested dictionary of tensors.
+    delimiter: A delimiter used to separate keys from subkeys.
+
+  Returns:
+    A flattened version of `nested_dct`.
+  """
+  unnested_dct = {}
+
+  def _unnest_dct(dct: NestedTFDict, prefix_key: str = ""):
+    for key, value in dct.items():
+      key_ = prefix_key + key
+      if isinstance(value, dict):
+        _unnest_dct(value, prefix_key + key + delimiter)
+      else:
+        unnested_dct[key_] = value
+
+  _unnest_dct(nested_dct)
+  return unnested_dct
+
+
 # ================================ Tasks =======================================
 def get_cached_info_path(data_dir, split):
   return os.path.join(data_dir, _INFO_FILENAME.format(split=split))
