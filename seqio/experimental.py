@@ -304,7 +304,8 @@ def fewshot_preprocessor(ds,
                          inputs_prefix='',
                          targets_prefix='',
                          example_separator='\n\n',
-                         prompt=''):
+                         prompt='',
+                         reverse=False):
   """Create 'inputs' and 'targets' strings for (zero/few)-shot evaluation.
 
   Inputs and targets will be formatted using the given prefixes along with a
@@ -334,6 +335,10 @@ def fewshot_preprocessor(ds,
     prompt: Optional prefix for the entire few-shot input. Typically
       consists of a natural language description of the task or task
       instructions.
+    reverse: If True, the list of few shot examples is reversed. If used with
+      eval_on_fixed_exemplars = True and a fixed train_seed, the last N shots
+      will be the same when num_shots is N or N+M. In other words, additional
+      shots are prepended instead of appended.
 
   Returns:
     A tf.data.Dataset containing 'inputs', 'targets', and any other features
@@ -343,15 +348,15 @@ def fewshot_preprocessor(ds,
   @utils.map_over_dataset
   def fewshot_map(ex):
     if 'train' in ex:
-      train_examples = tf.reshape(
-          tf.stack(
-              [
-                  inputs_prefix + ex['train']['inputs'],
-                  targets_prefix + ex['train']['targets'] + example_separator
-              ],
-              axis=1),
-          [-1])
-      shots = tf.strings.reduce_join(train_examples)
+      train_examples = tf.stack([
+          inputs_prefix + ex['train']['inputs'],
+          targets_prefix + ex['train']['targets'] + example_separator
+      ],
+                                axis=1)
+      if reverse:
+        train_examples = tf.reverse(train_examples, [0])
+
+      shots = tf.strings.reduce_join(tf.reshape(train_examples, [-1]))
     else:
       shots = ''
     if prompt:

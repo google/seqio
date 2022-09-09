@@ -684,6 +684,54 @@ class FewshotTest(absltest.TestCase):
         },
     ])
 
+    # 1-shot + eval_on_fixed_exemplars + reverse
+    dataset = experimental.fewshot_preprocessor(
+        tf.data.Dataset.zip({
+            'train': train_ds.batch(1).take(1).repeat(),
+            'eval': eval_ds
+        }),
+        inputs_prefix='0 ',
+        targets_prefix=' X 1 ',
+        example_separator=' X ',
+        reverse=True)
+    assert_dataset(dataset, [{
+        'inputs':
+            '0 How many states in the US? X 1 50 X 0 Who was in the Beatles? '
+            'X 1',
+        'targets': 'John',
+        'answers': ['John', 'Paul', 'George', 'Ringo']
+    }, {
+        'inputs':
+            '0 How many states in the US? X 1 50 X 0 When did the Beatles '
+            'break up? X 1',
+        'targets': '1970',
+        'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
+    }])
+
+    # 2-shot + eval_on_fixed_exemplars + reverse
+    dataset = experimental.fewshot_preprocessor(
+        tf.data.Dataset.zip({
+            'train': train_ds.batch(2).take(1).repeat(),
+            'eval': eval_ds
+        }),
+        inputs_prefix='0 ',
+        targets_prefix=' X 1 ',
+        example_separator=' X ',
+        reverse=True)
+    assert_dataset(dataset, [{
+        'inputs':
+            '0 How many cents in a dollar? X 1 100 X 0 How many states '
+            'in the US? X 1 50 X 0 Who was in the Beatles? X 1',
+        'targets': 'John',
+        'answers': ['John', 'Paul', 'George', 'Ringo']
+    }, {
+        'inputs':
+            '0 How many cents in a dollar? X 1 100 X 0 How many states '
+            'in the US? X 1 50 X 0 When did the Beatles break up? X 1',
+        'targets': '1970',
+        'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
+    }])
+
 
 class SentinelTaskTest(FullyCachedTaskTest):
 
