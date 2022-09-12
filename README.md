@@ -856,7 +856,7 @@ In this example, we are using the `TfdsDataSource`. We specify the name of the T
 The preprocessor `tqa_open_preprocessor` is defined as follows.
 
 ```py
-def trivia_qa_open(
+def tqa_open_preprocessor(
     dataset: tf.data.Dataset,
     prefix:str = "trivia_qa question: "
   ) -> tf.data.Dataset:
@@ -891,7 +891,7 @@ def trivia_qa_open(
 Or with the `seqio.map_overdataset` decorator, we have
 
 ```py
-def trivia_qa_open(
+def tqa_open_preprocessor(
   dataset: tf.data.Dataset,
   prefix: str = "trivia_qa question: "
 ) -> tf.data.Dataset:
