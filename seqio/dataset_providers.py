@@ -25,7 +25,7 @@ import inspect
 import json
 import os
 import re
-from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union, List
 
 from absl import logging
 import numpy as np
@@ -1454,8 +1454,10 @@ class Mixture(DatasetProviderBase):
     def filter_features(ex):
       return {k: v for k, v in ex.items() if k in output_feature_keys}
 
-    datasets = [
-        task.get_dataset(  # pylint:disable=g-complex-comprehension
+    datasets: List[tf.data.Dataset] = []
+    for task in tasks:
+      try:
+        ds = task.get_dataset(
             sequence_length,
             split=split,
             use_cached=use_cached,
@@ -1466,8 +1468,13 @@ class Mixture(DatasetProviderBase):
             trim_output_features=trim_output_features).map(
                 filter_features,
                 num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        for task in tasks
-    ]
+        datasets.append(ds)
+      except:
+        logging.error("Failed to load task '%s' as part of mixture '%s'",
+                      task.name, self.name)
+        # Re-raise the same exception, same stack-trace.
+        raise
+
     rates = [self.get_rate(task) for task in tasks]
     # Sample from the dataset with the rates rates
     if seed is not None:
