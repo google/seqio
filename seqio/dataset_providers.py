@@ -28,6 +28,7 @@ import re
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union, List
 
 from absl import logging
+import clu.metrics
 import numpy as np
 from packaging import version
 from seqio import metrics as metrics_lib
@@ -796,6 +797,7 @@ class Task(DatasetProviderBase):
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
       metric_fns: Optional[Sequence[MetricFnCallable]] = None,
+      metric_objs: Optional[Sequence[clu.metrics.Metric]] = None,
       shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE):
     """Task constructor.
 
@@ -822,9 +824,12 @@ class Task(DatasetProviderBase):
         - (targets, predictions, aux_values) - Note that
             `aux_values` refers to a dictionary of auxiliary values that the
             model assigned to each sequence.
+      metric_objs: list(clu Metric instances), an optional list of clu Metric
+        objects.
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
     """
+    del metric_objs
     if not _VALID_TASK_NAME_REGEX.match(name):
       raise ValueError(
           "Task name '%s' contains invalid characters. Must match regex: %s" %
