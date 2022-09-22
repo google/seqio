@@ -49,8 +49,8 @@ class AllMetricsFuture(typing_extensions.Protocol):
 
 
 MetricsAndOutputsType = Tuple[AllMetricsFuture,  # metrics
-                              AllOutputTokensType,  # output_tokens
-                              AllOutputScoresType]  # output_scores
+                              AllOutputTokensType,
+                              AllOutputScoresType]  # outputs
 
 
 def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
@@ -63,8 +63,8 @@ def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
       logging.info("Task %s has no '%s' split; skipping eval.", task.name,
                    split)
       continue
-    if not task.metric_fns:
-      logging.info("Task %s has no metric_fns; skipping eval.", task.name)
+    if not task.metric_fns and not task.metric_objs:
+      logging.info("Task %s has no metrics defined; skipping eval.", task.name)
       continue
     metric_types = []
     if task.predict_metric_fns:
@@ -161,6 +161,11 @@ _IndicesAndScores = Sequence[Tuple[_BatchId, float]]
 _IndicesAndScoresWithIntermediates = Tuple[_IndicesAndScores,
                                            Sequence[Mapping[str, Any]]]
 ScoreFnReturnType = Union[_IndicesAndScores, _IndicesAndScoresWithIntermediates]
+ModelFnReturnType = Union[
+    _IndicesAndPredictions,
+    _IndicesAndPredictionsWithAuxValues,
+    _IndicesAndScores,
+    _IndicesAndScoresWithIntermediates]
 
 
 class PredictFnCallable(typing_extensions.Protocol):
@@ -177,6 +182,44 @@ class ScoreFnCallable(typing_extensions.Protocol):
       self, dataset: tf.data.Dataset,
       model_feature_shapes: Optional[Mapping[str, int]]) -> ScoreFnReturnType:
     ...
+
+
+class ModelFnCallable(typing_extensions.Protocol):
+
+  def __call__(
+      self, dataset: tf.data.Dataset,
+      model_feature_shapes: Optional[Mapping[str, int]]) -> ModelFnReturnType:
+    ...
+
+
+def _extract_model_output(cached_model_dataset, model_fn):
+  """Extracts model output from a cached dataset."""
+
+  def _permute(x, sorted_order):
+    return [x[sorted_order[i]] for i in range(len(sorted_order))]
+
+  model_fn_result = model_fn(cached_model_dataset)
+
+  if isinstance(model_fn_result, tuple):
+    # Some of model functions return a tuple of two outputs per example.
+    # e.g., ModelOutputType.PREDICTION_WITH_AUX,
+    # ModelOutputType.SCORE_WITH_INTERMEDIATES
+    indices_and_outputs, all_aux_values = model_fn_result
+    indices, outputs = zip(*indices_and_outputs)
+    sorted_order = np.argsort(indices)
+
+    sorted_outputs = _permute(outputs, sorted_order)
+    sorted_aux = jax.tree_map(
+        functools.partial(_permute, sorted_order=sorted_order),
+        all_aux_values, is_leaf=lambda x: isinstance(x, list))
+    return sorted_outputs, sorted_aux
+
+  else:
+    # Majority of model functions should only return one output per example.
+    # e.g., ModelOutputType.SCORE, ModelOutputType.PREDICTION
+    indices_and_outputs = model_fn_result
+    _, sorted_outputs = zip(*sorted(indices_and_outputs, key=lambda x: x[0]))
+    return list(sorted_outputs)
 
 
 def _extract_tokens_and_aux_values(cached_model_dataset, predict_fn):
@@ -454,9 +497,11 @@ class Evaluator:
       *,
       compute_metrics: bool,
       step: Optional[int] = None,
-      predict_fn: PredictFnCallable,
-      score_fn: ScoreFnCallable,
-      predict_with_aux_fn: Optional[PredictFnCallable] = None
+      predict_fn: Optional[PredictFnCallable] = None,
+      score_fn: Optional[ScoreFnCallable] = None,
+      predict_with_aux_fn: Optional[PredictFnCallable] = None,
+      model_fns: Optional[Mapping[metrics_lib.ModelOutputType,
+                                  ModelFnCallable]] = None,
   ) -> MetricsAndOutputsType:
     """Predict and score self.eval_tasks.
 
@@ -515,6 +560,8 @@ class Evaluator:
         behaviour as predict_fn, except that it also returns a dictionary of
         auxiliary values. Only called if predict_with_aux metrics exist for the
         tasks.
+      model_fns: a dict mapping model output type to the model function
+        (user-defined) that can produce outputs of that model output type.
 
     Returns:
       metrics: a Future containing a mapping from task name to computed metrics,
@@ -524,6 +571,21 @@ class Evaluator:
       scores: a mapping from task name to the output scores from
         `score_fn` for tasks that have `score_predict_fns`.
     """
+    # Reorganizes score_fn, predict_fn and predict_with_aux_fn into model_fns
+    # for backward compatibility.
+    model_fns = dict(model_fns or {})
+    if predict_fn:
+      model_fns[metrics_lib.ModelOutputType.PREDICTION] = predict_fn
+    if score_fn:
+      model_fns[metrics_lib.ModelOutputType.SCORE] = score_fn
+    if predict_with_aux_fn:
+      model_fns[
+          metrics_lib.ModelOutputType.PREDICTION_WITH_AUX] = predict_with_aux_fn
+
+    # Computes all the model outputs needed by metrics, and organizes them in
+    # a dictionary structure - model_outputs: Mapping[ModelOutputType, Any]
+    # make sure the examples are sorted by example index.
+    all_output = {}
 
     # Maps task.name to a list of sequences of output tokens from the model.
     all_output_tokens = {}
@@ -538,30 +600,30 @@ class Evaluator:
     for task in self.eval_tasks:
       logging.info("Evaluating %s", task.name)
 
-      if task.predict_with_aux_metric_fns:
-        if not predict_with_aux_fn:
-          raise ValueError("Metric function expects auxiliary values but a "
-                           "predict_with_aux_fn not supplied.")
+      all_output[task.name] = {}
+      # We loop over metrics and collect all the model outputs
+      # that are needed for metric computation.
+      for metric_obj in task.metric_objs:
+        model_output_type = metric_obj.model_output_type
+        if model_output_type not in all_output[task.name]:
+          model_fn = model_fns[model_output_type]
+          all_output[task.name][model_output_type] = _extract_model_output(
+              self._cached_model_datasets[task.name], model_fn)
 
-        tokens, aux_values = _extract_tokens_and_aux_values(
-            self._cached_model_datasets[task.name], predict_with_aux_fn)
-        if not aux_values:
-          raise ValueError("Metric function expects auxiliary values but "
-                           "predict_with_aux_fn does not produce auxiliary "
-                           "values.")
-
-        all_output_tokens[task.name] = tokens
-        all_aux_values[task.name] = aux_values
-
-      if task.predict_metric_fns and not task.predict_with_aux_metric_fns:
-        tokens, _ = _extract_tokens_and_aux_values(
-            self._cached_model_datasets[task.name], predict_fn)
-        all_output_tokens[task.name] = tokens
+    for task in self.eval_tasks:
+      if metrics_lib.ModelOutputType.PREDICTION_WITH_AUX in all_output[
+          task.name]:
+        all_output_tokens[task.name] = all_output[task.name][
+            metrics_lib.ModelOutputType.PREDICTION_WITH_AUX][0]
+        all_aux_values[task.name] = all_output[task.name][
+            metrics_lib.ModelOutputType.PREDICTION_WITH_AUX][1]
+      elif metrics_lib.ModelOutputType.PREDICTION in all_output[task.name]:
+        all_output_tokens[task.name] = all_output[task.name][
+            metrics_lib.ModelOutputType.PREDICTION]
         all_aux_values[task.name] = []
-
-      if task.score_metric_fns:
-        all_output_scores[task.name] = _extract_scores(
-            self._cached_model_datasets[task.name], score_fn)
+      if metrics_lib.ModelOutputType.SCORE in all_output[task.name]:
+        all_output_scores[task.name] = all_output[task.name][
+            metrics_lib.ModelOutputType.SCORE]
 
     if compute_metrics:
       if self._metrics_future:
@@ -700,6 +762,58 @@ class Evaluator:
             dataset=task_dataset,
             inferences=inferences,
             targets=targets)
+
+    return all_metrics
+
+  def _compute_metrics_v2(self,
+                          all_output,
+                          step: Optional[int] = None) -> AllMetricsType:
+    """Computes and logs metrics given the predicted tokens and scores.
+
+    Args:
+      all_output: a mapping from task name to the model outputs needed by
+        metrics of that task.
+      step: an optional step number of the current evaluation. If unspecified, a
+        dummy value of -1 will be used.
+
+    Returns:
+      A mapping from task name to computed metrics.
+    """
+    all_metrics = {}
+
+    for task in self.eval_tasks:
+      logging.info("Computing metrics for %s", task.name)
+      task_dataset = self.cached_task_datasets[task.name]
+
+      task_metrics = []
+      for metric_obj in task.metric_objs:
+        model_output = all_output[task.name][metric_obj.model_output_type]
+        metric_instance = metric_obj.from_model_output(
+            tfds.as_numpy(task_dataset), model_output, task.output_features,
+            self._target_field_name)
+        task_metrics.append(metric_instance.compute())
+
+      all_metrics[task.name] = {}
+      for k, v in itertools.chain(*[m.items() for m in task_metrics]):
+        if k in all_metrics[task.name]:
+          raise ValueError(f"Duplicate metric key '{k}' in Task '{task.name}'.")
+        all_metrics[task.name][k] = v
+
+      # pyformat: disable
+      metrics = {
+          k: metrics_lib.Scalar(v)
+             if not isinstance(v, metrics_lib.MetricValue) else v
+          for k, v in all_metrics[task.name].items()
+      }
+      # pyformat: enable
+      for logger in self.loggers:
+        logger(
+            task_name=task.name,
+            step=step,
+            metrics=metrics,
+            dataset=task_dataset,
+            targets=None,
+            inferences=None)
 
     return all_metrics
 

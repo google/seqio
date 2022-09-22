@@ -16,12 +16,14 @@
 
 import collections
 import contextlib
+import dataclasses
 import functools
 import os
 from typing import Dict, Mapping, Optional, Union
 
 from absl import logging
 import numpy as np
+from seqio.vocabularies import Vocabulary
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
@@ -31,6 +33,16 @@ _TFRECORD_PREFIX = "{split}.tfrecord"
 
 _TFDS_DATA_DIR_OVERRIDE = None
 _GLOBAL_CACHE_DIRECTORIES = []
+
+
+@dataclasses.dataclass(frozen=True)
+class Feature:
+  """A container for attributes of output features of data providers."""
+  vocabulary: Vocabulary
+  add_eos: bool = True
+  required: bool = True
+  dtype: tf.DType = tf.int32
+  rank: int = 1
 
 
 def set_tfds_data_dir_override(tfds_data_dir):

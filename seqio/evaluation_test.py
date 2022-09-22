@@ -118,6 +118,10 @@ def get_mocked_task(name: str = "mocked_test",
       list(predict_with_aux_metric_fns))
   # Identity postprocess function
   task.postprocess_fn = lambda d, example, is_target: d
+  task.metric_objs = [
+      metrics_lib.LegacyMetric.empty(mf, task.postprocess_fn)
+      for mf in task.metric_fns
+  ]
 
   mock_vocab = mock.Mock()
   task.output_features = {
@@ -168,7 +172,8 @@ class EvaluationTest(tf.test.TestCase):
         raise AssertionError(str(e) + " for key '%s'" % k)
 
   def test_get_valid_eval_tasks(self):
-    task_no_metrics = mock.Mock(splits=("train", "validation"), metric_fns=[])
+    task_no_metrics = mock.Mock(splits=("train", "validation"), metric_fns=[],
+                                metric_objs=[])
     task_no_split = mock.Mock(splits=("train"), metric_fns=[lambda x: x])
     valid_task = mock.Mock(
         splits=("train", "validation"), metric_fns=[lambda x: x])
@@ -492,7 +497,8 @@ class EvaluationTest(tf.test.TestCase):
       return {"fake_result": result}
 
     task = get_mocked_task(
-        predict_with_aux_metric_fns=[_aux_metric_that_cares_about_order])
+        predict_with_aux_metric_fns=[_aux_metric_that_cares_about_order],
+        predict_metric_fns=[])
 
     id_to_vocab = {5: "5", 6: "6", 7: "7"}
     mock_vocab = task.output_features["targets"].vocabulary
@@ -1065,11 +1071,11 @@ class EvaluationTest(tf.test.TestCase):
           predict_fn=mixing_order_predict_fn,
           score_fn=self.uncalled_fn)
       expected_metric = {"sequence_accuracy": 100}
-      expected_outputs = (
+      expected_outputs = [
           np.array([5], dtype=np.int32),
           np.array([6], dtype=np.int32),
           np.array([7], dtype=np.int32),
-      )
+      ]
       self.assertDictEqual(expected_metric, all_metrics.result()[task.name])
       self.assertEqual(expected_outputs, all_outputs[task.name])
 
@@ -1089,7 +1095,7 @@ class EvaluationTest(tf.test.TestCase):
 
     task = get_mocked_task(
         predict_metric_fns=[_accuracy_metric],
-        score_metric_fns=[lambda *_: {
+        score_metric_fns=[lambda targets, scores: {
             "accuracy": 0
         }])
     with self.assertRaisesWithLiteralMatch(
