@@ -338,7 +338,10 @@ class FunctionDataSource(DataSource):
       caching_permitted: indicates whether this data source may be cached.
         Default True.
     """
-    _validate_args(dataset_fn, ["split", "shuffle_files"])
+    try:
+      _validate_args(dataset_fn, ["split", "shuffle_files", "seed"])
+    except ValueError:
+      _validate_args(dataset_fn, ["split", "shuffle_files"])
     self._dataset_fn = dataset_fn
     super().__init__(
         splits=splits,
