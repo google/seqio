@@ -828,7 +828,6 @@ class Task(DatasetProviderBase):
     metric_fns = metric_fns or []
     metric_objs = metric_objs or []
     if metric_fns:
-      logging.warning("metric_fns is provided, converting it to metric_objs")
       metric_objs += [
           metrics_lib.LegacyMetric.empty(mf, postprocess_fn)
           for mf in metric_fns
