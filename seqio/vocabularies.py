@@ -288,12 +288,18 @@ class SentencePieceVocabulary(Vocabulary):
     # When a SentencePieceVocabulary vocabulary is used as a keyword argument
     # in a Gin configurable, it must be picklable. Lock is not picklable. We
     # remove the lock when pickling the vocabulary and add it back afterwards.
+    # Also delete _tokenizer and _sp_model, these will be initialized lazily
+    # as needed.
     del state["_load_model_lock"]
+    del state["_tokenizer"]
+    del state["_sp_model"]
     return state
 
   def __setstate__(self, state):
     self.__dict__.update(state)
     self._load_model_lock = threading.Lock()
+    self._tokenizer = None
+    self._sp_model = None
 
   def _load_model(self):
     """Load SPM and Python tokenizer."""
