@@ -714,7 +714,9 @@ def test_task(
 def test_preprocessing(
     task_name: str,
     raw_data: Mapping[str, Any],
-    seed: Optional[int] = None) -> Iterator[Mapping[str, Any]]:
+    seed: Optional[int] = None,
+    sequence_length: Optional[Mapping[str, int]] = None
+) -> Iterator[Mapping[str, Any]]:
   """Test task preprocessing, returning iterator of the generated dataset.
 
   This function injects `raw_data` into `task` and runs the preprocessing
@@ -726,9 +728,11 @@ def test_preprocessing(
     raw_data: A string-keyed dict of string-keyed dicts. The top-level dict
       should be keyed by dataset splits, and the second-level dict should hold
       the dataset data.
-    seed: optional seeed used for deterministic Task preprocessing.
+    seed: optional seed used for deterministic Task preprocessing.
       Specifically, this seed is passed to the Task to be used in
       map_seed_manager() wrappers around preprocessor functions.
+    sequence_length: optional mapping of feature names to their token lengths
+      used in the model.
 
   Returns:
     Iterator with the result of running the tasks' preprocessing code on
@@ -741,14 +745,16 @@ def test_preprocessing(
     split = list(raw_data.keys())[0]
     task = dataset_providers.get_mixture_or_task(task_name)
     iterator = task.get_dataset(
-        sequence_length=None, split=split, shuffle=False,
+        sequence_length=sequence_length, split=split, shuffle=False,
         seed=seed).as_numpy_iterator()
     return iterator
 
 
-def test_preprocessing_single(task_name: str,
-                              raw_data: Mapping[str, Any],
-                              seed: Optional[int] = None) -> Mapping[str, Any]:
+def test_preprocessing_single(
+    task_name: str,
+    raw_data: Mapping[str, Any],
+    seed: Optional[int] = None,
+    sequence_length: Optional[Mapping[str, int]] = None) -> Mapping[str, Any]:
   """Test task preprocessing, where a single item is expected to be generated.
 
   This is similar to test_preprocessing, but returns a single generated item.
@@ -764,14 +770,17 @@ def test_preprocessing_single(task_name: str,
     raw_data: A string-keyed dict of string-keyed dicts. The top-level dict
       should be keyed by dataset splits, and the second-level dict should hold
       the dataset data.
-    seed: optional seeed used for deterministic Task preprocessing.
+    seed: optional seed used for deterministic Task preprocessing.
       Specifically, this seed is passed to the Task to be used in
       map_seed_manager() wrappers around preprocessor functions.
+    sequence_length: optional mapping of feature names to their token lengths
+      used in the model.
 
   Returns:
     The result of running the tasks' preprocessing code on `raw_data`.
   """
-  iterator = test_preprocessing(task_name, raw_data, seed=seed)
+  iterator = test_preprocessing(
+      task_name, raw_data, seed=seed, sequence_length=sequence_length)
   item = next(iterator)
   # Verify that we've reached the end of the generator.
   _pyunit_proxy.assertIsNone(
