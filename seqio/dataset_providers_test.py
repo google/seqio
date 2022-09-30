@@ -492,6 +492,67 @@ class TasksTest(test_utils.FakeTaskTest):
         "uncached_task", use_cached=False, sequence_length=None
     )
 
+  def test_task_with_task_source(self):
+    self.verify_task_matches_fake_datasets(
+        "task_with_task_source", use_cached=False
+    )
+
+    # Test with cache
+    self.verify_task_matches_fake_datasets(
+        "task_with_task_source", use_cached=True
+    )
+
+    # Test with token preprocessor.
+    preproc_task_with_task_source = self.task_with_task_source.replace(
+        preprocessors=(
+            test_utils.test_token_preprocessor,
+        )
+    )
+    self.verify_task_matches_fake_datasets(
+        task=preproc_task_with_task_source, token_preprocessed=True
+    )
+
+    # Test with token preprocessor on source.
+    task_with_preproc_task_source = self.task_with_task_source.source.replace(
+        preprocessors=(
+            self.DEFAULT_PREPROCESSORS + (test_utils.test_token_preprocessor,)
+        )
+    )
+    self.verify_task_matches_fake_datasets(
+        task=task_with_preproc_task_source, token_preprocessed=True
+    )
+
+  def test_task_with_mixture_source(self):
+    self.verify_task_matches_fake_datasets(
+        "task_with_mixture_source", use_cached=False
+    )
+
+    # Test with cache
+    self.verify_task_matches_fake_datasets(
+        "task_with_mixture_source", use_cached=True
+    )
+
+    # Test with token preprocessor.
+    preproc_task_with_mixture_source = self.task_with_mixture_source.replace(
+        preprocessors=(test_utils.test_token_preprocessor,)
+    )
+    self.verify_task_matches_fake_datasets(
+        task=preproc_task_with_mixture_source, token_preprocessed=True
+    )
+
+    # Test with token preprocessor on mixture's task source.
+    task_with_preproc_mixture_source = (
+        self.task_with_mixture_source.source.tasks[0].replace(
+            preprocessors=(
+                self.DEFAULT_PREPROCESSORS
+                + (test_utils.test_token_preprocessor,)
+            )
+        )
+    )
+    self.verify_task_matches_fake_datasets(
+        task=task_with_preproc_mixture_source, token_preprocessed=True
+    )
+
   def test_sharding(self):
     for i in range(3):
       self.verify_task_matches_fake_datasets(
