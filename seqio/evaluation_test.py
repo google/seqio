@@ -1167,7 +1167,7 @@ class EvaluationTest(tf.test.TestCase):
       del ds, model_feature_shapes
       indices_and_scores = [(1, 1), (0, 2), (2, 3)]
       intermediates = {"score": [101, 102, 103]}
-      return indices_and_scores, intermediates
+      return indices_and_scores, intermediates  # pytype: disable=bad-return-type  # mapping-is-not-sequence
 
     task = get_mocked_task(
         predict_metric_fns=[],
