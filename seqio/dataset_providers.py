@@ -787,7 +787,7 @@ class Task(DatasetProviderBase):
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
       metric_fns: Optional[Sequence[MetricFnCallable]] = None,
-      metric_objs: Optional[Sequence[clu.metrics.Metric]] = None,
+      metric_objs: Optional[Sequence[metrics_lib.Metric]] = None,
       shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE):
     """Task constructor.
 
@@ -904,7 +904,7 @@ class Task(DatasetProviderBase):
     return self._name
 
   @property
-  def metric_objs(self) -> Sequence[clu.metrics.Metric]:
+  def metric_objs(self) -> Sequence[metrics_lib.Metric]:
     """List of all metric objects."""
     return self._metric_objs
 

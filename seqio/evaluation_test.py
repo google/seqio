@@ -169,7 +169,7 @@ class EvaluationTest(tf.test.TestCase):
       try:
         self.assertAlmostEqual(a[k], b[k], delta=delta, places=places)
       except AssertionError as e:
-        raise AssertionError(str(e) + " for key '%s'" % k)
+        raise AssertionError(str(e) + " for key '%s'" % k) from e
 
   def test_get_valid_eval_tasks(self):
     task_no_metrics = mock.Mock(splits=("train", "validation"), metric_fns=[],
@@ -400,9 +400,11 @@ class EvaluationTest(tf.test.TestCase):
     mock_vocab.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
 
     def mock_init(self):
-      self._cached_model_datasets = {task.name: tf.data.Dataset.range(1, 4)}
-      self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
-      self._cached_targets = {task.name: ["e5 e6", "e6", "e7"]}
+      mock_ds = tf.data.Dataset.from_tensor_slices(
+          ["e5 e6", "e6",
+           "e7"]).map(lambda x: {f"{target_field_name}_pretokenized": x})
+      self._cached_model_datasets = {task.name: mock_ds}
+      self._cached_task_datasets = {task.name: mock_ds}
       self._eval_tasks = [task]
       self._loggers = loggers
       self._metrics_future = None
@@ -449,7 +451,7 @@ class EvaluationTest(tf.test.TestCase):
       if not has_aux_values:
         predict_with_aux_fn = None
 
-      all_metrics, _, _ = evaluator.evaluate(
+      all_metrics, _ = evaluator.evaluate(
           compute_metrics=True,
           predict_fn=predict_fn,
           score_fn=score_fn,
@@ -506,9 +508,10 @@ class EvaluationTest(tf.test.TestCase):
     mock_vocab.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
 
     def mock_init(self):
-      self._cached_model_datasets = {task.name: tf.data.Dataset.range(1, 4)}
-      self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
-      self._cached_targets = {task.name: ["5", "6", "7"]}
+      mock_ds = tf.data.Dataset.from_tensor_slices(
+          ["5", "6", "7"]).map(lambda x: {"targets_pretokenized": x})
+      self._cached_model_datasets = {task.name: mock_ds}
+      self._cached_task_datasets = {task.name: mock_ds}
       self._eval_tasks = [task]
       self._loggers = []
       self._metrics_future = None
@@ -525,20 +528,15 @@ class EvaluationTest(tf.test.TestCase):
       ) -> evaluation.PredictFnReturnType:
         del ds, model_feature_shapes
 
-        # pylint: disable=g-long-ternary
-        indices_and_predictions = ([
-            (2, [7]), (0, [5]), (1, [6])
-        ] if task.predict_metric_with_aux_fns else self.uncalled_fn)
-
+        indices_and_predictions = [(2, [7]), (0, [5]), (1, [6])]
         aux_values = {
             "scores": [7, 5, 6],
             "other_key": [7, 5, 6],
-        } if task.predict_metric_with_aux_fns else self.uncalled_fn
-        # pylint: enable=g-long-ternary
+        }
 
         return indices_and_predictions, aux_values
 
-      all_metrics, _, _ = evaluator.evaluate(
+      all_metrics, _ = evaluator.evaluate(
           compute_metrics=True,
           predict_fn=self.uncalled_fn,
           score_fn=self.uncalled_fn,
@@ -564,7 +562,13 @@ class EvaluationTest(tf.test.TestCase):
     task = get_mocked_task(
         predict_metric_fns=[_sequence_accuracy_metric],
         score_metric_fns=[_sum_scores_metric])
-    task.postprocess_fn = lambda x, **_: x.replace("e6", "e7")
+    task.postprocess_fn = (lambda x, example, is_target: x
+                           if is_target else x.replace("e6", "e7"))
+    task.metric_objs = [
+        metrics_lib.LegacyMetric.empty(mf, task.postprocess_fn)
+        for mf in task.metric_fns
+    ]
+
     _, evaluator = self._evaluate_single_task(task, loggers=loggers)
     metrics = {
         "sequence_accuracy": metrics_lib.Scalar(1 / 3 * 100),
@@ -576,7 +580,7 @@ class EvaluationTest(tf.test.TestCase):
           step=42,
           metrics=metrics,
           dataset=evaluator._cached_task_datasets[task.name],
-          targets=evaluator._cached_targets[task.name],
+          targets=["e5 e6", "e6", "e7"],
           inferences={
               "prediction": ["e5 e7", "e7", "e7"],
               "score": [2, 1, 3],
@@ -625,16 +629,22 @@ class EvaluationTest(tf.test.TestCase):
 
   def test_evaluate_non_string(self):
     task = get_mocked_task()
+    # Overrides postprocess fn for the task and its metric objects.
+    task.postprocess_fn = lambda d, example, is_target: list(d)
+    task.metric_objs = [
+        metrics_lib.LegacyMetric.empty(mf, task.postprocess_fn)
+        for mf in task.metric_fns
+    ]
     mock_vocab = task.output_features["targets"].vocabulary
     # Identity decode function
     mock_vocab.decode = lambda ids: ids
 
     def mock_init(self):
       # Dummy datasets
-      self._cached_model_datasets = {task.name: tf.data.Dataset.range(2)}
-      # Dummy task datasets.
-      self._cached_task_datasets = {task.name: tf.data.Dataset.range(2)}
-      self._cached_targets = {task.name: [[5, 6], [6, 7]]}
+      mock_ds = tf.data.Dataset.from_tensor_slices(
+          [[5, 6], [6, 7]]).map(lambda x: {"targets_pretokenized": x})
+      self._cached_model_datasets = {task.name: mock_ds}
+      self._cached_task_datasets = {task.name: mock_ds}
       self._eval_tasks = [task]
       self._loggers = ()
       self._metrics_future = None
@@ -653,8 +663,7 @@ class EvaluationTest(tf.test.TestCase):
       ) -> evaluation.PredictFnReturnType:
         del ds, model_feature_shapes
         return [(0, [5, 6]), (1, [6, 8])]
-
-      all_metrics, _, _ = evaluator.evaluate(
+      all_metrics, _ = evaluator.evaluate(
           compute_metrics=True,
           predict_fn=predict_fn,
           score_fn=self.uncalled_fn)
@@ -673,9 +682,11 @@ class EvaluationTest(tf.test.TestCase):
     mock_vocab.decode = lambda ids: id_to_vocab[ids[0]]
 
     def mock_init(self):
-      self._cached_model_datasets = {task.name: tf.data.Dataset.range(3)}
-      self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
-      self._cached_targets = {task.name: [0, 1, 2]}
+      # Dummy datasets
+      mock_ds = tf.data.Dataset.from_tensor_slices(
+          ["e5", "e6", "e7"]).map(lambda x: {"targets_pretokenized": x})
+      self._cached_model_datasets = {task.name: mock_ds}
+      self._cached_task_datasets = {task.name: mock_ds}
       self._eval_tasks = [task]
       self._loggers = ()
       self._metrics_future = None
@@ -695,7 +706,7 @@ class EvaluationTest(tf.test.TestCase):
         del ds, model_feature_shapes
         return [(0, [5]), (1, [6]), (2, [7])]
 
-      all_metrics, _, _ = evaluator.evaluate(
+      all_metrics, _ = evaluator.evaluate(
           compute_metrics=True,
           predict_fn=predict_fn,
           score_fn=self.uncalled_fn)
@@ -719,8 +730,11 @@ class EvaluationTest(tf.test.TestCase):
     mock_vocab2 = task2.output_features["targets"].vocabulary
     mock_vocab2.decode = lambda ids: id_to_vocab[ids[0]]
 
-    mock_ds1 = tf.data.Dataset.range(2)
-    mock_ds2 = tf.data.Dataset.range(3)
+    mock_ds1 = tf.data.Dataset.from_tensor_slices(
+        ["e5 e6", "e6"]).map(lambda x: {"targets_pretokenized": x})
+
+    mock_ds2 = tf.data.Dataset.from_tensor_slices(
+        ["e5", "e6", "e7"]).map(lambda x: {"targets_pretokenized": x})
 
     def mock_init(self):
       self._cached_model_datasets = {
@@ -728,12 +742,8 @@ class EvaluationTest(tf.test.TestCase):
           task2.name: mock_ds2,
       }
       self._cached_task_datasets = {
-          task1.name: tf.data.Dataset.range(2),
-          task2.name: tf.data.Dataset.range(3),
-      }
-      self._cached_targets = {
-          task1.name: ["e5 e6", "e6"],
-          task2.name: [0, 1, 2]
+          task1.name: mock_ds1,
+          task2.name: mock_ds2,
       }
       self._eval_tasks = [task1, task2]
       self._loggers = ()
@@ -763,7 +773,7 @@ class EvaluationTest(tf.test.TestCase):
         return [(0, 1), (1, 2)]
 
       evaluator = Evaluator()  # pytype: disable=missing-parameter
-      all_metrics, _, _ = evaluator.evaluate(
+      all_metrics, _ = evaluator.evaluate(
           compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn)
       expected = {
           task1.name: {
@@ -1040,13 +1050,19 @@ class EvaluationTest(tf.test.TestCase):
     mock_vocab = task.output_features["targets"].vocabulary
     mock_vocab.decode = lambda ids: id_to_vocab[ids[0]]
 
-    ds = tf.data.Dataset.from_tensor_slices([[5], [6], [7]])
+    targets = tf.data.Dataset.from_tensor_slices([[5], [6], [7]])
+    targets_pretokenized = tf.data.Dataset.from_tensor_slices(
+        ["e5", "e6", "e7"])
+    ds = tf.data.Dataset.zip((targets, targets_pretokenized))
+    ds = ds.map(lambda x, y: {
+        "targets": x,
+        "targets_pretokenized": y
+    })
 
     def mock_init(self):
       self._cached_model_datasets = {task.name: ds.enumerate()}
       # Dummy task datasets
-      self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
-      self._cached_targets = {task.name: ["e5", "e6", "e7"]}
+      self._cached_task_datasets = {task.name: ds}
       self._eval_tasks = [task]
       self._loggers = ()
       self._metrics_future = None
@@ -1063,10 +1079,11 @@ class EvaluationTest(tf.test.TestCase):
           model_feature_shapes: Optional[Mapping[str, int]] = None
       ) -> evaluation.PredictFnReturnType:
         del model_feature_shapes
-        exs = list(tfds.as_numpy(ds))
+        exs = [(tup[0], tup[1]["targets"])
+               for tup in tfds.as_numpy(ds)]
         return [exs[2], exs[0], exs[1]]
 
-      all_metrics, all_outputs, _ = evaluator.evaluate(
+      all_metrics, all_outputs = evaluator.evaluate(
           compute_metrics=True,
           predict_fn=mixing_order_predict_fn,
           score_fn=self.uncalled_fn)
@@ -1077,7 +1094,9 @@ class EvaluationTest(tf.test.TestCase):
           np.array([7], dtype=np.int32),
       ]
       self.assertDictEqual(expected_metric, all_metrics.result()[task.name])
-      self.assertEqual(expected_outputs, all_outputs[task.name])
+      self.assertEqual(
+          expected_outputs,
+          all_outputs[task.name][metrics_lib.ModelOutputType.PREDICTION])
 
   def test_duplicate_metric(self):
     task = get_mocked_task(
@@ -1114,11 +1133,10 @@ class EvaluationTest(tf.test.TestCase):
     evaluator = Evaluator(
         mixture_or_task_name=task_name,
         feature_converter=evaluation.EncDecFeatureConverter())
-    all_metrics, all_output_tokens, all_output_scores = evaluator.evaluate(
+    all_metrics, all_output = evaluator.evaluate(
         compute_metrics=True, predict_fn=mock.Mock(), score_fn=self.uncalled_fn)
     self.assertEqual({}, all_metrics.result())
-    self.assertEqual({}, all_output_tokens)
-    self.assertEqual({}, all_output_scores)
+    self.assertEqual({}, all_output)
 
   def test_task_with_no_compute_metrics(self):
     task_name = "no_compute_metrics_task"
@@ -1132,13 +1150,12 @@ class EvaluationTest(tf.test.TestCase):
     evaluator = Evaluator(
         mixture_or_task_name=task_name,
         feature_converter=evaluation.EncDecFeatureConverter())
-    all_metrics, all_output_tokens, all_output_scores = evaluator.evaluate(
+    all_metrics, all_output = evaluator.evaluate(
         compute_metrics=False,
         predict_fn=mock.Mock(),
         score_fn=self.uncalled_fn)
     self.assertIsNone(all_metrics.result())
-    self.assertEqual({}, all_output_tokens)
-    self.assertEqual({}, all_output_scores)
+    self.assertEqual({}, all_output)
 
   def test_task_with_no_pretokenized_targets(self):
     task_name = "no_pretokenized_task"
@@ -1174,9 +1191,10 @@ class EvaluationTest(tf.test.TestCase):
         score_metric_fns=[_sum_scores_metric_with_intermediates])
 
     def mock_init(self):
-      self._cached_model_datasets = {task.name: tf.data.Dataset.range(1, 4)}
-      self._cached_task_datasets = {task.name: tf.data.Dataset.range(3)}
-      self._cached_targets = {task.name: ["e5 e6", "e6", "e7"]}
+      mock_ds = tf.data.Dataset.from_tensor_slices(
+          ["e5 e6", "e6", "e7"]).map(lambda x: {"targets_pretokenized": x})
+      self._cached_model_datasets = {task.name: mock_ds}
+      self._cached_task_datasets = {task.name: mock_ds}
       self._eval_tasks = [task]
       self._loggers = ()
       self._metrics_future = None
@@ -1187,7 +1205,7 @@ class EvaluationTest(tf.test.TestCase):
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
       evaluator = Evaluator()  # pytype: disable=missing-parameter
 
-      all_metrics, _, _ = evaluator.evaluate(
+      all_metrics, _ = evaluator.evaluate(
           compute_metrics=True,
           predict_fn=self.uncalled_fn,
           predict_with_aux_fn=self.uncalled_fn,

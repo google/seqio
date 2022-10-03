@@ -116,7 +116,7 @@ class Metric(clu.metrics.Metric):
       inputs: Sequence[Mapping[str, Any]],
       model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
       features: Mapping[str, utils.Feature],
-      target_field_name: str = "targets") -> clu.metrics.Metric:
+      target_field_name: str = "targets") -> "Metric":
     """Creates a `seqio.Metric` from model outputs.
 
     Args:
@@ -126,7 +126,7 @@ class Metric(clu.metrics.Metric):
       target_field_name: Field name of the target sequence.
 
     Returns:
-      An instance of clu.metrics.Metric.
+      An instance of Metric.
     Raises:
       NotImplementedError: Must override from_model_output()
     """
@@ -142,9 +142,10 @@ class LegacyMetric(Metric):
   _metric_fn: MetricFnCallable
   _postprocess_fn: Callable[..., Any]
   metric_fn_kwargs: Dict[str, Any]
+  targets_and_inferences: Dict[str, Any]
 
   @classmethod
-  def empty(cls, metric_fn, postprocess_fn) -> clu.metrics.Metric:
+  def empty(cls, metric_fn, postprocess_fn) -> "LegacyMetric":
     pos_args = tuple(
         key
         for key, param in inspect.signature(metric_fn).parameters.items()
@@ -162,8 +163,12 @@ class LegacyMetric(Metric):
           "('targets', 'predictions', 'aux_values'). "
           f"Got: {pos_args}")
 
-    return cls(_metric_fn=metric_fn, _postprocess_fn=postprocess_fn,
-               model_output_type=model_output_type, metric_fn_kwargs={})
+    return cls(
+        _metric_fn=metric_fn,
+        _postprocess_fn=postprocess_fn,
+        model_output_type=model_output_type,
+        metric_fn_kwargs={},
+        targets_and_inferences={})
 
   def postprocess_fn(self, targets_or_predictions: Any,
                      **postprocess_kwargs) -> Any:
@@ -177,7 +182,7 @@ class LegacyMetric(Metric):
       inputs: Sequence[Mapping[str, Any]],
       model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
       features: Mapping[str, utils.Feature],
-      target_field_name: str = "targets") -> clu.metrics.Metric:
+      target_field_name: str = "targets") -> "LegacyMetric":
 
     # Postprocesses the targets here.
     postprocessed_targets = []
@@ -195,16 +200,20 @@ class LegacyMetric(Metric):
           self.postprocess_fn(target, example=ex, is_target=True))
 
     self.metric_fn_kwargs["targets"] = postprocessed_targets
+    self.targets_and_inferences["targets"] = postprocessed_targets
 
     if self.model_output_type == ModelOutputType.SCORE:
       self.metric_fn_kwargs["scores"] = model_output
+      self.targets_and_inferences["score"] = model_output
     else:
       vocab = features[target_field_name].vocabulary
       if self.model_output_type == ModelOutputType.PREDICTION_WITH_AUX:
         self.metric_fn_kwargs["aux_values"] = model_output[1]
+        self.targets_and_inferences["aux_value"] = model_output[1]
         predictions = [vocab.decode(tokens) for tokens in model_output[0]]
       elif self.model_output_type == ModelOutputType.PREDICTION:
         predictions = [vocab.decode(tokens) for tokens in model_output]
+      self.targets_and_inferences["output"] = predictions
 
       # Postprocesses the predictions here.
       postprocessed_predictions = [
@@ -213,6 +222,7 @@ class LegacyMetric(Metric):
       ]
 
       self.metric_fn_kwargs["predictions"] = postprocessed_predictions
+      self.targets_and_inferences["prediction"] = postprocessed_predictions
 
     return self
 

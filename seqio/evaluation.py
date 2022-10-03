@@ -49,8 +49,7 @@ class AllMetricsFuture(typing_extensions.Protocol):
 
 
 MetricsAndOutputsType = Tuple[AllMetricsFuture,  # metrics
-                              AllOutputTokensType,
-                              AllOutputScoresType]  # outputs
+                              Any]  # outputs
 
 
 def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
@@ -566,10 +565,8 @@ class Evaluator:
     Returns:
       metrics: a Future containing a mapping from task name to computed metrics,
         or None if `compute_metrics` is False.
-      predicted_tokens: a mapping from task name to the output tokens
-        from `predict_fn`, for tasks that have `predict_metric_fns`.
-      scores: a mapping from task name to the output scores from
-        `score_fn` for tasks that have `score_predict_fns`.
+      all_output: a mapping from task name to all the output that metric
+        evaluation needs.
     """
     # Reorganizes score_fn, predict_fn and predict_with_aux_fn into model_fns
     # for backward compatibility.
@@ -587,16 +584,6 @@ class Evaluator:
     # make sure the examples are sorted by example index.
     all_output = {}
 
-    # Maps task.name to a list of sequences of output tokens from the model.
-    all_output_tokens = {}
-
-    # Maps task.name to dictionary of auxiliary sequences of values.
-    all_aux_values = {}
-
-    # Maps task.name to scores produced by the model of the target sequence
-    # conditioned on the input sequence.
-    all_output_scores = {}
-
     for task in self.eval_tasks:
       logging.info("Evaluating %s", task.name)
 
@@ -610,21 +597,6 @@ class Evaluator:
           all_output[task.name][model_output_type] = _extract_model_output(
               self._cached_model_datasets[task.name], model_fn)
 
-    for task in self.eval_tasks:
-      if metrics_lib.ModelOutputType.PREDICTION_WITH_AUX in all_output[
-          task.name]:
-        all_output_tokens[task.name] = all_output[task.name][
-            metrics_lib.ModelOutputType.PREDICTION_WITH_AUX][0]
-        all_aux_values[task.name] = all_output[task.name][
-            metrics_lib.ModelOutputType.PREDICTION_WITH_AUX][1]
-      elif metrics_lib.ModelOutputType.PREDICTION in all_output[task.name]:
-        all_output_tokens[task.name] = all_output[task.name][
-            metrics_lib.ModelOutputType.PREDICTION]
-        all_aux_values[task.name] = []
-      if metrics_lib.ModelOutputType.SCORE in all_output[task.name]:
-        all_output_scores[task.name] = all_output[task.name][
-            metrics_lib.ModelOutputType.SCORE]
-
     if compute_metrics:
       if self._metrics_future:
         # Ensure previous step's metrics are finished and raise any exceptions
@@ -636,8 +608,7 @@ class Evaluator:
 
       def compute_metrics_fn():
         tick = time.time()
-        metrics = self._compute_metrics(all_output_tokens, all_output_scores,
-                                        all_aux_values, step)
+        metrics = self._compute_clu_metrics(all_output, step)
         logging.info("Time computing metrics: %f secs.", time.time() - tick)
         return metrics
 
@@ -658,7 +629,7 @@ class Evaluator:
     else:
       all_metrics = concurrent.futures.Future()
       all_metrics.set_result(None)
-    return all_metrics, all_output_tokens, all_output_scores
+    return all_metrics, all_output
 
   def _decode_and_postprocess_predictions(self, task, predicted_tokens,
                                           task_dataset, targets):
@@ -765,9 +736,9 @@ class Evaluator:
 
     return all_metrics
 
-  def _compute_metrics_v2(self,
-                          all_output,
-                          step: Optional[int] = None) -> AllMetricsType:
+  def _compute_clu_metrics(self,
+                           all_output,
+                           step: Optional[int] = None) -> AllMetricsType:
     """Computes and logs metrics given the predicted tokens and scores.
 
     Args:
@@ -786,12 +757,23 @@ class Evaluator:
       task_dataset = self.cached_task_datasets[task.name]
 
       task_metrics = []
+      inferences = {}
       for metric_obj in task.metric_objs:
         model_output = all_output[task.name][metric_obj.model_output_type]
         metric_instance = metric_obj.from_model_output(
             tfds.as_numpy(task_dataset), model_output, task.output_features,
             self._target_field_name)
         task_metrics.append(metric_instance.compute())
+        # Records inferences for legacy logging compatibility.
+        inferences.update({
+            key: val
+            for key, val in metric_instance.targets_and_inferences.items()
+            if key != "targets"
+        })
+      # Records targets for legacy logging compatibility.
+      # Each metric_instance should have identical targets.
+      # Chooses the last metric_instance for this recording purpose.
+      targets = metric_instance.targets_and_inferences["targets"]
 
       all_metrics[task.name] = {}
       for k, v in itertools.chain(*[m.items() for m in task_metrics]):
@@ -812,8 +794,8 @@ class Evaluator:
             step=step,
             metrics=metrics,
             dataset=task_dataset,
-            targets=None,
-            inferences=None)
+            targets=targets,
+            inferences=inferences)
 
     return all_metrics
 
