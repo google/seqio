@@ -157,8 +157,7 @@ PredictFnReturnType = Union[_IndicesAndPredictions,
                             _IndicesAndPredictionsWithAuxValues]
 
 _IndicesAndScores = Sequence[Tuple[_BatchId, float]]
-_IndicesAndScoresWithIntermediates = Tuple[_IndicesAndScores,
-                                           Sequence[Mapping[str, Any]]]
+_IndicesAndScoresWithIntermediates = Tuple[_IndicesAndScores, Mapping[str, Any]]
 ScoreFnReturnType = Union[_IndicesAndScores, _IndicesAndScoresWithIntermediates]
 ModelFnReturnType = Union[
     _IndicesAndPredictions,

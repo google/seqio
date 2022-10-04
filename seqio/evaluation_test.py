@@ -1180,7 +1180,7 @@ class EvaluationTest(tf.test.TestCase):
     def score_fn_with_intermediates(
         ds: tf.data.Dataset,
         model_feature_shapes: Optional[Mapping[str, int]] = None
-    ) -> Tuple[Sequence[Tuple[int, float]], Sequence[Mapping[str, Any]]]:
+    ) -> Tuple[Sequence[Tuple[int, float]], Mapping[str, Any]]:
       del ds, model_feature_shapes
       indices_and_scores = [(1, 1), (0, 2), (2, 3)]
       intermediates = {"score": [101, 102, 103]}
