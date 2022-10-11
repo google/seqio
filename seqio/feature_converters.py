@@ -1250,3 +1250,35 @@ class PassThroughFeatureConverter(FeatureConverter):
   def get_model_feature_lengths(self, task_feature_lengths: Mapping[str, int]):
     """This method is required to be overridden but unused."""
     pass
+
+
+class PrePackedLMFeatureConverter(PassThroughFeatureConverter):
+  """This feature converter fixes length and filters batch features."""
+  BATCH_FEATURES = ("decoder_input_tokens", "decoder_loss_weights",
+                    "decoder_positions", "decoder_segment_ids",
+                    "decoder_target_tokens")
+
+  def _set_shape_and_filter(self, ex, task_feature_lengths):
+    shaped_filtered_ex = {}
+    for feature in self.BATCH_FEATURES:
+      ex[feature].set_shape(shape=task_feature_lengths["targets"])
+      shaped_filtered_ex[feature] = ex[feature]
+    return shaped_filtered_ex
+
+  def __call__(self, ds: tf.data.Dataset,
+               task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+    """Returns input dataset filtered for BATCH_FEATURES with fixed lengths.
+
+    Args:
+      ds: Prepacked dataset containing decoder BATCH_FEATURES and potentially
+          additional features to be filtered out.
+      task_feature_lengths: Dictionary of feature lengths. Must include a
+                            targets key, used for all decoder features.
+
+    Returns: A dataset filtered to BATCH_FEATURES and with fixed set length.
+    """
+    return ds.map(
+        functools.partial(
+            self._set_shape_and_filter,
+            task_feature_lengths=task_feature_lengths),
+        num_parallel_calls=tf.data.experimental.AUTOTUNE)
