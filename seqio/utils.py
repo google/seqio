@@ -22,6 +22,7 @@ import os
 from typing import Dict, Mapping, Optional, Union
 
 from absl import logging
+from clu import preprocess_spec as grain_transforms
 import numpy as np
 from seqio.vocabularies import Vocabulary
 import tensorflow.compat.v2 as tf
@@ -1032,6 +1033,25 @@ def map_seed_manager(initial_seed=None):
   _NEXT_MAP_SEED = initial_seed
   yield
   _NEXT_MAP_SEED = old_map_seed
+
+
+class GrainFilterTransform(grain_transforms.FilterTransform):
+
+  def __init__(self, predicate):
+    self._filter_predicate = predicate
+
+  def _predicate(self, features: grain_transforms.FlatFeatures) -> tf.Tensor:
+    """Returns a True if the element should be kept."""
+    return self._filter_predicate(features)
+
+
+def filter_dataset(predicate):
+
+  @functools.wraps(predicate)
+  def wrapped_fn(ds):
+    transform = GrainFilterTransform(predicate)
+    return ds.filter(transform, num_parallel_calls=tf.data.AUTOTUNE)
+  return wrapped_fn
 
 
 def map_over_dataset(fn=None,
