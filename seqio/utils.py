@@ -1096,7 +1096,5 @@ def map_over_dataset(fn=None,
 
     return wrapped_fn
 
-  if fn is None:
-    return map_with_seeds
-  else:
-    return map_without_seeds(fn)
+  wrapper = map_without_seeds if num_seeds is None else map_with_seeds
+  return wrapper if fn is None else wrapper(fn)
