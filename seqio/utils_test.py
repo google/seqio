@@ -13,8 +13,9 @@
 # limitations under the License.
 
 """Tests for seqio.utils."""
+import dataclasses
 import functools
-from typing import Mapping, Sequence
+from typing import Mapping, Optional, Sequence
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -120,6 +121,31 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     self.assertListEqual(["f3"], ds.files(split="validation"))
     with self.assertRaises(KeyError):
       ds.files(split="test")
+
+
+class TransformUtilsTest(parameterized.TestCase):
+
+  def test_add_kwargs_to_transform_callable(self):
+
+    def fn(x, y):
+      return x * y
+
+    fn = utils.add_kwargs_to_transform(fn, y=2, z=10)
+    self.assertEqual(6, fn(3))
+
+  def test_add_kwargs_to_transform_dataclass(self):
+
+    @dataclasses.dataclass
+    class Fn:
+      factor: int
+      y: Optional[int] = None
+
+      def __call__(self, x):
+        return self.factor * self.y * x
+
+    fn = Fn(10)
+    fn = utils.add_kwargs_to_transform(fn, y=2, z=10)
+    self.assertEqual(60, fn(3))
 
 
 class UtilsTest(parameterized.TestCase, tf.test.TestCase):

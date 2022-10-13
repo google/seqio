@@ -18,6 +18,7 @@ import collections
 import contextlib
 import dataclasses
 import functools
+import inspect
 import os
 from typing import Dict, Mapping, Optional, Union
 
@@ -485,6 +486,39 @@ def flatten_dict(nested_dct: NestedTFDict,
 
 
 # ================================ Tasks =======================================
+
+
+def add_kwargs_to_transform(transform, **kwargs):
+  """Returns the partial function or dataclass with the kwargs.
+
+  We use this function to add common arguments (sequence_length,
+  output_features) on all transformations that require those.
+
+  Args:
+    transform: A dataclass or function.
+    **kwargs: Arguments to be passed to the transform.
+
+  Returns:
+    If `transform` is a dataclasses attributes matching the kwargs keys will be
+    set to the kwargs values.
+    Otherwise if `transform` is a function and takes any of the provided kwargs
+    these will be passed (by running a partial function).
+  """
+  is_dataclass = dataclasses.is_dataclass(transform)
+  # Filter kwargs by attributes of the dataclass/arguments of the function.
+  if is_dataclass:
+    avaialabe_arg_names = [f.name for f in dataclasses.fields(transform)]
+  else:
+    avaialabe_arg_names = set(inspect.signature(transform).parameters.keys())
+  kwargs = {k: v for k, v in kwargs.items() if k in avaialabe_arg_names}
+  if not kwargs:
+    return transform
+  # Add attributes/arguments.
+  if is_dataclass:
+    return dataclasses.replace(transform, **kwargs)
+  return functools.partial(transform, **kwargs)
+
+
 def get_cached_info_path(data_dir, split):
   return os.path.join(data_dir, _INFO_FILENAME.format(split=split))
 
