@@ -17,12 +17,11 @@
 import functools
 from typing import Dict, Mapping, Optional
 
-from seqio import dataset_providers
 from seqio import feature_converters
 from seqio import utils
 import tensorflow.compat.v2 as tf
 
-OutputFeaturesType = Mapping[str, dataset_providers.Feature]
+OutputFeaturesType = Mapping[str, utils.Feature]
 SequenceLengthType = Mapping[str, int]
 
 
