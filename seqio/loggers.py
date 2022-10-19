@@ -193,10 +193,16 @@ class TensorBoardLogger(Logger):
 
     writer = self._get_summary_writer(os.path.join(self.output_dir, task_name))
     for metric_name, metric_value in metrics.items():
-      # We prefix the tag with "eval/" for backward compatibility.
-      # TODO(adarob): Find a way to remove this or make it an option.
+      tag = metric_name
+      # If '/' is present in the metric_name, the user wants to control the
+      # grouping of metrics in TensorBoard. If so, we drop backward
+      # compatibility in favor of user control.
+      if "/" not in metric_name:
+        # We prefix the tag with "eval/" for backward compatibility
+        # TODO(adarob): Find a way to remove this or make it an option.
+        tag = f"eval/{metric_name}"
       self._write_metric(
-          tag=f"eval/{metric_name}",
+          tag=tag,
           value=metric_value,
           step=step,
           writer=writer)
