@@ -13,9 +13,9 @@
 # limitations under the License.
 
 """Preprocessors for SeqIO Tasks."""
-
+import dataclasses
 import functools
-from typing import Dict, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
 
 from seqio import feature_converters
 from seqio import utils
@@ -350,3 +350,5 @@ def apply_feature_converter(
     a tf.data.Dataset of packed examples.
   """
   return feature_converter(dataset, sequence_length)
+
+
