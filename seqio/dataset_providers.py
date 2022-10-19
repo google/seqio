@@ -384,10 +384,12 @@ class TfdsDataSource(DataSource):
     """TfdsTask constructor.
 
     Args:
-      tfds_name: string, the name and version number of a TFDS dataset,
+      tfds_name: The name and version number of a TFDS dataset,
         optionally with a config.
-      tfds_data_dir: string, an optional path to a specific TFDS data directory
-        to use.
+      tfds_data_dir: An optional path to a specific TFDS data directory to use.
+        If provided `tfds_name` must be a valid dataset in the directory.
+        If `tfds_name` is empty `tfds_dara_dir` must point to the directory with
+        one dataset.
       splits: an iterable of allowable string split names, a dict mapping
         allowable canonical splits (e.g., 'validation') to TFDS splits or slices
         (e.g., 'train[':1%']), or None. The default, None, uses all available
@@ -397,9 +399,9 @@ class TfdsDataSource(DataSource):
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
         such as tfds.decode.SkipDecoding() for skipping image byte decoding
     """
-    if ":" not in tfds_name:
-      raise ValueError("TFDS name must contain a version number, got: %s" %
-                       tfds_name)
+    if tfds_name and ":" not in tfds_name:
+      raise ValueError(
+          f"TFDS name must contain a version number, got: {tfds_name}")
 
     if splits and not isinstance(splits, dict):
       splits = {k: k for k in splits}

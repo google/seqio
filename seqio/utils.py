@@ -106,10 +106,15 @@ class LazyTfdsLoader(object):
 
   @property
   def builder(self):
+    """Returns the DatasetBuilder for this TFDS dataset."""
     builder_key = (self.name, self.data_dir)
     if builder_key not in LazyTfdsLoader._MEMOIZED_BUILDERS:
-      LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = tfds.builder(
-          self.name, data_dir=self.data_dir)
+      if self.name:
+        LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = tfds.builder(
+            self.name, data_dir=self.data_dir)
+      else:
+        LazyTfdsLoader._MEMOIZED_BUILDERS[
+            builder_key] = tfds.builder_from_directory(self.data_dir)
     return LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key]
 
   @property
