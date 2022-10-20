@@ -87,7 +87,8 @@ class PyLoggingLogger(Logger):
     step = step or -1
     for metric_name, metric_value in metrics.items():
       if isinstance(metric_value, metrics_lib.Scalar):
-        strvalue = f"{metric_value.value:.3f}"
+        float_value = float(np.array(metric_value.value))
+        strvalue = f"{float_value:.3f}"
       elif isinstance(metric_value, metrics_lib.Text):
         strvalue = metric_value.textdata
       else:
