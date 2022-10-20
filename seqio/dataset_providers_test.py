@@ -22,6 +22,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 
 from absl.testing import absltest
 from absl.testing import parameterized
+import numpy as np
 from seqio import dataset_providers
 from seqio import feature_converters
 from seqio import metrics as metrics_lib
