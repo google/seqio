@@ -1650,6 +1650,7 @@ def get_dataset(mixture_or_task_name: str,
                 shard_info: Optional[ShardInfo] = None,
                 verbose: bool = True,
                 seed: Optional[int] = None,
+                batch_size: Optional[int] = None,
                 trim_output_features: bool = True) -> tf.data.Dataset:
   """Get processed dataset with the model features.
 
@@ -1680,6 +1681,7 @@ def get_dataset(mixture_or_task_name: str,
     shard_info: number of shards and shard index information.
     verbose: if true, log the feature shapes.
     seed: a random seed to for shuffling tf.data.
+    batch_size: Optional batch size.
     trim_output_features: If True, it trims output features to be less than
         the length given by `sequence_length`.
 
@@ -1691,31 +1693,42 @@ def get_dataset(mixture_or_task_name: str,
         "feature_converter should be an instance of FeatureConverter.")
 
   mixture_or_task = get_mixture_or_task(mixture_or_task_name)
-
-  ds = mixture_or_task.get_dataset(
-      task_feature_lengths,
-      split=dataset_split,
-      use_cached=use_cached,
-      shuffle=shuffle,
-      seed=seed,
-      shard_info=shard_info,
-      num_epochs=num_epochs,
-      trim_output_features=trim_output_features)
-
-  ds = feature_converter(
-      ds,
-      task_feature_lengths=task_feature_lengths)
+  is_grain_task = False
+  if is_grain_task:
+    ds = mixture_or_task.get_dataset(
+        sequence_length=task_feature_lengths,
+        split=dataset_split,
+        use_cached=use_cached,
+        shuffle=shuffle,
+        seed=seed,
+        shard_info=shard_info,
+        num_epochs=num_epochs,
+        batch_size=batch_size,
+        feature_converter=feature_converter,
+        trim_output_features=trim_output_features)
+  else:
+    ds = mixture_or_task.get_dataset(
+        task_feature_lengths,
+        split=dataset_split,
+        use_cached=use_cached,
+        shuffle=shuffle,
+        seed=seed,
+        shard_info=shard_info,
+        num_epochs=num_epochs,
+        trim_output_features=trim_output_features)
+    ds = feature_converter(ds, task_feature_lengths=task_feature_lengths)
+    if batch_size is not None:
+      ds = ds.batch(batch_size, drop_remainder=True)
 
   if verbose:
     logging.info(
         "The output dataset from seqio.get_dataset has the following features")
-    for feature_name, tensor_spec in ds.element_spec.items():
+    element_spec = utils.flatten_dict(ds.element_spec, delimiter=".")
+    for feature_name, tensor_spec in element_spec.items():
       if isinstance(tensor_spec, tf.TensorSpec):
         logging.info("feature: %s \t shape: %s \t dtype: %s", feature_name,
                      tensor_spec.shape.as_list(), tensor_spec.dtype.name)
-        continue
-      # Handle the case where ds is a nested map of depth 2.
-      for name, tspec in tensor_spec.items():
-        logging.info("feature: %s.%s \t shape: %s \t dtype: %s", feature_name,
-                     name, tspec.shape.as_list(), tspec.dtype.name)
+      else:
+        logging.error("Unknown tensor_spec type %s for feature %s.",
+                      type(tensor_spec), feature_name)
   return ds
