@@ -965,14 +965,11 @@ class Task(DatasetProviderBase):
       sequence_length: Optional[Mapping[str, int]] = None) -> tf.data.Dataset:
     """Sequentially applies preprocessors."""
     for prep_fn in preprocessors:
-      # prep_fn must not rely on variable length keyword args such as **kwargs.
-      fn_args = set(inspect.signature(prep_fn).parameters.keys())
-      kwargs = {}
-      if "sequence_length" in fn_args:
-        kwargs["sequence_length"] = sequence_length
-      if "output_features" in fn_args:
-        kwargs["output_features"] = self.output_features
-      dataset = prep_fn(dataset, **kwargs)
+      prep_fn = utils.add_kwargs_to_transform(
+          prep_fn,
+          sequence_length=sequence_length,
+          output_features=self.output_features)
+      dataset = prep_fn(dataset)
     return dataset
 
   def _validate_preprocessing(self,
