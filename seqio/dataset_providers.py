@@ -117,13 +117,13 @@ class DatasetProviderRegistry(object):
     cls._REGISTRY[name] = provider
 
   @classmethod
-  def add(cls, name: str, provider_cls, *provider_args, **provider_kwargs):
+  def add(cls, name: str, provider_cls, provider_kwargs):
     """Instantiates and adds provider to the registry."""
     if not issubclass(provider_cls, cls._PROVIDER_TYPE):
       raise ValueError("Attempting to register a class of an invalid type. "
                        "Expecting instance of %s, got %s" %
                        (cls._PROVIDER_TYPE, provider_cls))
-    provider = provider_cls(*provider_args, **provider_kwargs)  # pytype: disable=wrong-arg-types  # dynamic-method-lookup
+    provider = provider_cls(**provider_kwargs)  # pytype: disable=wrong-arg-types  # dynamic-method-lookup
     cls.add_provider(name, provider)
     return provider
 
@@ -1254,6 +1254,7 @@ class TaskRegistry(DatasetProviderRegistry):
   _REGISTRY = {}
   _PROVIDER_TYPE = Task
 
+  # pylint: disable=arguments-renamed
   @classmethod
   def add(cls,
           name: str,
@@ -1264,10 +1265,23 @@ class TaskRegistry(DatasetProviderRegistry):
           postprocess_fn: Optional[Callable[..., Any]] = None,
           metric_fns: Optional[Sequence[MetricFnCallable]] = None,
           metric_objs: Optional[Sequence[clu.metrics.Metric]] = None,
+          task_cls: Type[Task] = Task,
           **kwargs) -> Task:
     """See `Task` constructor for docstring."""
-    return super().add(name, Task, name, source, output_features, preprocessors,
-                       postprocess_fn, metric_fns, metric_objs, **kwargs)
+    provider_kwargs = {
+        "name": name,
+        "source": source,
+        "output_features": output_features,
+        "preprocessors": preprocessors,
+        "postprocess_fn": postprocess_fn,
+        "metric_fns": metric_fns,
+        "metric_objs": metric_objs,
+        **kwargs,
+    }
+    return super().add(
+        name, provider_cls=task_cls, provider_kwargs=provider_kwargs)
+
+  # pylint: enable=arguments-renamed
 
   @classmethod
   def get(cls, name) -> Task:
@@ -1599,14 +1613,28 @@ class MixtureRegistry(DatasetProviderRegistry):
   _REGISTRY = {}
   _PROVIDER_TYPE = Mixture
 
+  # pylint: disable=arguments-renamed
   @classmethod
-  def add(cls, name, tasks, default_rate=None, **kwargs) -> Mixture:
+  def add(cls,
+          name,
+          tasks,
+          default_rate=None,
+          mixture_cls: Type[Mixture] = Mixture,
+          **kwargs) -> Mixture:
     """See `Mixture` constructor for docstring."""
-    return super().add(name, Mixture, name, tasks, default_rate, **kwargs)
+    provider_kwargs = {
+        "name": name,
+        "tasks": tasks,
+        "default_rate": default_rate,
+        **kwargs,
+    }
+    return super().add(
+        name, provider_cls=mixture_cls, provider_kwargs=provider_kwargs)
 
   @classmethod
   def get(cls, name) -> Mixture:
     return super().get(name)
+  # pylint: enable=arguments-renamed
 
 
 def get_mixture_or_task(task_or_mixture_name):
