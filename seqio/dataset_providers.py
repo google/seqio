@@ -955,6 +955,23 @@ class Task(DatasetProviderBase):
   def postprocessor(self) -> Callable[..., Any]:
     return self._postprocess_fn
 
+  @property
+  def shuffle_buffer_size(self) -> int:
+    return self._shuffle_buffer_size
+
+  def replace(self, **kwargs):
+    """Create a new variant of the current task using properties in kwargs."""
+    properties = ["name", "source", "output_features", "preprocessors",
+                  "metric_fns", "metric_objs", "shuffle_buffer_size"]
+    task_kwargs = {}
+    for key in properties:
+      if key in kwargs:
+        value = kwargs[key]
+      else:
+        value = getattr(self, key)
+      task_kwargs[key] = value
+    return Task(**task_kwargs)
+
   def num_input_examples(self, split: str) -> Optional[int]:
     return self.source.num_input_examples(split)
 
@@ -1405,7 +1422,8 @@ class Mixture(DatasetProviderBase):
     """Throw Exception if features across tasks have different vocabs or dtypes."""
     for name, feature in self.tasks[0].output_features.items():
       for task in self.tasks[1:]:
-        if task.output_features[name].vocabulary != feature.vocabulary:
+        if (hasattr(feature, "vocabulary") and
+            task.output_features[name].vocabulary != feature.vocabulary):
           raise ValueError(
               "Features across tasks in a mixture must use the same vocabulary."
           )

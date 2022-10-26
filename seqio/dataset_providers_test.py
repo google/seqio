@@ -913,6 +913,13 @@ class TasksTest(test_utils.FakeTaskTest):
         _get_formatted_shards_list("cached_plaintext_task", "train"),
         ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"])
 
+  def test_replace(self):
+    task = TaskRegistry.get("tfds_task")
+    new_task = task.replace(name="new_tfds_task",
+                            shuffle_buffer_size=10000)
+    self.assertEqual("new_tfds_task", new_task.name)
+    self.assertEqual(10000, new_task.shuffle_buffer_size)
+
 
 
 
