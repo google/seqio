@@ -27,6 +27,7 @@ from seqio import metrics as metrics_lib
 from seqio import preprocessors
 from seqio import test_utils
 from seqio import utils
+from seqio import vocabularies
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
@@ -1215,6 +1216,39 @@ class EvaluationTest(tf.test.TestCase):
 
     self.assertDictClose({"total_score_with_intermediates": 66505},
                          results["mocked_test"])
+
+  def test_metric_with_arbitrary_model_input_types(self):
+    """Tests many input types for LegacyMetric.from_model_output()."""
+    task = get_mocked_task(
+        predict_metric_fns=[_sequence_accuracy_metric],
+        score_metric_fns=[_sum_scores_metric])
+    task.postprocess_fn = (lambda x, example, is_target: x
+                           if is_target else x.replace("e6", "e7"))
+    task.metric_objs = [
+        metrics_lib.LegacyMetric.empty(mf, task.postprocess_fn)
+        for mf in task.metric_fns
+    ]
+
+    model_inputs = [
+        [{"targets": [42]},],
+        [{"targets": [42.0]},],
+        [{"targets": np.array([0, 1, 2, 3])},],
+        [{"targets": np.ones(2**6).reshape((2, 2, 2, 2, 2, 2))},],
+        [{"targets": np.zeros((2, 2), dtype=np.complex_)},],
+        [{"targets": ["hello darkness, my old friend..."]},],
+        [{"targets": [u"á"]},],
+    ]
+
+    dummy_features = {
+        "targets": utils.Feature(
+            vocabulary=vocabularies.PassThroughVocabulary(size=4)
+        )
+    }
+    dummy_outputs = np.array([])
+
+    for inputs in model_inputs:
+      for metric_obj in task.metric_objs:
+        metric_obj.from_model_output(inputs, dummy_outputs, dummy_features)
 
 
 if __name__ == "__main__":

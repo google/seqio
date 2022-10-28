@@ -192,7 +192,7 @@ class LegacyMetric(Metric):
         target = ex[pretokenized_target_field_name]
       else:
         target = features[target_field_name].vocabulary.decode(
-            [int(x) for x in ex[target_field_name]])
+            list(ex[target_field_name]))
       if isinstance(target, bytes):
         target = target.decode("utf-8")
 
