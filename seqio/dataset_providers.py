@@ -1394,6 +1394,8 @@ class Mixture(DatasetProviderBase):
     for mix in self._sub_mixtures:
       if task in mix.tasks:
         rate = self._task_to_rate[mix.name]
+        if callable(rate):
+          rate = float(rate(task))
         value += rate * mix.get_rate(task) / mix.total_rate
 
     if task.name in self._task_to_rate:
