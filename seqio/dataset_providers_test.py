@@ -1111,6 +1111,21 @@ class MixturesTest(test_utils.FakeTaskTest):
     self.assertEqual([supermix.get_rate(t) for t in supermix.tasks],
                      [1.5, 0.5, 1])
 
+  def test_mixture_of_mixtures_get_rate_with_callable(self):
+    def fn(t):
+      del t
+      return 40
+    self.add_task("task3_a", self.function_source)
+    self.add_task("task3_b", self.function_source)
+    self.add_task("task3_c", self.function_source)
+    MixtureRegistry.add("another_mix3", [("task3_a", 1), ("task3_b", 3)])
+    MixtureRegistry.add("supermix3", [("another_mix3", fn), ("task3_c", fn)])
+    supermix = MixtureRegistry.get("supermix3")
+    names = [task.name for task in supermix.tasks]
+    self.assertEqual(names, ["task3_a", "task3_b", "task3_c"])
+    self.assertEqual([supermix.get_rate(t) for t in supermix.tasks],
+                     [10, 30, 40])
+
   def test_mixture_with_sample_fn(self):
 
     def sequential_intereave(datasets: Sequence[tf.data.Dataset],
