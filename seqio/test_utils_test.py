@@ -31,6 +31,8 @@ class TestUtilsTest(absltest.TestCase):
   def test_assert_dataset(self):
     first_dataset = tf.data.Dataset.from_tensor_slices(
         {'key1': ['val1'], 'key2': ['val2']})
+    ragged_tensor_dataset = tf.data.Dataset.from_tensor_slices(
+        {'key': tf.ragged.constant([[[1.0, 2.0], [3.0]]])})
     float_dataset = tf.data.Dataset.from_tensor_slices({
         'float_key1': [0.2, 0.3],
         'float_key2': [0.4, 0.5]
@@ -40,6 +42,9 @@ class TestUtilsTest(absltest.TestCase):
     assert_dataset(first_dataset, {'key1': [b'val1'], 'key2': [b'val2']})
     assert_dataset(first_dataset, {'key1': [b'val1'], 'key2': [b'val2']},
                    expected_dtypes={'key1': tf.string})
+
+    # Equal ragged tensor
+    assert_dataset(ragged_tensor_dataset, {'key': [[1.0, 2.0], [3.0]]})
 
     # Equal floating-point
     assert_dataset(float_dataset, [{
@@ -62,6 +67,9 @@ class TestUtilsTest(absltest.TestCase):
     # Unequal value
     with self.assertRaises(AssertionError):
       assert_dataset(first_dataset, {'key1': [b'val1'], 'key2': [b'val2x']})
+
+    with self.assertRaises(AssertionError):
+      assert_dataset(ragged_tensor_dataset, {'key': [[1.0], [3.0]]})
 
     # Unequal floating-point, not close enough.
     with self.assertRaises(AssertionError):
