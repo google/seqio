@@ -584,9 +584,9 @@ def test_token_preprocessor(dataset, output_features, sequence_length):
 
 
 @dataset_utils.map_over_dataset(num_seeds=1)
-def random_token_preprocessor(ex, seed):
+def random_token_preprocessor(ex, seed, sequence_length):
   """Selects a random shift to roll the tokens by for each feature."""
-  for feat in ["inputs", "targets"]:
+  for feat in sequence_length:
     tokens = ex[feat]
     res = ex.copy()
     n_tokens = tf.size(tokens)

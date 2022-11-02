@@ -20,7 +20,7 @@ import dataclasses
 import functools
 import inspect
 import os
-from typing import Dict, Mapping, Optional, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Union
 
 from absl import logging
 import numpy as np
@@ -34,6 +34,8 @@ _TFRECORD_PREFIX = "{split}.tfrecord"
 
 _TFDS_DATA_DIR_OVERRIDE = None
 _GLOBAL_CACHE_DIRECTORIES = []
+_MapTransform = object
+_RandomMapTransform = object
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1073,6 +1075,95 @@ def map_seed_manager(initial_seed=None):
   _NEXT_MAP_SEED = old_map_seed
 
 
+_SPECIAL_KWARGS = ("sequence_length", "output_features")
+
+
+@dataclasses.dataclass
+class _GrainRandomMapFn(_RandomMapTransform):
+  """Grain Transform to represent existing SeqIO random map preprocessors."""
+  map_fn: Callable[..., Any]
+  num_seeds: int
+  num_parallel_calls: int = tf.data.AUTOTUNE
+
+  # These are set by SeqIO before applying the preprocessor or before passing
+  # it to Grain.
+  sequence_length: Optional[Mapping[str, int]] = None
+  output_features: Optional[Mapping[str, Any]] = None
+
+  def _map_fn_with_special_kwargs(self, *args, **kwargs):
+    """Handle _SPECIAL_KWARGS before calling self.map_fn()."""
+    special_kwargs = {
+        k: getattr(self, k)
+        for k in _SPECIAL_KWARGS
+        if getattr(self, k) is not None
+    }
+    map_fn = add_kwargs_to_transform(self.map_fn, **special_kwargs)
+    return map_fn(*args, **kwargs)
+
+  # Path for Grain. Uses seed provided by Grain.
+  def random_map(self, element, rng: tf.Tensor):
+    if self.num_seeds == 1:
+      return self._map_fn_with_special_kwargs(element, seed=rng)
+    rngs = tf.random.experimental.stateless_split(rng, self.num_seeds)
+    rngs = tf.unstack(rngs)
+    return self._map_fn_with_special_kwargs(element, seeds=rngs)
+
+  # Path for SeqIO; preserves legacy logic to manage seeds and differs in
+  # seed-management behavior in Grain.
+  def __call__(self, dataset: tf.data.Dataset, *args, **kwargs):
+    global _NEXT_MAP_SEED
+    if _NEXT_MAP_SEED is None:
+      random_ds_seeds = ((None, None),) * self.num_seeds
+    else:
+      random_ds_seeds = np.arange(_NEXT_MAP_SEED, _NEXT_MAP_SEED +
+                                  2 * self.num_seeds).reshape(-1, 2)
+      random_ds_seeds = tuple(tuple(s) for s in random_ds_seeds)
+      _NEXT_MAP_SEED += 2 * self.num_seeds
+    seed_datasets = tf.nest.map_structure(tf.data.experimental.RandomDataset,
+                                          random_ds_seeds)
+    def map_fn(element, seeds):
+      if self.num_seeds == 1:
+        return self._map_fn_with_special_kwargs(
+            element, seed=seeds[0], *args, **kwargs)
+      return self._map_fn_with_special_kwargs(
+          element, seeds=seeds, *args, **kwargs)
+    return tf.data.Dataset.zip((dataset, seed_datasets)).map(
+        map_fn, num_parallel_calls=self.num_parallel_calls)
+
+
+@dataclasses.dataclass
+class _GrainMapFn(_MapTransform):
+  """Grain Transform to represent existing SeqIO map preprocessors."""
+  map_fn: Callable[..., Any]
+  num_parallel_calls: int
+
+  # These are set by SeqIO before applying the preprocessor or before passing
+  # it to Grain.
+  sequence_length: Optional[Mapping[str, int]] = None
+  output_features: Optional[Mapping[str, Any]] = None
+
+  def _map_fn_with_special_kwargs(self, *args, **kwargs):
+    """Handle _SPECIAL_KWARGS before calling self.map_fn()."""
+    special_kwargs = {
+        k: getattr(self, k)
+        for k in _SPECIAL_KWARGS
+        if getattr(self, k) is not None
+    }
+    map_fn = add_kwargs_to_transform(self.map_fn, **special_kwargs)
+    return map_fn(*args, **kwargs)
+
+  # Path for Grain
+  def map(self, element):
+    return self._map_fn_with_special_kwargs(element)
+
+  # Path for SeqIO
+  def __call__(self, dataset: tf.data.Dataset, *args,
+               **kwargs) -> tf.data.Dataset:
+    return dataset.map(
+        lambda x: self._map_fn_with_special_kwargs(x, *args, **kwargs),
+        num_parallel_calls=self.num_parallel_calls)
+
+
 def map_over_dataset(fn=None,
                      *,
                      num_seeds=None,
@@ -1098,16 +1189,13 @@ def map_over_dataset(fn=None,
     num_parallel_calls: num_parallel_calls value to pass to Dataset.map
 
   Returns:
-    Function which takes dataset as first argument.
+    Callable transform which takes dataset as first argument.
   """
-
   def map_without_seeds(fn):
 
     @functools.wraps(fn)
-    def wrapped_fn(ds, *args, **kargs):
-      return ds.map(
-          lambda arg: fn(arg, *args, **kargs),
-          num_parallel_calls=num_parallel_calls)
+    def wrapped_fn(ds, *args, **kwargs):
+      return _GrainMapFn(fn, num_parallel_calls)(ds, *args, **kwargs)
 
     return wrapped_fn
 
@@ -1115,23 +1203,8 @@ def map_over_dataset(fn=None,
 
     @functools.wraps(fn)
     def wrapped_fn(ds, *args, **kwargs):
-      global _NEXT_MAP_SEED
-      if _NEXT_MAP_SEED is None:
-        random_ds_seeds = ((None, None),) * num_seeds
-      else:
-        random_ds_seeds = np.arange(_NEXT_MAP_SEED,
-                                    _NEXT_MAP_SEED + 2 * num_seeds).reshape(
-                                        -1, 2)
-        random_ds_seeds = tuple(tuple(s) for s in random_ds_seeds)
-        _NEXT_MAP_SEED += 2 * num_seeds
-      seed_datasets = tf.nest.map_structure(tf.data.experimental.RandomDataset,
-                                            random_ds_seeds)
-      if num_seeds == 1:
-        map_fn = lambda x, s: fn(x, seed=s[0], *args, **kwargs)
-      else:
-        map_fn = lambda x, s: fn(x, seeds=s, *args, **kwargs)
-      return tf.data.Dataset.zip((ds, seed_datasets)).map(
-          map_fn, num_parallel_calls=num_parallel_calls)
+      return _GrainRandomMapFn(fn, num_seeds,
+                               num_parallel_calls)(ds, *args, **kwargs)
 
     return wrapped_fn
 

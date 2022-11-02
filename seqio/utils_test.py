@@ -148,6 +148,121 @@ class TransformUtilsTest(parameterized.TestCase):
     self.assertEqual(60, fn(3))
 
 
+class MapOverDatasetTest(parameterized.TestCase):
+
+  def test_map_fn_simple(self):
+
+    @utils.map_over_dataset
+    def fn(ex):
+      ex["field"] += 1
+      return ex
+
+    ds = tf.data.Dataset.from_tensor_slices({"field": range(10)})
+    mapped_ds = fn(ds)
+    expected_ds = [{"field": i + 1} for i in range(10)]
+    self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
+
+  def test_map_fn_with_kwargs(self):
+    @utils.map_over_dataset
+    def fn(ex, val):
+      ex["field"] += val
+      return ex
+
+    ds = tf.data.Dataset.from_tensor_slices({"field": range(10)})
+    mapped_ds = functools.partial(fn, val=2)(ds)
+    expected_ds = [{"field": i + 2} for i in range(10)]
+    self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
+
+  def test_map_fn_with_special_kwargs(self):
+    @utils.map_over_dataset
+    def fn(ex, val, sequence_length):
+      for key in sequence_length:
+        ex[key] += val
+      return ex
+
+    ds = tf.data.Dataset.from_tensor_slices({"field": range(10)})
+    # Special kwargs are configured when the preprocessor is called. Other
+    # kwargs are configured when the preprocessor is created. Imitate this in
+    # the following invocation.
+    mapped_ds = functools.partial(fn, val=2)(ds, sequence_length={"field": -1})
+    expected_ds = [{"field": i + 2} for i in range(10)]
+    self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
+
+  def test_random_map_fn_simple(self):
+
+    @utils.map_over_dataset(num_seeds=1)
+    def fn(ex, seed):
+      rand_int = tf.random.stateless_uniform([], seed, 0, 10, tf.int32)
+      ex["field"] += rand_int
+      return ex
+
+    ds = tf.data.Dataset.from_tensor_slices({"field": range(10)})
+    for _ in range(3):  # reproducible with fixed initial seed
+      with utils.map_seed_manager(initial_seed=123):
+        mapped_ds = fn(ds)  # pylint: disable=no-value-for-parameter
+      results = [7, 5, 6, 6, 7, 11, 12, 16, 15, 15]
+      expected_ds = [{"field": results[i]} for i in range(10)]
+      print("gaurav", list(mapped_ds.as_numpy_iterator()))
+      self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
+
+  def test_random_map_fn_with_kwargs(self):
+    @utils.map_over_dataset(num_seeds=1)
+    def fn(ex, seed, val):
+      rand_int = tf.random.stateless_uniform([], seed, 0, 10, tf.int32)
+      ex["field"] += rand_int + val
+      return ex
+
+    ds = tf.data.Dataset.from_tensor_slices({"field": range(10)})
+    for _ in range(3):  # reproducible with fixed initial seed
+      with utils.map_seed_manager(initial_seed=123):
+        mapped_ds = functools.partial(fn, val=1)(ds)  # pylint: disable=no-value-for-parameter
+      results = [8, 6, 7, 7, 8, 12, 13, 17, 16, 16]
+      expected_ds = [{"field": results[i]} for i in range(10)]
+      self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
+
+  def test_random_map_fn_with_special_kwargs(self):
+    @utils.map_over_dataset(num_seeds=1)
+    def fn(ex, seed, val, sequence_length):
+      for key in sequence_length:
+        rand_int = tf.random.stateless_uniform([], seed, 0, 10, tf.int32)
+        ex[key] += rand_int + val
+      return ex
+
+    ds = tf.data.Dataset.from_tensor_slices({"field": range(10)})
+    for _ in range(3):  # reproducible with fixed initial seed
+      with utils.map_seed_manager(initial_seed=123):
+        # Special kwargs are configured when the preprocessor is called. Other
+        # kwargs are configured when the preprocessor is created. Imitate this
+        # in the following invocation.
+        map_fn = functools.partial(fn, val=1)
+        mapped_ds = map_fn(ds, sequence_length={"field": -1})  # pylint: disable=no-value-for-parameter
+      results = [8, 6, 7, 7, 8, 12, 13, 17, 16, 16]
+      expected_ds = [{"field": results[i]} for i in range(10)]
+      self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
+
+  def test_multi_seed_random_map_fn_special_kwargs(self):
+    @utils.map_over_dataset(num_seeds=2)
+    def fn(ex, seeds, val, sequence_length):
+      for key in sequence_length:
+        rand_int_1 = tf.random.stateless_uniform([], seeds[0], 0, 10, tf.int32)
+        rand_int_2 = tf.random.stateless_uniform([], seeds[1], 0, 10, tf.int32)
+        ex[key] += rand_int_1 + rand_int_2 + val
+      return ex
+
+    ds = tf.data.Dataset.from_tensor_slices({"field": range(10)})
+    for _ in range(3):  # reproducible with fixed initial seed
+      with utils.map_seed_manager(initial_seed=123):
+        # Special kwargs are configured when the preprocessor is called. Other
+        # kwargs are configured when the preprocessor is created. Imitate this
+        # in the following invocation.
+        map_fn = functools.partial(fn, val=1)
+        mapped_ds = map_fn(ds, sequence_length={"field": -1})  # pylint: disable=no-value-for-parameter
+      results = [13, 15, 16, 13, 9, 16, 15, 26, 18, 16]
+      expected_ds = [{"field": results[i]} for i in range(10)]
+      print("gaurav", list(mapped_ds.as_numpy_iterator()))
+      self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
+
+
 class UtilsTest(parameterized.TestCase, tf.test.TestCase):
   _tfdict = {
       "bool":
