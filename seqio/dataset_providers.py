@@ -606,6 +606,8 @@ class TFExampleDataSource(FileDataSource):
       return reader_cls(filepattern).map(
           parse_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
+    self.reader_cls = reader_cls
+    self.parse_fn = parse_fn
     super().__init__(
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
