@@ -25,6 +25,7 @@ seqio_cache_tasks \
 
 """
 
+import hashlib
 import importlib
 import os
 import re
@@ -86,6 +87,9 @@ flags.DEFINE_string(
     "TensorFlow Datasets that are not available in the public TFDS GCS "
     "bucket. Note that this flag overrides the `tfds_data_dir` attribute of "
     "all `Task`s.")
+flags.DEFINE_integer(
+    "base_seed", None,
+    "The base seed used to reproducibly generate seeds for preprocessing.")
 
 
 def _import_modules(modules):
@@ -175,9 +179,18 @@ def run_pipeline(pipeline,
 
     for split in task.splits:
       label = "%s_%s" % (task.name, split)
-
+      if FLAGS.base_seed and FLAGS.base_seed != -1:
+        # Create a unique, deterministic preprocessors seed for the task.
+        task_uid = hashlib.md5(task.name.encode()).digest()
+        task_preprocessor_seed = int.from_bytes(task_uid,
+                                                "little") + FLAGS.base_seed
+      else:
+        task_preprocessor_seed = None
       pat = beam_utils.PreprocessTask(
-          task, split, modules_to_import=modules_to_import,
+          task,
+          split,
+          modules_to_import=modules_to_import,
+          preprocessors_seed=task_preprocessor_seed,
           tfds_data_dir=FLAGS.tfds_data_dir)
       num_shards = max(len(pat.shards), FLAGS.min_shards)
       examples = (
