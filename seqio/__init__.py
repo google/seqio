@@ -16,6 +16,8 @@
 # pylint:disable=wildcard-import,g-bad-import-order
 
 from seqio.dataset_providers import *
+from seqio.grain_dataset_providers import *
+from seqio.dataset_providers_helpers import *
 from seqio import evaluation
 from seqio import experimental
 from seqio.evaluation import Evaluator

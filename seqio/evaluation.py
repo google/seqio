@@ -25,6 +25,7 @@ from absl import logging
 import jax
 import numpy as np
 from seqio import dataset_providers
+from seqio import dataset_providers_helpers
 from seqio import feature_converters
 from seqio import loggers as loggers_lib
 from seqio import metrics as metrics_lib
@@ -352,8 +353,8 @@ class Evaluator:
       value.
     """
     logging.info("Initializing Evaluator for '%s'", mixture_or_task_name)
-    eval_tasks = dataset_providers.get_subtasks(
-        dataset_providers.get_mixture_or_task(mixture_or_task_name))
+    eval_tasks = dataset_providers_helpers.get_subtasks(
+        dataset_providers_helpers.get_mixture_or_task(mixture_or_task_name))
     self._eval_tasks = get_valid_eval_tasks(eval_tasks, eval_split)
 
     self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
