@@ -20,7 +20,6 @@ import dataclasses
 from typing import Mapping, Optional, Sequence, Union
 
 from seqio import dataset_providers as dp
-from seqio import dataset_providers_helpers
 from seqio import vocabularies as vc
 import tensorflow.compat.v2 as tf
 
@@ -81,11 +80,9 @@ def mixture_or_task_with_new_vocab(
               f"new_output_features: {new_output_features} incompatible with "
               f"original output_features: {og_output_features}")
 
-  task_or_mixture = dataset_providers_helpers.get_mixture_or_task(
-      mixture_or_task_name)
-  if isinstance(task_or_mixture, dp.Task):
+  if mixture_or_task_name in dp.TaskRegistry.names():
     # This is a Task. Create a new Task with the provided vocab/output_features.
-    og_task: dp.Task = task_or_mixture
+    og_task: dp.Task = dp.get_mixture_or_task(mixture_or_task_name)
 
     if new_vocab:
       new_output_features = {
@@ -109,7 +106,7 @@ def mixture_or_task_with_new_vocab(
 
   # This is a Mixture. Create and register new sub-Tasks/Mixtures with the
   # provided vocab/output_features, then create a new Mixture.
-  og_mix: dp.Mixture = task_or_mixture
+  og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_or_task_name)
 
   new_tasks_and_rates = []
   for task_name, rate in og_mix._task_to_rate.items():
@@ -230,10 +227,9 @@ def mixture_or_task_with_truncated_data(
     The new `Task` or `Mixture` object.
   """
 
-  task_or_mixture = dataset_providers_helpers.get_mixture_or_task(
-      mixture_or_task_name)
-  if isinstance(task_or_mixture, dp.Task):
-    og_task: dp.Task = task_or_mixture
+  if mixture_or_task_name in dp.TaskRegistry.names():
+    # This is a `Task`.
+    og_task: dp.Task = dp.get_mixture_or_task(mixture_or_task_name)
 
     new_task = dp.Task(
         new_mixture_or_task_name,
@@ -252,7 +248,7 @@ def mixture_or_task_with_truncated_data(
   else:
     # This is a Mixture. Create and register new sub-Tasks/Mixtures with the
     # provided vocab/output_features, then create a new Mixture.
-    og_mix: dp.Mixture = task_or_mixture
+    og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_or_task_name)
 
     new_tasks_and_rates = []
     for task_name, rate in og_mix._task_to_rate.items():
@@ -300,12 +296,10 @@ def mixture_with_missing_task_splits_removed(
   Returns:
     The new `Mixture` object.
   """
-  og_mix = dataset_providers_helpers.get_mixture_or_task(mixture_name)
-  assert isinstance(og_mix, dp.Mixture)
+  og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_name)
   new_tasks_and_rates = []
   for task_name, rate in og_mix._task_to_rate.items():
-    subtask = dataset_providers_helpers.get_mixture_or_task(task_name)
-    assert isinstance(subtask, dp.Task)
+    subtask: dp.Task = dp.get_mixture_or_task(task_name)
     if split in subtask.splits:
       new_tasks_and_rates.append((subtask.name, rate))
   new_mix = dp.Mixture(
