@@ -20,14 +20,13 @@ import functools
 import os
 import shutil
 import sys
-from typing import Any, Iterator, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Iterator, Mapping, Optional, Sequence, Union, Tuple
 
 from absl import flags
 from absl import logging
 from absl.testing import absltest
 import numpy as np
 from seqio import dataset_providers
-from seqio import dataset_providers_helpers
 from seqio import evaluation
 from seqio import feature_converters
 from seqio import preprocessors
@@ -616,10 +615,10 @@ class DataInjector():
   """
 
   def __init__(self, task_name, per_split_data):
-    self._task = dataset_providers_helpers.get_mixture_or_task(task_name)
+    self._task = dataset_providers.get_mixture_or_task(task_name)
 
     self.per_split_data = per_split_data
-    self._saved_source = self._task._source  # pytype: disable=attribute-error
+    self._saved_source = self._task._source
 
   def __enter__(self):
 
@@ -655,12 +654,12 @@ def assert_dict_contains(expected, actual):
 
 
 def encode_str(task_name, s, output_feature_name="targets"):
-  task = dataset_providers_helpers.get_mixture_or_task(task_name)
+  task = dataset_providers.get_mixture_or_task(task_name)
   return task.output_features[output_feature_name].vocabulary.encode(s)
 
 
 def create_prediction(task_name, s, output_feature_name="targets"):
-  task = dataset_providers_helpers.get_mixture_or_task(task_name)
+  task = dataset_providers.get_mixture_or_task(task_name)
   return [(0, task.output_features[output_feature_name].vocabulary.encode(s))]
 
 
@@ -746,7 +745,7 @@ def test_preprocessing(
 
   with DataInjector(task_name, raw_data):
     split = list(raw_data.keys())[0]
-    task = dataset_providers_helpers.get_mixture_or_task(task_name)
+    task = dataset_providers.get_mixture_or_task(task_name)
     iterator = task.get_dataset(
         sequence_length=sequence_length, split=split, shuffle=False,
         seed=seed).as_numpy_iterator()
@@ -837,7 +836,7 @@ def test_postprocessing(
                  model_feature_lengths: Optional[Mapping[str, int]] = None):
       if predict_output is None:
         return []
-      task = dataset_providers_helpers.get_mixture_or_task(task_name)
+      task = dataset_providers.get_mixture_or_task(task_name)
       return list(
           enumerate(
               task.output_features[target_feature_name].vocabulary.encode(s)

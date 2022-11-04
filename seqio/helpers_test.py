@@ -18,7 +18,6 @@ import functools
 
 from absl.testing import absltest
 from seqio import dataset_providers as dp
-from seqio import dataset_providers_helpers
 from seqio import helpers
 from seqio import preprocessors as pr
 from seqio import test_utils
@@ -50,7 +49,7 @@ class HelpersTest(test_utils.FakeTaskTest):
         })
     helpers.mixture_or_task_with_new_vocab(
         "my_test_task", "my_new_test_task", new_vocab=VOCAB2)
-    new_task = dataset_providers_helpers.get_mixture_or_task("my_new_test_task")
+    new_task = dp.get_mixture_or_task("my_new_test_task")
     self.assertEqual(new_task.source, test_task.source)
     self.assertEqual(new_task.preprocessors, test_task.preprocessors)
     self.assertEqual(
@@ -122,15 +121,13 @@ class HelpersTest(test_utils.FakeTaskTest):
         add_to_seqio_registry=True)
 
     # Step 4: Get new Tasks and Mixtures from the Registry.
-    new_mix = dataset_providers_helpers.get_mixture_or_task("my_new_test_mix2")
-    new_submix = dataset_providers_helpers.get_mixture_or_task(
-        "my_new_test_mix2.my_test_mix1")
-    new_submix_subtask1 = dataset_providers_helpers.get_mixture_or_task(
+    new_mix = dp.get_mixture_or_task("my_new_test_mix2")
+    new_submix = dp.get_mixture_or_task("my_new_test_mix2.my_test_mix1")
+    new_submix_subtask1 = dp.get_mixture_or_task(
         "my_new_test_mix2.my_test_mix1.my_test_task1")
-    new_submix_subtask2 = dataset_providers_helpers.get_mixture_or_task(
+    new_submix_subtask2 = dp.get_mixture_or_task(
         "my_new_test_mix2.my_test_mix1.my_test_task2")
-    new_subtask = dataset_providers_helpers.get_mixture_or_task(
-        "my_new_test_mix2.my_test_task1")
+    new_subtask = dp.get_mixture_or_task("my_new_test_mix2.my_test_task1")
 
     # Step 5: Verify mixing rates for new mixtures.
     self.assertDictEqual(new_mix._task_to_rate, {
@@ -207,14 +204,12 @@ class HelpersTest(test_utils.FakeTaskTest):
 
     # Step 4: Get new Tasks and Mixtures from the Registry.
     self.assertNotIn("my_new_test_mix2", dp.MixtureRegistry.names())
-    new_submix = dataset_providers_helpers.get_mixture_or_task(
-        "my_new_test_mix2.my_test_mix1")
-    new_submix_subtask1 = dataset_providers_helpers.get_mixture_or_task(
+    new_submix = dp.get_mixture_or_task("my_new_test_mix2.my_test_mix1")
+    new_submix_subtask1 = dp.get_mixture_or_task(
         "my_new_test_mix2.my_test_mix1.my_test_task1")
-    new_submix_subtask2 = dataset_providers_helpers.get_mixture_or_task(
+    new_submix_subtask2 = dp.get_mixture_or_task(
         "my_new_test_mix2.my_test_mix1.my_test_task2")
-    new_subtask = dataset_providers_helpers.get_mixture_or_task(
-        "my_new_test_mix2.my_test_task1")
+    new_subtask = dp.get_mixture_or_task("my_new_test_mix2.my_test_task1")
 
     # Step 5: Verify mixing rates for new mixtures.
     self.assertDictEqual(new_mix._task_to_rate, {
@@ -295,7 +290,7 @@ class HelpersTest(test_utils.FakeTaskTest):
         })
     helpers.mixture_or_task_with_truncated_data(
         "my_test_task", "my_new_test_task", split_sizes={"train": 1})
-    new_task = dataset_providers_helpers.get_mixture_or_task("my_new_test_task")
+    new_task = dp.get_mixture_or_task("my_new_test_task")
     ds = new_task.get_dataset(_SEQUENCE_LENGTH, "train")
     examples = list(ds.as_numpy_iterator())
     self.assertEqual(len(examples), 1)
