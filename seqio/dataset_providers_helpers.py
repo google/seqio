@@ -18,7 +18,7 @@ Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 """
 
 import re
-from typing import Mapping, Optional, Union
+from typing import Mapping, Optional
 
 from absl import logging
 from seqio import dataset_providers
@@ -36,9 +36,7 @@ SHUFFLE_BUFFER_SIZE = 1000
 Feature = utils.Feature
 
 
-def get_mixture_or_task(
-    task_or_mixture_name
-) -> Union[dataset_providers.Task, dataset_providers.Mixture]:
+def get_mixture_or_task(task_or_mixture_name):
   """Return the Task or Mixture from the appropriate registry."""
   mixtures = dataset_providers.MixtureRegistry.names()
   tasks = dataset_providers.TaskRegistry.names()
