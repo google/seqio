@@ -128,6 +128,8 @@ def run_pipeline(pipeline,
       continue
 
     task_cache_dir = task.cache_dir
+    if task_cache_dir:
+      task.assert_cached()
     output_dir = os.path.join(
         cache_dir, seqio.get_task_dir_from_name(task.name))
 

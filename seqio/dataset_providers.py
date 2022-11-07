@@ -1122,6 +1122,8 @@ class Task(DatasetProviderBase):
     """Raises an assertion error if cached dataset does not exist."""
     assert self.cache_dir, (
         f"'{self.name}' does not exist in any of the task cache directories.")
+    assert tf.io.gfile.exists(os.path.join(self.cache_dir, "COMPLETED")), (
+        f"Couldn't find '{self.name}' cached in {self.cache_dir}.")
 
   def get_cached_stats(self,
                        split: str = tfds.Split.TRAIN
