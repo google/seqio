@@ -1282,3 +1282,14 @@ class PrePackedLMFeatureConverter(PassThroughFeatureConverter):
             self._set_shape_and_filter,
             task_feature_lengths=task_feature_lengths),
         num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+
+class GrainFeatureConverter(FeatureConverter):
+  """Feature converter for Grain data pipeline."""
+
+  def get_grain_transforms(self, task_feature_lengths: Mapping[str, int],
+                           batch_size: int):
+    raise NotImplementedError(
+        "Need to implement the `get_grain_transforms` method which returns "
+        "grain.Transformations."
+        )
