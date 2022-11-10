@@ -15,7 +15,6 @@
 """SeqIO Beam utilities."""
 
 import functools
-import hashlib
 import importlib
 import json
 import operator
@@ -106,10 +105,7 @@ class PreprocessTask(beam.PTransform):
     ds = ds.prefetch(tf.data.AUTOTUNE)
 
     # Create a unique, deterministic preprocessors seed for each task and shard.
-    shard_preprocessors_seed = int.from_bytes(
-        hashlib.md5(
-            (self._task.name + f"shard{shard_index}").encode()).digest(),
-        "little") + (self._preprocessors_seed or 0)
+    shard_preprocessors_seed = shard_index + (self._preprocessors_seed or 0)
 
     ds = self._task.preprocess_precache(ds, seed=shard_preprocessors_seed)
 
