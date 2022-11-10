@@ -17,6 +17,7 @@
 # pylint:disable=protected-access
 
 import dataclasses
+import inspect
 from typing import Mapping, Optional, Sequence, Union
 
 from seqio import dataset_providers as dp
@@ -30,7 +31,8 @@ def mixture_or_task_with_new_vocab(
     *,
     new_vocab: Optional[vc.Vocabulary] = None,
     new_output_features: Optional[Mapping[str, dp.Feature]] = None,
-    add_to_seqio_registry: bool = True) -> Union[dp.Task, dp.Mixture]:
+    add_to_seqio_registry: bool = True,
+    add_cache_placeholder: bool = False) -> Union[dp.Task, dp.Mixture]:
   """Creates a new Task/Mixture from a given Task/Mixture with a new vocabulary.
 
   Args:
@@ -55,6 +57,8 @@ def mixture_or_task_with_new_vocab(
     add_to_seqio_registry: If True, adds the new Task/Mixture to the SeqIO
       Registry. For Mixtures, sub-Tasks/Mixtures are always registered so that
       the new Mixture can refer to these.
+    add_cache_placeholder: If True, adds CacheDatasetPlaceholder in new tasks
+      if their old tasks do not have it.
 
   Returns:
     The new `Task` or `Mixture` object.
@@ -92,11 +96,29 @@ def mixture_or_task_with_new_vocab(
     else:
       _validate_output_features(og_task.output_features, new_output_features)
 
+    preprocessors = og_task.preprocessors
+    if add_cache_placeholder:
+      no_cache_placeholder = True
+      for prep in preprocessors:
+        if isinstance(prep, dp.CacheDatasetPlaceholder):
+          no_cache_placeholder = False
+          break
+      if no_cache_placeholder:
+        #  check the first preprocessor requiring "sequence_length" arg
+        #  and insert the cache placeholder before it
+        preprocessors = list(preprocessors)
+        insert_pos = len(preprocessors)
+        for pos, prep in enumerate(preprocessors):
+          if "sequence_length" in inspect.signature(prep).parameters.keys():
+            insert_pos = pos
+            break
+        preprocessors.insert(insert_pos, dp.CacheDatasetPlaceholder())
+
     new_task = dp.Task(
         new_mixture_or_task_name,
         source=og_task.source,
         output_features=new_output_features,
-        preprocessors=og_task.preprocessors,
+        preprocessors=preprocessors,
         postprocess_fn=og_task.postprocessor,
         metric_fns=og_task.metric_fns,
         shuffle_buffer_size=og_task._shuffle_buffer_size)
