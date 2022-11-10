@@ -1203,9 +1203,9 @@ class Task(DatasetProviderBase):
                    "data source" if shard_data_source else "examples",
                    shard_info.index, shard_info.num_shards)
     else:
-      # No sharding.
-      shard_data_source = False
-      shard_info = ShardInfo(0, 1)
+      # Call get_dataset on the source without a shard_info.
+      shard_data_source = True
+      shard_info = None
 
     if shard_data_source:
       ds = source.get_dataset(
