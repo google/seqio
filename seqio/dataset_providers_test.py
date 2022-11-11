@@ -1162,6 +1162,18 @@ class MixturesTest(test_utils.FakeTaskTest):
     actual = [x["inputs"] for x in sequential_ds.as_numpy_iterator()]
     self.assertEqual(expected, actual)
 
+  def test_mixture_with_no_tasks(self):
+    with self.assertRaises(ValueError):
+      MixtureRegistry.add("trivial_mixture", [])
+
+  def test_mixture_of_tasks_with_different_features(self):
+    self.add_task("task3_a", self.function_source)
+    self.add_task("task3_b", self.function_source,
+                  output_features={"different_feature": None})
+    with self.assertRaises(ValueError):
+      MixtureRegistry.add("mixture_with_different_features",
+                          ["task3_a", "task3_b"])
+
 
 class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
 

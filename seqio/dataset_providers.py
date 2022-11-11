@@ -1370,6 +1370,9 @@ class Mixture(DatasetProviderBase):
         self._sub_mixtures.append(MixtureRegistry.get(task_name))  # pytype:disable=name-error
         self._task_to_rate[task_name] = rate
 
+    if not self.tasks:
+      raise ValueError("A Mixture must have at least one Task.")
+
     if len(set(tuple(t.output_features) for t in self.tasks)) != 1:
       raise ValueError(
           "All Tasks in a Mixture must have the same output features.")
