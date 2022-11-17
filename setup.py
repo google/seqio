@@ -43,6 +43,7 @@ setuptools.setup(
     install_requires=[
         'absl-py',
         'clu',
+        'editdistance',
         'jax',
         'jaxlib',
         'numpy',

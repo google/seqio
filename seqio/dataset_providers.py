@@ -23,12 +23,14 @@ import dataclasses
 import functools
 import inspect
 import json
+import operator
 import os
 import re
-from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union, List
+from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
 import clu.metrics
+import editdistance
 import numpy as np
 from packaging import version
 from seqio import metrics as metrics_lib
@@ -1660,6 +1662,25 @@ class MixtureRegistry(DatasetProviderRegistry):
   # pylint: enable=arguments-renamed
 
 
+def _get_closest_names(candidate_names: Iterable[str],
+                       target_name: str) -> List[str]:
+  """Order candidate names by distance to target.
+
+  Args:
+    candidate_names: a list of candidate names to be ordered
+    target_name: target name for distance computation
+
+  Returns:
+    candidate names ordered by increasing distance to target_name.
+  """
+  name_to_dist = {}
+  for candidate_name in candidate_names:
+    name_to_dist[candidate_name] = editdistance.eval(candidate_name,
+                                                     target_name)
+  sorted_d = sorted(name_to_dist.items(), key=operator.itemgetter(1))
+  return [k for (k, v) in sorted_d]
+
+
 def get_mixture_or_task(task_or_mixture_name):
   """Return the Task or Mixture from the appropriate registry."""
   mixtures = MixtureRegistry.names()
@@ -1672,8 +1693,10 @@ def get_mixture_or_task(task_or_mixture_name):
   if task_or_mixture_name in tasks:
     return TaskRegistry.get(task_or_mixture_name)
   else:
-    for available_task in sorted(tasks):
-      logging.info("Available task: %s", available_task)
+    logging.info("TaskRegistry has %s tasks", len(tasks))
+    for available_task in _get_closest_names(tasks, task_or_mixture_name):
+      logging.info("Available task (starting from least distance to %s): %s",
+                   task_or_mixture_name, available_task)
     for available_mixture in sorted(mixtures):
       logging.info("Available mixture: %s", available_mixture)
     raise ValueError("No Task or Mixture found with name '%s'." %
