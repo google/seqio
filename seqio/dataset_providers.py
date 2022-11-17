@@ -1688,7 +1688,7 @@ def get_subtasks(task_or_mixture):
     return task_or_mixture.tasks
 
 
-def get_dataset(mixture_or_task_name: str,
+def get_dataset(mixture_or_task_name: Union[str, Task, Mixture],
                 task_feature_lengths: Mapping[str, int],
                 feature_converter: FeatureConverter,
                 dataset_split: str = "train",
@@ -1740,7 +1740,8 @@ def get_dataset(mixture_or_task_name: str,
     raise TypeError(
         "feature_converter should be an instance of FeatureConverter.")
 
-  mixture_or_task = get_mixture_or_task(mixture_or_task_name)
+  mixture_or_task = get_mixture_or_task(mixture_or_task_name) if not isinstance(
+      mixture_or_task_name, DatasetProviderBase) else mixture_or_task_name
   is_grain_task = False
   if is_grain_task:
     ds = mixture_or_task.get_dataset(
