@@ -1373,11 +1373,14 @@ class Mixture(DatasetProviderBase):
         self._task_to_rate[task_name] = rate
 
     if not self.tasks:
-      raise ValueError("A Mixture must have at least one Task.")
+      raise ValueError(f"Mixture, {self.name}, does not contain any Tasks.")
 
     if len(set(tuple(t.output_features) for t in self.tasks)) != 1:
+      task_name_outputs = "\n".join(
+          [t.name + ": " + tuple(t.output_features) for t in self.tasks])
       raise ValueError(
-          "All Tasks in a Mixture must have the same output features.")
+          f"Mixture, '{self.name}' contains Tasks with different output "
+          f"features:\n {task_name_outputs}")
 
   @property
   def name(self) -> str:
