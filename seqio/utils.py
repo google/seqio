@@ -922,7 +922,7 @@ def _pack_with_custom_ops(
   return dataset
 
 
-def _shift_right_by_one(tensor: tf.Tensor) -> tf.Tensor:
+def _shift_right_by_one(tensor: tf.Tensor, bos_id: int = 0) -> tf.Tensor:
   """Shift the input tensor to the right by one position without wrapping."""
 
   if not (tensor.dtype.is_integer or tensor.dtype.is_floating):
@@ -937,13 +937,14 @@ def _shift_right_by_one(tensor: tf.Tensor) -> tf.Tensor:
   # Expand dims of mask to broadcast to rolled.
   dim_expansion = [slice(None, None)] + [None] * (len(rolled.shape) - 1)
   mask = mask[dim_expansion]
-  return rolled * mask
+  return rolled * mask + (1 - mask) * bos_id
 
 
 def make_autoregressive_inputs(
     targets: tf.Tensor,
     sequence_id: tf.Tensor = None,
-    output_dtype: Optional[tf.dtypes.DType] = None) -> tf.Tensor:
+    output_dtype: Optional[tf.dtypes.DType] = None,
+    bos_id: int = 0) -> tf.Tensor:
   """Generate inputs for an autoregressive model, by shifting the targets.
 
   Modified from mesh_tensorflow.transformer.transformer.autoregressive_inputs.
@@ -969,6 +970,7 @@ def make_autoregressive_inputs(
     targets: a tf.int32 tensor with shape [length].
     sequence_id: an optional tensor with the same shape as targets.
     output_dtype: an optional output data type.
+    bos_id: bos id.
 
   Returns:
     a tensor with dtype tf.int32 and the same shape as targets.
@@ -982,7 +984,7 @@ def make_autoregressive_inputs(
     raise ValueError("Only 1-D sequences are supported with packing. Got a "
                      f"packed {len(targets.shape)}-D sequence.")
 
-  inputs = _shift_right_by_one(targets)
+  inputs = _shift_right_by_one(targets, bos_id)
   if inputs.dtype != output_dtype:
     inputs = tf.cast(inputs, output_dtype)
 
@@ -991,7 +993,9 @@ def make_autoregressive_inputs(
   if sequence_id is not None:
     not_first_in_sequence = tf.equal(sequence_id,
                                      _shift_right_by_one(sequence_id))
-    inputs *= tf.cast(not_first_in_sequence, output_dtype)
+    not_first_in_sequence = tf.cast(not_first_in_sequence, output_dtype)
+    first_ids = tf.cast((1 - not_first_in_sequence) * bos_id, output_dtype)
+    inputs = inputs * not_first_in_sequence + first_ids
   return inputs
 
 

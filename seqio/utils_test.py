@@ -889,6 +889,22 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertAllClose(actual, expected)
     self.assertEqual(actual.dtype, np.float32)
 
+  def test_shift_right_by_one(self):
+    x = tf.constant([3, 8, 2, 9, 3, 5, 4, 1, 0, 0])
+    shift_x = utils._shift_right_by_one(x)
+    actual = self.evaluate(shift_x)
+    expected = [0, 3, 8, 2, 9, 3, 5, 4, 1, 0]
+    self.assertAllEqual(actual, expected)
+    self.assertEqual(actual.dtype, np.int32)
+
+  def test_shift_right_by_one_without_default_bos(self):
+    x = tf.constant([3, 8, 2, 9, 3, 5, 4, 1, 0, 0])
+    shift_x = utils._shift_right_by_one(x, bos_id=10)
+    actual = self.evaluate(shift_x)
+    expected = [10, 3, 8, 2, 9, 3, 5, 4, 1, 0]
+    self.assertAllEqual(actual, expected)
+    self.assertEqual(actual.dtype, np.int32)
+
 
 class MixtureRateTest(test_utils.FakeTaskTest):
 

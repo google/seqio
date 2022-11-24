@@ -452,6 +452,26 @@ class EncDecFeatureConverterTest(tf.test.TestCase):
     # present in the ds but not in the task_feature_lengths
     converter(ds, task_feature_lengths)
 
+  def test_encoder_decoder_packed_without_default_bos(self):
+    x = [{"inputs": [7, 8, 5, 1], "targets": [3, 9, 1]},
+         {"inputs": [8, 4, 9, 3, 1], "targets": [4, 1]}]
+    ds = create_default_dataset(x)
+    task_feature_lengths = {"inputs": 10, "targets": 7}
+
+    converter = feature_converters.EncDecFeatureConverter(pack=True, bos_id=10)
+    converted_ds = converter(ds, task_feature_lengths)
+    expected = {
+        "encoder_input_tokens": [7, 8, 5, 1, 8, 4, 9, 3, 1, 0],
+        "encoder_segment_ids": [1, 1, 1, 1, 2, 2, 2, 2, 2, 0],
+        "encoder_positions": [0, 1, 2, 3, 0, 1, 2, 3, 4, 0],
+        "decoder_target_tokens": [3, 9, 1, 4, 1, 0, 0],
+        "decoder_input_tokens": [10, 3, 9, 10, 4, 10, 0],
+        "decoder_loss_weights": [1, 1, 1, 1, 1, 0, 0],
+        "decoder_segment_ids": [1, 1, 1, 2, 2, 0, 0],
+        "decoder_positions": [0, 1, 2, 0, 1, 0, 0],
+    }
+    assert_dataset(converted_ds, expected)
+
 
 class LMFeatureConverter(tf.test.TestCase):
 
@@ -521,6 +541,23 @@ class LMFeatureConverter(tf.test.TestCase):
 
     converter = feature_converters.LMFeatureConverter(pack=True)
     converter(ds, task_feature_lengths)
+
+  def test_lm_only_packed_without_default_bos(self):
+    x = [{"targets": [3, 9, 1]}, {"targets": [4, 1]}]
+    ds = create_default_dataset(x, feature_names=["targets"])
+    task_feature_lengths = {"targets": 6}
+
+    converter = feature_converters.LMFeatureConverter(pack=True, bos_id=10)
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "decoder_target_tokens": [3, 9, 1, 4, 1, 0],
+        "decoder_input_tokens": [10, 3, 9, 10, 4, 10],
+        "decoder_loss_weights": [1, 1, 1, 1, 1, 0],
+        "decoder_positions": [0, 1, 2, 0, 1, 0],
+        "decoder_segment_ids": [1, 1, 1, 2, 2, 0]
+    }
+    assert_dataset(converted_ds, expected)
 
 
 class PrefixLMFeatureConverter(tf.test.TestCase):
@@ -693,6 +730,30 @@ class PrefixLMFeatureConverter(tf.test.TestCase):
     actual = converter._convert_example(features)
     for feat, tensor in actual.items():
       self.assertAllEqual(expected[feat], self.evaluate(tensor))
+
+  def test_prefix_lm_packed_without_default_bos(self):
+    x = [{"inputs": [7, 8, 5, 1], "targets": [3, 9, 1]},
+         {"inputs": [8, 4, 9, 3, 1], "targets": [4, 1]}]
+    ds = create_default_dataset(x)
+
+    task_feature_lengths = {"inputs": 8, "targets": 7}
+    converter = feature_converters.PrefixLMFeatureConverter(pack=True,
+                                                            bos_id=10)
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "decoder_target_tokens": [7, 8, 5, 1, 3, 9, 1, 8, 4, 9, 3, 1, 4, 1, 0],
+        "decoder_input_tokens": [
+            10, 7, 8, 5, 1, 3, 9, 10, 8, 4, 9, 3, 1, 4, 10
+        ],
+        "decoder_loss_weights": [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0],
+        "decoder_positions": [0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0],
+        "decoder_segment_ids": [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 0],
+        "decoder_causal_attention": [
+            1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0
+        ]
+    }
+    assert_dataset(converted_ds, expected)
 
 
 class DecoderFeatureConverterTest(FeatureConvertersTest):

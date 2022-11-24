@@ -223,6 +223,7 @@ class FeatureConverter(abc.ABC):
     use_custom_packing_ops: whether to use custom ops for packing.
     apply_length_check: if True, it checks whether output feature lengths are
         less than the lengths given by `sequence_length`.
+    bos_id: bos id for decoder inputs.
   """
 
   @dataclasses.dataclass(frozen=True)
@@ -239,10 +240,12 @@ class FeatureConverter(abc.ABC):
   def __init__(self,
                pack: bool = True,
                use_custom_packing_ops: bool = False,
-               apply_length_check: bool = True):
+               apply_length_check: bool = True,
+               bos_id: int = 0):
     self._pack = pack
     self._use_custom_packing_ops = use_custom_packing_ops
     self._apply_length_check = apply_length_check
+    self._bos_id = bos_id
 
     if self.TASK_FEATURES is None:
       raise ValueError("TASK_FEATURES must be defined in the subclass.")
@@ -477,6 +480,10 @@ class FeatureConverter(abc.ABC):
   def pack(self) -> bool:
     return self._pack
 
+  @property
+  def bos_id(self) -> int:
+    return self._bos_id
+
 
 class EncDecFeatureConverter(FeatureConverter):
   """Feature converter for an encoder-decoder architecture.
@@ -544,7 +551,8 @@ class EncDecFeatureConverter(FeatureConverter):
     # targets_segment_id is present only for a packed dataset.
     decoder_input_tokens = utils.make_autoregressive_inputs(
         features["targets"],
-        sequence_id=features.get("targets_segment_ids", None))
+        sequence_id=features.get("targets_segment_ids", None),
+        bos_id=self.bos_id)
 
     d = {"encoder_input_tokens": features["inputs"],
          "decoder_target_tokens": features["targets"],
@@ -667,7 +675,8 @@ class PrePackedEncDecFeatureConverter(EncDecFeatureConverter):
       # targets_segment_id is present only for a packed dataset.
       decoder_input_tokens = utils.make_autoregressive_inputs(
           features["targets"],
-          sequence_id=features.get("targets_segment_ids", None))
+          sequence_id=features.get("targets_segment_ids", None),
+          bos_id=self.bos_id)
 
       d = {"encoder_input_tokens": features["inputs"],
            "decoder_target_tokens": features["targets"],
@@ -747,7 +756,8 @@ class LMFeatureConverter(FeatureConverter):
     # targets_segment_id is present only for a packed dataset.
     decoder_input_tokens = utils.make_autoregressive_inputs(
         features["targets"],
-        sequence_id=features.get("targets_segment_ids", None))
+        sequence_id=features.get("targets_segment_ids", None),
+        bos_id=self.bos_id)
 
     d = {"decoder_target_tokens": features["targets"],
          "decoder_input_tokens": decoder_input_tokens,
@@ -1075,22 +1085,26 @@ class DecoderFeatureConverter(FeatureConverter):
                loss_on_targets_only: bool = True,
                pack: bool = True,
                use_custom_packing_ops: bool = False,
-               apply_length_check: bool = True) -> None:
+               apply_length_check: bool = True,
+               bos_id: int = 0) -> None:
 
     self._loss_on_targets_only = loss_on_targets_only
     super().__init__(
         pack=pack,
         use_custom_packing_ops=use_custom_packing_ops,
-        apply_length_check=apply_length_check)
+        apply_length_check=apply_length_check,
+        bos_id=bos_id)
     self.prefixlm_feature_converter = PrefixLMFeatureConverter(
         loss_on_targets_only=loss_on_targets_only,
         pack=pack,
         use_custom_packing_ops=use_custom_packing_ops,
-        apply_length_check=apply_length_check)
+        apply_length_check=apply_length_check,
+        bos_id=bos_id)
     self.strictlm_feature_converter = LMFeatureConverter(
         pack=pack,
         use_custom_packing_ops=use_custom_packing_ops,
-        apply_length_check=apply_length_check)
+        apply_length_check=apply_length_check,
+        bos_id=bos_id)
 
   def __call__(self, ds: tf.data.Dataset,
                task_feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
