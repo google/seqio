@@ -254,7 +254,7 @@ class DataSource(DatasetProviderBase):
     raise NotImplementedError
 
   @abc.abstractmethod
-  def get_dataset(self,
+  def get_dataset(self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
                   split: str,
                   shuffle: bool = True,
                   seed: Optional[int] = None,
@@ -1139,7 +1139,7 @@ class Task(DatasetProviderBase):
         self._stats[split] = json.load(f)
     return self._stats[split]
 
-  def get_dataset(self,
+  def get_dataset(self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
                   sequence_length: Optional[Mapping[str, int]],
                   split: str = tfds.Split.TRAIN,
                   use_cached: bool = False,
