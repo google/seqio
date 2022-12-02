@@ -49,6 +49,9 @@ flags.DEFINE_string(
 
 flags.DEFINE_bool("decode_features", False,
                   "If true, decode the output features using the vocabulary.")
+flags.DEFINE_bool(
+    "use_cached", False,
+    "If true, use cached dataset. Required for DeterministicTask.")
 
 
 def _import_modules(modules):
@@ -71,7 +74,7 @@ def _inspect_task_or_mixture(task_or_mixture):
       dataset = task_or_mixture.get_dataset(
           sequence_length=sequence_length,
           split=split,
-          use_cached=False,
+          use_cached=FLAGS.use_cached,
           shuffle=False,
       )
       print(f"* Split: {split} *")
