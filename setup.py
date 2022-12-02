@@ -48,6 +48,7 @@ setuptools.setup(
         'jaxlib',
         'numpy',
         'packaging',
+        'pyglove',
         'sentencepiece',
         'tensorflow-text',
         'tfds-nightly',

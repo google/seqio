@@ -33,6 +33,7 @@ import clu.metrics
 import editdistance
 import numpy as np
 from packaging import version
+import pyglove as pg
 from seqio import metrics as metrics_lib
 from seqio import preprocessors as seqio_preprocessors
 from seqio import utils
@@ -1540,6 +1541,35 @@ class Mixture(DatasetProviderBase):
       _log_mixing_proportions(tasks, datasets, rates, dataset, sequence_length,
                               compute_stats_empirically)
     return dataset
+
+
+class PyGloveTunableMixture(Mixture):
+  """Mixture whose task rates can be tuned by PyGlove."""
+
+  def __init__(
+      self,
+      name: str,
+      tasks: Union[Sequence[str],
+                   Sequence[Tuple[str,
+                                  Union[int, float, Callable[[Task], float]]]]],
+      default_rate: Optional[Union[float, Callable[[Task], float]]] = None,
+      sample_fn: SampleFn = tf.data.experimental.sample_from_datasets):
+    def hyper_ratio(task_name, hyper):
+      """Function for converting PyGlove hyper primitive as ratio fn."""
+      def ratio_fn(unused_task):
+        hyper_kwargs = dict(hyper.sym_init_args)
+        if "name" not in hyper_kwargs or hyper_kwargs["name"] is None:
+          hyper_kwargs["name"] = task_name
+        return hyper.__class__(**hyper_kwargs)
+      return ratio_fn
+
+    converted_tasks = []
+    for t in tasks:
+      if (isinstance(t, (list, tuple))
+          and isinstance(t[1], pg.hyper.HyperPrimitive)):
+        t = (t[0], hyper_ratio(t[0], t[1]))
+      converted_tasks.append(t)
+    super().__init__(name, converted_tasks, default_rate, sample_fn)
 
 
 

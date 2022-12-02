@@ -23,6 +23,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
+import pyglove as pg
 from seqio import dataset_providers
 from seqio import feature_converters
 from seqio import metrics as metrics_lib
@@ -939,6 +940,32 @@ class MixturesTest(test_utils.FakeTaskTest):
     for task in mix.tasks:
       self.verify_task_matches_fake_datasets(task.name, use_cached=False)
       self.assertEqual(mix.get_rate(task), 1)
+
+  def test_tasks_with_tunable_rates(self):
+    self.add_task("task1", self.function_source)
+    self.add_task("task2", self.function_source)
+    MixtureRegistry.add("test_mix1", [
+        ("task1", pg.oneof([1, 2])),
+        ("task2", pg.floatv(0., 10., name="w2"))
+    ], mixture_cls=dataset_providers.PyGloveTunableMixture)
+
+    mix = MixtureRegistry.get("test_mix1")
+    self.assertEqual(len(mix.tasks), 2)
+
+    automl_context = pg.hyper.DynamicEvaluationContext(require_hyper_name=True)
+    with automl_context.collect():
+      _ = [mix.get_rate(t) for t in mix.tasks]
+
+    self.assertEqual(automl_context.hyper_dict, {
+        "task1": pg.oneof([1, 2], name="task1"),
+        "w2": pg.floatv(0., 10., name="w2"),
+    })
+
+    with automl_context.apply(pg.DNA([0, 5.5])):
+      self.assertEqual([mix.get_rate(t) for t in mix.tasks], [1, 5.5])
+
+    with automl_context.apply(pg.DNA([1, 2.5])):
+      self.assertEqual([mix.get_rate(t) for t in mix.tasks], [2, 2.5])
 
   def test_num_examples(self):
     MixtureRegistry.add("test_mix2", [(self.cached_task.name, 1)])
