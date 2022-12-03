@@ -33,6 +33,7 @@ _STATS_FILENAME = "stats.{split}.json"
 _TFRECORD_PREFIX = "{split}.tfrecord"
 
 _TFDS_DATA_DIR_OVERRIDE = None
+_TFDS_DATA_READ_CONFIG_OVERRIDE = None
 _GLOBAL_CACHE_DIRECTORIES = []
 _MapTransform = object
 _RandomMapTransform = object
@@ -51,6 +52,11 @@ class Feature:
 def set_tfds_data_dir_override(tfds_data_dir):
   global _TFDS_DATA_DIR_OVERRIDE
   _TFDS_DATA_DIR_OVERRIDE = tfds_data_dir
+
+
+def set_tfds_read_config_override(tfds_read_config):
+  global _TFDS_DATA_READ_CONFIG_OVERRIDE
+  _TFDS_DATA_READ_CONFIG_OVERRIDE = tfds_read_config
 
 
 def get_global_cache_dirs():
@@ -107,6 +113,12 @@ class LazyTfdsLoader(object):
     return self._data_dir
 
   @property
+  def read_config(self):
+    if _TFDS_DATA_READ_CONFIG_OVERRIDE:
+      return _TFDS_DATA_READ_CONFIG_OVERRIDE
+    return tfds.ReadConfig()
+
+  @property
   def builder(self):
     """Returns the DatasetBuilder for this TFDS dataset."""
     builder_key = (self.name, self.data_dir)
@@ -145,10 +157,12 @@ class LazyTfdsLoader(object):
   def load(self, split, shuffle_files, seed=None, shard_info=None):
     """Returns a tf.data.Dataset for the given split."""
     split = self._map_split(split)
-    input_context = (
-        tf.distribute.InputContext(
-            num_input_pipelines=shard_info.num_shards,
-            input_pipeline_id=shard_info.index) if shard_info else None)
+    read_config = self.read_config
+    read_config.input_context = tf.distribute.InputContext(
+        num_input_pipelines=shard_info.num_shards,
+        input_pipeline_id=shard_info.index) if shard_info else None
+    read_config.shuffle_seed = seed
+    read_config.skip_prefetch = True
     return tfds.load(
         self._name,
         split=split,
@@ -156,8 +170,7 @@ class LazyTfdsLoader(object):
         shuffle_files=shuffle_files,
         download=True,
         try_gcs=True,
-        read_config=tfds.ReadConfig(
-            shuffle_seed=seed, skip_prefetch=True, input_context=input_context),
+        read_config=read_config,
         decoders=self._decoders)
 
   def load_shard(self, file_instruction, shuffle_files=False, seed=None):
