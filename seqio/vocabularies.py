@@ -401,9 +401,9 @@ class SentencePieceVocabulary(Vocabulary):
       a string
     """
     # convert all the extra ids (sentinels) to UNK=2
-    ids = [
-        self.tokenizer.unk_id() if i >= self.tokenizer.GetPieceSize()
-        else int(i) for i in ids]
+    unk_id = self.tokenizer.unk_id()
+    piece_size = self.tokenizer.GetPieceSize()
+    ids = [unk_id if i >= piece_size else int(i) for i in ids]
     return self.tokenizer.DecodeIds(ids)
 
   def _encode_tf(self, s):
