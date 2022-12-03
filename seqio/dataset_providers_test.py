@@ -835,6 +835,7 @@ class TasksTest(test_utils.FakeTaskTest):
         seed=42)
     test_utils.assert_datasets_eq(dataset1, dataset2)
 
+
   def test_no_shuffle_with_seed_uncached_match(self):
     dataset1 = self.uncached_task.get_dataset(
         self._sequence_length,

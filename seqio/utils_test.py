@@ -122,6 +122,41 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     with self.assertRaises(KeyError):
       ds.files(split="test")
 
+  @mock.patch("tensorflow_datasets.load")
+  def test_read_config_override_default(self, mock_tfds_load):
+    ds = utils.LazyTfdsLoader(
+        "ds/c1", split_map={
+            "train": "validation",
+            "validation": "test"
+        })
+    ds.load("train", shuffle_files=False, seed=42)
+    mock_tfds_load.assert_called_once()
+    kwargs = mock_tfds_load.call_args.kwargs
+    read_config = kwargs["read_config"]
+    self.assertTrue(read_config.skip_prefetch)
+    self.assertEqual(42, read_config.shuffle_seed)
+    self.assertIsNone(read_config.shuffle_reshuffle_each_iteration)
+
+  @mock.patch("tensorflow_datasets.load")
+  def test_read_config_override(self, mock_tfds_load):
+    read_config = tfds.ReadConfig()
+    read_config.shuffle_reshuffle_each_iteration = True
+    utils.set_tfds_read_config_override(read_config)
+    ds = utils.LazyTfdsLoader(
+        "ds/c1", split_map={
+            "train": "validation",
+            "validation": "test"
+        })
+    ds.load("train", shuffle_files=False, seed=42)
+    mock_tfds_load.assert_called_once()
+    kwargs = mock_tfds_load.call_args.kwargs
+    read_config = kwargs["read_config"]
+    self.assertTrue(read_config.skip_prefetch)
+    self.assertEqual(42, read_config.shuffle_seed)
+    self.assertTrue(read_config.shuffle_reshuffle_each_iteration)
+    # reset to default global override
+    utils.set_tfds_read_config_override(None)
+
 
 class TransformUtilsTest(parameterized.TestCase):
 

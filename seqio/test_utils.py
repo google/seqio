@@ -1058,7 +1058,7 @@ class FakeTaskTest(absltest.TestCase):
         tfds_name="fake:0.0.0",
         splits=("train", "validation")
     )
-    self.add_task("tfds_task", source=self.tfds_source)
+    self.tfds_task = self.add_task("tfds_task", source=self.tfds_source)
 
     # Add task with prefix
     self.add_task("t5:tfds_task", source=self.tfds_source)
