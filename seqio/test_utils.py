@@ -965,7 +965,7 @@ class FakeTaskTest(absltest.TestCase):
       output_features=None,
       **kwargs):
 
-    if not output_features:
+    if output_features is None:
       output_features = {
           "inputs": dataset_providers.Feature(sentencepiece_vocab()),
           "targets": dataset_providers.Feature(sentencepiece_vocab())
