@@ -28,6 +28,7 @@ import re
 
 from absl import app
 from absl import flags
+import numpy as np
 import seqio
 
 FLAGS = flags.FLAGS
@@ -52,6 +53,42 @@ flags.DEFINE_bool("decode_features", False,
 flags.DEFINE_bool(
     "use_cached", False,
     "If true, use cached dataset. Required for DeterministicTask.")
+flags.DEFINE_bool(
+    "inspect_task_examples", True,
+    "If true, inspects task examples one at a time.")
+flags.DEFINE_bool(
+    "print_length_statistics", False,
+    "If true, print length statistics from each task.")
+flags.DEFINE_multi_float(
+    "length_percentiles", [0.5, 0.9, 0.95, 0.99],
+    "Percentiles to use when `print_length_statistics` is `True`.")
+flags.DEFINE_integer(
+    "length_example_count", 4096,
+    ("Number of examples to compute length statistics when " +
+     "`print_length_statistics is `True`."))
+
+
+def _print_length_statistics(task_or_mixture):
+  """Utility function for printing length statistics of a feature."""
+  print(f"* {task_or_mixture.name} Length Statistics *")
+  percentile_headers = [f"p{int(p * 100)}" for p in FLAGS.length_percentiles]
+  print("split, feature, " + ", ".join(percentile_headers))
+  sequence_length = ast.literal_eval(FLAGS.sequence_length)
+  for split in task_or_mixture.splits:
+    dataset = task_or_mixture.get_dataset(
+        sequence_length=sequence_length,
+        split=split,
+        use_cached=FLAGS.use_cached,
+        shuffle=False,
+    )
+    sizes = []
+    features = list(sequence_length.keys())
+    for e in dataset.take(FLAGS.length_example_count):
+      sizes.append([e[feature].numpy().size for feature in features])
+    all_lengths = np.transpose(
+        np.percentile(sizes, FLAGS.length_percentiles, axis=0))
+    for feature, lengths in zip(features, all_lengths):
+      print(f"{split}, {feature}, " + ", ".join(f"{l:.1f}" for l in lengths))
 
 
 def _import_modules(modules):
@@ -104,28 +141,27 @@ def main(_) -> None:
                               r"\Z|".join(FLAGS.excluded_tasks or []))
 
   task_names = [
-      t for t in seqio.TaskRegistry.names()
+      ("Task", t) for t in seqio.TaskRegistry.names()
       if included_regex.match(t) and not excluded_regex.match(t)
   ]
   print("*** Found the following Seqio tasks. ***")
-  print("\n".join(f"  {name}" for name in task_names))
+  print("\n".join(f"  {name}" for _, name in task_names))
 
   mixture_names = [
-      t for t in seqio.MixtureRegistry.names()
+      ("Mixture", t) for t in seqio.MixtureRegistry.names()
       if included_regex.match(t) and not excluded_regex.match(t)
   ]
   print("*** Found the following Seqio mixtures. ***")
-  print("\n".join(f"  {name}" for name in mixture_names))
+  print("\n".join(f"  {name}" for _, name in mixture_names))
 
-  for name in task_names:
-    print(f"*** Task: {name} ***")
-    _inspect_task_or_mixture(seqio.get_mixture_or_task(name))
-    print(f"*** Done Inspecting Task: {name} ***")
-
-  for name in mixture_names:
-    print(f"*** Mixture: {name} ***")
-    _inspect_task_or_mixture(seqio.get_mixture_or_task(name))
-    print(f"*** Done Inspecting Mixture: {name} ***")
+  for typ, name in task_names + mixture_names:
+    print(f"*** {typ}: {name} ***")
+    task = seqio.get_mixture_or_task(name)
+    if FLAGS.inspect_task_examples:
+      _inspect_task_or_mixture(task)
+    if FLAGS.print_length_statistics:
+      _print_length_statistics(task)
+    print(f"*** Done Inspecting {typ}: {name} ***")
 
 
 if __name__ == "__main__":
