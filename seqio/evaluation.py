@@ -631,7 +631,7 @@ class Evaluator:
       # We loop over metrics and collect all the model outputs
       # that are needed for metric computation.
       for metric_obj in task.metric_objs:
-        model_output_type = metric_obj.model_output_type
+        model_output_type = metric_obj.model_output_type()
         if model_output_type not in all_output[task.name]:
           model_fn = model_fns[model_output_type]
           all_output[task.name][model_output_type] = _extract_model_output(
@@ -701,7 +701,7 @@ class Evaluator:
       task_metrics = []
       inferences = {}
       for metric_obj in task.metric_objs:
-        model_output = all_output[task.name][metric_obj.model_output_type]
+        model_output = all_output[task.name][metric_obj.model_output_type()]
         metric_instance = metric_obj.from_model_output(
             tfds.as_numpy(task_dataset),
             model_output,

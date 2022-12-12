@@ -75,7 +75,7 @@ class TasksTest(test_utils.FakeTaskTest):
       return {}
 
     input_metric_objs = [
-        metrics_lib.LegacyMetric.empty(
+        metrics_lib.LegacyMetric.from_metric_fn(
             metric_fn=score_metric_fn_1, postprocess_fn=None
         )
     ]
@@ -90,10 +90,7 @@ class TasksTest(test_utils.FakeTaskTest):
     )
 
     actual_metric_objs = list(task.metric_objs)
-    expected_metric_objs = input_metric_objs + [
-        metrics_lib.LegacyMetric.empty(score_metric_fn_2, None)
-    ]
-    self.assertListEqual(actual_metric_objs, expected_metric_objs)
+    self.assertLen(actual_metric_objs, 2)
 
   def test_metric_fn_signature(self):
     # pylint:disable=unused-argument
@@ -1109,7 +1106,7 @@ class TasksTest(test_utils.FakeTaskTest):
       return {}
 
     new_metric_objs = [
-        metrics_lib.LegacyMetric.empty(
+        metrics_lib.LegacyMetric.from_metric_fn(
             metric_fn=score_metric_fn_1, postprocess_fn=None
         )
     ]

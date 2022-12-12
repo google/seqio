@@ -898,7 +898,7 @@ class Task(DatasetProviderBase):
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
       metric_fns: Optional[Sequence[MetricFnCallable]] = None,
-      metric_objs: Optional[Sequence[metrics_lib.Metric]] = None,
+      metric_objs: Optional[Sequence[Type[metrics_lib.Metric]]] = None,
       shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE,
   ):
     """Task constructor.
@@ -984,14 +984,14 @@ class Task(DatasetProviderBase):
     return self._name
 
   @functools.cached_property
-  def metric_objs(self) -> Sequence[metrics_lib.Metric]:
+  def metric_objs(self) -> Sequence[Type[metrics_lib.Metric]]:
     """List of all metric objects."""
     # Copy list to prevent callers from directly modifying by accessing public
     # attribute.
     to_return = list(x for x in self._metric_objs_constructor_args)
     if self.metric_fns:
       to_return += [
-          metrics_lib.LegacyMetric.empty(mf, self._postprocess_fn)
+          metrics_lib.LegacyMetric.from_metric_fn(mf, self._postprocess_fn)
           for mf in self.metric_fns
       ]
     return to_return
