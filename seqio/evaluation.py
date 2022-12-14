@@ -480,6 +480,9 @@ class Evaluator:
       raise ValueError(
           "'log_dir' must be provided to `Evaluator` if `logger_cls` is "
           "non-empty.")
+    if not logger_cls:
+      logging.warn(
+          "'logger_cls' is empty so seqio.Evaluator will not log its results.")
     self._loggers = tuple(cls(output_dir=log_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
 
   def __del__(self):
