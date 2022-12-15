@@ -284,7 +284,7 @@ class SentencePieceVocabulary(Vocabulary):
 
   def __getstate__(self):
     state = self.__dict__.copy()
-    # Gin config makes a deep copy of the keyword argumetns of configurables.
+    # Gin config makes a deep copy of the keyword arguments of configurables.
     # When a SentencePieceVocabulary vocabulary is used as a keyword argument
     # in a Gin configurable, it must be picklable. Lock is not picklable. We
     # remove the lock when pickling the vocabulary and add it back afterwards.
