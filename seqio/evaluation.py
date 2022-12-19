@@ -79,15 +79,14 @@ def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
   return valid_tasks
 
 
-def get_targets_and_examples(
+def _cache_and_measure_examples(
     tasks: Sequence[Task],
     dataset_fn: Callable[[Task], tf.data.Dataset],
     sequence_dims: Mapping[str, int],
     num_examples: Optional[int] = None,
     use_memory_cache: bool = True,
-    target_field_name: str = "targets"
-) -> Tuple[Mapping[str, Any], Mapping[str, tf.data.Dataset], Mapping[str, int]]:
-  """Get targets, cached datasets, and maximum sequence lengths per feature.
+) -> Tuple[Mapping[str, tf.data.Dataset], Mapping[str, int]]:
+  """Get cached datasets and maximum sequence lengths per feature.
 
   Args:
     tasks: tasks objects to get targets and examples for.
@@ -97,16 +96,13 @@ def get_targets_and_examples(
       beginning of each task dataset.
     use_memory_cache: whether to use tf.data.Dataset#cache. may cause memory
       issues for large datasets.
-    target_field_name: Field name of the target in the input dataset examples.
 
   Returns:
-    cached_targets: unpreprocessed targets for each task
     cached_task_datasets: cached datasets for each task, with cardinality set
     max_sequence_length: maximum sequence lengths for inputs and targets across
       all tasks.
   """
   # Pre-load in all of the targets once before entering continuous eval loop
-  cached_targets = {}
   cached_task_datasets = {}
   max_sequence_length = {k: 0 for k in tasks[0].output_features.keys()}
 
@@ -121,30 +117,18 @@ def get_targets_and_examples(
     if use_memory_cache:
       ds = ds.cache()
 
-    targets = []
-
+    cnt = 0
     for ex in tfds.as_numpy(ds):
       for k in max_sequence_length:
         sequence_dim = sequence_dims.get(k, 0)
         sequence_length = ex[k].shape[sequence_dim]
         max_sequence_length[k] = max(max_sequence_length[k], sequence_length)
+      cnt += 1
 
-      # Create list of postprocessed targets
-      pretokenized_target_field_name = target_field_name + "_pretokenized"
-      if pretokenized_target_field_name in ex:
-        target = ex[pretokenized_target_field_name]
-      else:
-        target = task.output_features[target_field_name].vocabulary.decode(
-            list(ex[target_field_name]))
-      if isinstance(target, bytes):
-        target = target.decode("utf-8")
-      targets.append(task.postprocess_fn(target, example=ex, is_target=True))
-
-    cached_targets[task.name] = targets
     cached_task_datasets[task.name] = ds.apply(
-        tf.data.experimental.assert_cardinality(len(targets)))
+        tf.data.experimental.assert_cardinality(cnt))
 
-  return cached_targets, cached_task_datasets, max_sequence_length
+  return cached_task_datasets, max_sequence_length
 
 
 _BatchId = int
@@ -294,7 +278,6 @@ class Evaluator:
     eval_tasks: a mapping from a mixture or a task name to seqio.Task object(s).
     cached_model_datasets: cached evaluation datasets with model features.
     cached_task_datasets: cached evaluation datasets with task features.
-    cached_targets: cached evaluation targets.
     model_feature_shapes: mapping from model feature to its shape in the
       `cached_model_datasets`.
     loggers: a sequence of subclasses of `Logger`.
@@ -402,14 +385,12 @@ class Evaluator:
     sequence_dims = {
         k: v.sequence_dim for k, v in feature_converter.TASK_FEATURES.items()
     }
-    cached_targets, cached_task_datasets, max_lengths = (
-        get_targets_and_examples(
-            tasks=self._eval_tasks,
-            dataset_fn=dataset_fn,
-            sequence_dims=sequence_dims,
-            num_examples=num_examples,
-            use_memory_cache=use_memory_cache,
-            target_field_name=self._target_field_name))
+    cached_task_datasets, max_lengths = _cache_and_measure_examples(
+        tasks=self._eval_tasks,
+        dataset_fn=dataset_fn,
+        sequence_dims=sequence_dims,
+        num_examples=num_examples,
+        use_memory_cache=use_memory_cache)
 
     if sequence_length is None:
       logging.info("Setting sequence lengths to %s", max_lengths)
@@ -468,7 +449,6 @@ class Evaluator:
       # throughout the entire evaluation process.
       self._cached_model_datasets[task.name] = eval_ds.enumerate()
 
-    self._cached_targets = cached_targets
     self._cached_task_datasets = cached_task_datasets
     self._model_feature_shapes = {
         k: tuple(spec.shape)
@@ -633,111 +613,6 @@ class Evaluator:
       all_metrics.set_result(None)
     return all_metrics, all_output
 
-  def _decode_and_postprocess_predictions(self, task, predicted_tokens,
-                                          task_dataset, targets):
-    """Run the model's predicted outputs through the decoder."""
-    task_vocab = task.output_features[self._target_field_name].vocabulary
-    task_predicted_tokens = predicted_tokens[task.name]
-
-    if len(targets) != len(task_predicted_tokens):
-      raise ValueError(f"len(targets)({len(targets)}) != "
-                       f"len(predictions)({len(task_predicted_tokens)})")
-
-    outputs = [task_vocab.decode(tokens) for tokens in task_predicted_tokens]
-    postprocessed_outputs = [
-        task.postprocess_fn(d, example=ex, is_target=False)
-        for d, ex in zip(outputs, tfds.as_numpy(task_dataset))
-    ]
-    return outputs, postprocessed_outputs
-
-  def _compute_metrics(self,
-                       predicted_tokens: AllOutputTokensType,
-                       scores: AllOutputScoresType,
-                       all_aux_values: AllOutputAuxValuesType,
-                       step: Optional[int] = None) -> AllMetricsType:
-    """Computes and logs metrics given the predicted tokens and scores.
-
-    Args:
-      predicted_tokens: a mapping from task name to the output tokens from
-        `predict_fn`, for tasks that have `predict_metric_fns`.
-      scores: a mapping from task name to the output scores from `score_fn` for
-        tasks that have `score_predict_fns`.
-      all_aux_values: a mapping from task name to the output auxiliary values
-        from `predict_fn` for tasks that have `predict_metric_with_aux_fns`.
-      step: an optional step number of the current evaluation. If unspecified, a
-        dummy value of -1 will be used.
-
-    Returns:
-      A mapping from task name to computed metrics.
-    """
-    all_metrics = {}
-
-    for task in self.eval_tasks:
-      logging.info("Computing metrics for %s", task.name)
-      task_dataset = self.cached_task_datasets[task.name]
-      targets = self.cached_targets[task.name]
-
-      task_metrics = []
-      inferences = {}
-
-      if task.predict_metric_fns or task.predict_with_aux_metric_fns:
-        (outputs,
-         postprocessed_outputs) = self._decode_and_postprocess_predictions(
-             task, predicted_tokens, task_dataset, targets)
-        inferences["output"] = outputs
-        inferences["prediction"] = postprocessed_outputs
-
-      if task.predict_metric_fns:
-        task_metrics.extend([
-            metric_fn(targets, inferences["prediction"])
-            for metric_fn in task.predict_metric_fns
-        ])
-
-      if task.predict_with_aux_metric_fns:
-        aux_values = all_aux_values[task.name]
-        task_metrics.extend([
-            metric_fn(targets, inferences["prediction"], aux_values)
-            for metric_fn in task.predict_with_aux_metric_fns
-        ])
-        inferences["aux_value"] = aux_values
-
-      if task.score_metric_fns:
-        task_scores = scores[task.name]
-        is_tuple = isinstance(task_scores, tuple)
-        if ((not is_tuple and len(targets) != len(task_scores)) or
-            (is_tuple and len(targets) != len(task_scores[0]))):
-          raise ValueError(f"len(targets)({len(targets)}) != "
-                           f"len(task_scores)({len(task_scores)})")
-        task_metrics.extend([
-            metric_fn(targets, task_scores)
-            for metric_fn in task.score_metric_fns
-        ])
-        inferences["score"] = task_scores
-
-      all_metrics[task.name] = {}
-      for k, v in itertools.chain(*[m.items() for m in task_metrics]):
-        if k in all_metrics[task.name]:
-          raise ValueError(f"Duplicate metric key '{k}' in Task '{task.name}'.")
-        all_metrics[task.name][k] = v
-
-      # pyformat: disable
-      metrics = {
-          k: metrics_lib.Scalar(v)
-             if not isinstance(v, metrics_lib.MetricValue) else v
-          for k, v in all_metrics[task.name].items()
-      }
-      # pyformat: enable
-      for logger in self.loggers:
-        logger(
-            task_name=task.name,
-            step=step,
-            metrics=metrics,
-            dataset=task_dataset,
-            inferences=inferences,
-            targets=targets)
-
-    return all_metrics
-
   def _compute_clu_metrics(self,
                            all_output,
                            step: Optional[int] = None) -> AllMetricsType:
@@ -812,10 +687,6 @@ class Evaluator:
   @property
   def cached_task_datasets(self) -> Mapping[str, tf.data.Dataset]:
     return self._cached_task_datasets
-
-  @property
-  def cached_targets(self) -> Mapping[str, Sequence[str]]:
-    return self._cached_targets
 
   @property
   def model_feature_shapes(self) -> Mapping[str, Tuple[int, ...]]:

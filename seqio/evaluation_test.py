@@ -183,7 +183,7 @@ class EvaluationTest(tf.test.TestCase):
             [task_no_metrics, task_no_split, valid_task], "validation"),
         [valid_task])
 
-  def test_get_targets_and_examples(self):
+  def test_cache_and_measure_examples(self):
     task1 = _task_from_tensor_slices(
         "task1", {
             "inputs_lengths": [3, 2],
@@ -196,14 +196,13 @@ class EvaluationTest(tf.test.TestCase):
             "targets_lengths": [4],
             "targets_pretokenized": ["e4"],
         }, ("e2", "e3", "e4"))
-    cached_targets, cached_task_datasets, max_sequence_length = (
-        evaluation.get_targets_and_examples(
+    cached_task_datasets, max_sequence_length = (
+        evaluation._cache_and_measure_examples(
             [task1, task2],
             lambda t: t.get_dataset(
                 split="validation", sequence_length=None, shuffle=False),
             sequence_dims={}))
 
-    self.assertDictEqual({"task1": [2, 1], "task2": [2]}, cached_targets)
     self.assertDictEqual({"inputs": 3, "targets": 4}, max_sequence_length)
     self.assertCountEqual(["task1", "task2"], cached_task_datasets.keys())
     self.assertLen(cached_task_datasets["task1"], 2)
@@ -229,7 +228,7 @@ class EvaluationTest(tf.test.TestCase):
     test_utils.assert_dataset(cached_task_datasets["task2"],
                               expected_task2_examples)
 
-  def test_get_targets_and_examples_num_examples(self):
+  def test_cache_and_measure_examples_num_examples(self):
 
     task1 = _task_from_tensor_slices(
         "task1", {
@@ -243,15 +242,14 @@ class EvaluationTest(tf.test.TestCase):
             "targets_lengths": [4],
             "targets_pretokenized": ["e4"],
         }, ("e2", "e3", "e4"))
-    cached_targets, cached_task_datasets, max_sequence_length = (
-        evaluation.get_targets_and_examples(
+    cached_task_datasets, max_sequence_length = (
+        evaluation._cache_and_measure_examples(
             [task1, task2],
             lambda t: t.get_dataset(
                 split="validation", sequence_length=None, shuffle=False),
             sequence_dims={},
             num_examples=2))
 
-    self.assertDictEqual({"task1": [2, 1], "task2": [2]}, cached_targets)
     self.assertDictEqual({"inputs": 3, "targets": 4}, max_sequence_length)
     self.assertCountEqual(["task1", "task2"], cached_task_datasets.keys())
     self.assertLen(cached_task_datasets["task1"], 2)
@@ -277,15 +275,14 @@ class EvaluationTest(tf.test.TestCase):
     test_utils.assert_dataset(cached_task_datasets["task2"],
                               expected_task2_examples)
 
-    cached_targets, cached_task_datasets, max_sequence_length = (
-        evaluation.get_targets_and_examples(
+    cached_task_datasets, max_sequence_length = (
+        evaluation._cache_and_measure_examples(
             [task1, task2],
             lambda t: t.get_dataset(
                 split="validation", sequence_length=None, shuffle=False),
             sequence_dims={},
             num_examples=3))
 
-    self.assertDictEqual({"task1": [2, 1, 0], "task2": [2]}, cached_targets)
     self.assertDictEqual({"inputs": 4, "targets": 4}, max_sequence_length)
     self.assertCountEqual(["task1", "task2"], cached_task_datasets.keys())
     self.assertLen(cached_task_datasets["task1"], 3)
@@ -315,7 +312,7 @@ class EvaluationTest(tf.test.TestCase):
     test_utils.assert_dataset(cached_task_datasets["task2"],
                               expected_task2_examples)
 
-  def test_get_targets_and_examples_nondefault_sequence_dim(self):
+  def test_cache_and_measure_examples_nondefault_sequence_dim(self):
 
     def _task_from_tensor_slices_rank2(name, tensor_slices, label_classes):
       return dataset_providers.Task(
@@ -357,14 +354,13 @@ class EvaluationTest(tf.test.TestCase):
             "targets_pretokenized": ["e4"],
         }, ("e2", "e3", "e4"))
 
-    cached_targets, cached_task_datasets, max_sequence_length = (
-        evaluation.get_targets_and_examples(
+    cached_task_datasets, max_sequence_length = (
+        evaluation._cache_and_measure_examples(
             [task1, task2],
             lambda t: t.get_dataset(
                 split="validation", sequence_length=None, shuffle=False),
             sequence_dims={"inputs": 1}))
 
-    self.assertDictEqual({"task1": [2, 1], "task2": [2]}, cached_targets)
     self.assertDictEqual({"inputs": 3, "targets": 4}, max_sequence_length)
     self.assertCountEqual(["task1", "task2"], cached_task_datasets.keys())
     self.assertLen(cached_task_datasets["task1"], 2)
@@ -1016,7 +1012,6 @@ class EvaluationTest(tf.test.TestCase):
     # _cached_model_datasets are enumerated. Remove the index for assertion.
     eval_ds = evaluator._cached_model_datasets[task_name].map(lambda i, ds: ds)
     test_utils.assert_dataset(eval_ds, expected_examples)
-    self.assertEqual(evaluator.cached_targets[task_name], ["ex 1", "ex 2"])
     self.assertDictEqual(evaluator.model_feature_shapes, {
         "inputs": (4,),
         "targets": (4,)
@@ -1157,24 +1152,6 @@ class EvaluationTest(tf.test.TestCase):
         score_fn=self.uncalled_fn)
     self.assertIsNone(all_metrics.result())
     self.assertEqual({}, all_output)
-
-  def test_task_with_no_pretokenized_targets(self):
-    task_name = "no_pretokenized_task"
-    ds = tf.data.Dataset.from_tensors({"targets": [42, 48], "inputs": [56]})
-    dataset_fn = lambda split, shuffle_files, seed=None: ds
-    task = register_dummy_task(
-        task_name,
-        dataset_fn=dataset_fn,
-        metrics_fn=[_sum_scores_metric],
-        postprocess_fn=lambda d, example, is_target: d + " 1")
-    task.output_features["targets"].vocabulary.decode = mock.Mock(
-        return_value="ex")
-    evaluator = Evaluator(
-        mixture_or_task_name=task_name,
-        feature_converter=evaluation.EncDecFeatureConverter(pack=False))
-    self.assertSequenceEqual(evaluator.cached_targets[task_name], ["ex 1"])
-    task.output_features["targets"].vocabulary.decode.assert_called_once_with(
-        [42, 48, 1])
 
   def test_task_with_score_fn_with_intermediates(self):
 

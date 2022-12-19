@@ -184,23 +184,23 @@ class LegacyMetric(Metric):
       features: Mapping[str, utils.Feature],
       target_field_name: str = "targets") -> "LegacyMetric":
 
-    # Postprocesses the targets here.
-    postprocessed_targets = []
-    for ex in inputs:
-      pretokenized_target_field_name = target_field_name + "_pretokenized"
-      if pretokenized_target_field_name in ex:
-        target = ex[pretokenized_target_field_name]
-      else:
-        target = features[target_field_name].vocabulary.decode(
-            list(ex[target_field_name]))
-      if isinstance(target, bytes):
-        target = target.decode("utf-8")
+    if not self.metric_fn_kwargs.get("targets"):
+      # Postprocesses the targets here.
+      postprocessed_targets = []
+      for ex in inputs:
+        pretokenized_target_field_name = target_field_name + "_pretokenized"
+        if pretokenized_target_field_name in ex:
+          target = ex[pretokenized_target_field_name]
+        else:
+          target = features[target_field_name].vocabulary.decode(
+              list(ex[target_field_name]))
+        if isinstance(target, bytes):
+          target = target.decode("utf-8")
 
-      postprocessed_targets.append(
-          self.postprocess_fn(target, example=ex, is_target=True))
-
-    self.metric_fn_kwargs["targets"] = postprocessed_targets
-    self.targets_and_inferences["targets"] = postprocessed_targets
+        postprocessed_targets.append(
+            self.postprocess_fn(target, example=ex, is_target=True))
+      self.metric_fn_kwargs["targets"] = postprocessed_targets
+      self.targets_and_inferences["targets"] = postprocessed_targets
 
     if self.model_output_type == ModelOutputType.SCORE:
       self.metric_fn_kwargs["scores"] = model_output
@@ -228,4 +228,3 @@ class LegacyMetric(Metric):
 
   def compute(self):
     return self._metric_fn(**self.metric_fn_kwargs)
-
