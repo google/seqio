@@ -295,39 +295,44 @@ class Evaluator:
                logger_cls: Sequence[Type[loggers_lib.Logger]] = (),
                log_dir: Optional[str] = None,
                use_memory_cache: bool = True,
+               async_compute_metrics: bool = True,
                target_field_name: str = "targets"):
     """Evaluator constructor.
 
     Args:
-      mixture_or_task_name: a registered task or mixture name.
-      feature_converter: a feature converter object to use to convert the task
+      mixture_or_task_name: A registered task or mixture name.
+      feature_converter: A feature converter object to use to convert the task
         features to model features. Must be a subclass of
         seqio.FeatureConverter.
-      eval_split: evaluation split. Typically "validation" or "test".
-      use_cached: whether to use the cached dataset instead of processing it on
+      eval_split: The evaluation split name. Typically "validation" or "test".
+      use_cached: Whether to use the cached dataset instead of processing it on
         the fly.
-      seed: random seed used for dataset shuffle and preprocessing. This is
+      seed: Random seed used for dataset shuffle and preprocessing. This is
         usually not needed since eval datasets aren't shuffled and shouldn't use
         stochastic operations. It is only useful for in certain data sources
         such as `FewshotDataSource` where the training examples are randomly
         selected during evaluation.
-      sequence_length: an optional length specification. If specified, these
+      sequence_length: An optional length specification. If specified, these
         will be the hard-limit on the evaluation data used for prediction. If
         none of the preprocessors depend on the sequence length, it can be left
         unspecified and the maximum length for each feature will be used. These
         lengths are computed while caching the datasets.
-      num_examples: an optional maximum number of examples to take from the
+      num_examples: An optional maximum number of examples to take from the
         beginning of each Task dataset for evaluation.
-      shuffle: whether to shuffle the Task datasets. Only useful when
+      shuffle: Whether to shuffle the Task datasets. Only useful when
         `num_examples` is also set in order to get a semi-random subsample of
         the examples. Note that the shuffle will only be applied once during
         initialization (using `seed`) and the same subsample will be used on
         call to `evaluate`.
-      logger_cls: a set of subclasses of `Logger` to write results with.
-      log_dir: the directory to log outputs to. Required if `logger_cls` is
+      logger_cls: A set of subclasses of `Logger` to write results with.
+      log_dir: The directory to log outputs to. Required if `logger_cls` is
         non-empty.
-      use_memory_cache: whether to use tf.data.Dataset#cache. may cause memory
+      use_memory_cache: whether to use tf.data.Dataset#cache. May cause memory
         issues for large datasets.
+      async_compute_metrics: Whether to compute metrics in a separate thread.
+        Should be disabled if the metric evaluation uses the accelerator in
+        order to avoid deadlocking (e.g., when being run alongside the training
+        loop).
       target_field_name: Field name of the target in the input dataset examples.
 
     Raises:
@@ -340,7 +345,7 @@ class Evaluator:
     self._eval_tasks = get_valid_eval_tasks(eval_tasks, eval_split)
 
     self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
-        max_workers=1)
+        max_workers=1) if async_compute_metrics else None
     self._metrics_future = None
     self._target_field_name = target_field_name
 
@@ -467,11 +472,13 @@ class Evaluator:
 
   def __del__(self):
     """Wait for metrics to be written before deletion."""
-    self._metrics_executor.shutdown(wait=True)
+    if self._metrics_executor:
+      self._metrics_executor.shutdown(wait=True)
 
   def close(self):
     """Wait for metrics to be written."""
-    self._metrics_executor.shutdown(wait=True)
+    if self._metrics_executor:
+      self._metrics_executor.shutdown(wait=True)
 
   def evaluate(
       self,
@@ -606,7 +613,11 @@ class Evaluator:
       if not tf.executing_eagerly():
         compute_metrics_fn = wrap_graph(compute_metrics_fn)
 
-      self._metrics_future = self._metrics_executor.submit(compute_metrics_fn)
+      if self._metrics_executor:
+        self._metrics_future = self._metrics_executor.submit(compute_metrics_fn)
+      else:
+        self._metrics_future = concurrent.futures.Future()
+        self._metrics_future.set_result(compute_metrics_fn())
       all_metrics = self._metrics_future
     else:
       all_metrics = concurrent.futures.Future()
