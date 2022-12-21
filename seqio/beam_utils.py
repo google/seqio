@@ -97,20 +97,20 @@ class PreprocessTask(beam.PTransform):
     logging.info("Processing shard: %s", shard_name)
     self._increment_counter("input-shards")
 
-    ds = self._task.source.get_dataset(
-        split=self._split,
-        shard_info=seqio.ShardInfo(
-            index=shard_index, num_shards=len(self.shards)),
-        shuffle=False)
-
-    ds = ds.prefetch(tf.data.AUTOTUNE)
-
     # Create a unique, deterministic preprocessors seed for each task and shard.
     shard_preprocessors_seed = int.from_bytes(
         hashlib.md5(
             (self._task.name + f"shard{shard_index}").encode()).digest(),
         "little") + (self._preprocessors_seed or 0)
 
+    ds = self._task.source.get_dataset(
+        split=self._split,
+        shard_info=seqio.ShardInfo(
+            index=shard_index, num_shards=len(self.shards)),
+        shuffle=False,
+        seed=shard_preprocessors_seed)
+
+    ds = ds.prefetch(tf.data.AUTOTUNE)
     ds = self._task.preprocess_precache(ds, seed=shard_preprocessors_seed)
 
     def _add_provenance(index_within_shard: int, ex: Dict[str, Any]):
