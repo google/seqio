@@ -270,7 +270,7 @@ class DataSource(DatasetProviderBase):
     """
     raise NotImplementedError
 
-  def num_input_examples(self, split: str) -> Optional[int]:
+  def num_input_examples(self, split: str) -> Optional[int]:  # pytype: disable=signature-mismatch  # overriding-return-type-checks
     if self._num_input_examples is None:
       return None
     return self._num_input_examples[split]
@@ -978,7 +978,7 @@ class Task(DatasetProviderBase):
       task_kwargs[key] = value
     return Task(**task_kwargs)
 
-  def num_input_examples(self, split: str) -> Optional[int]:
+  def num_input_examples(self, split: str) -> Optional[int]:  # pytype: disable=signature-mismatch  # overriding-return-type-checks
     return self.source.num_input_examples(split)
 
   def _preprocess_dataset(
