@@ -1379,7 +1379,7 @@ class Mixture(DatasetProviderBase):
 
     if len(set(tuple(t.output_features) for t in self.tasks)) != 1:
       task_name_outputs = "\n".join(
-          [t.name + ": " + tuple(t.output_features) for t in self.tasks])
+          [t.name + ": " + str(tuple(t.output_features)) for t in self.tasks])
       raise ValueError(
           f"Mixture, '{self.name}' contains Tasks with different output "
           f"features:\n {task_name_outputs}")
