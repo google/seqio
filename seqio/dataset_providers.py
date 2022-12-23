@@ -1213,9 +1213,9 @@ class Task(DatasetProviderBase):
 
     if shard_data_source:
       ds = source.get_dataset(
-          split=split, shuffle=shuffle, seed=seed, shard_info=shard_info)
+          split=split, shuffle=False, seed=seed, shard_info=shard_info)
     else:
-      ds = source.get_dataset(split=split, shuffle=shuffle, seed=seed)
+      ds = source.get_dataset(split=split, shuffle=False, seed=seed)
       ds = ds.shard(shard_info.num_shards, shard_info.index)
 
     if ((use_cached and
