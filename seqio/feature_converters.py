@@ -979,7 +979,8 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
 
     return d
 
-  def _concat_and_add_masks(self, features: tf.data.Dataset) -> tf.data.Dataset:
+  def _concat_and_add_masks(self, features: Mapping[str, tf.Tensor]
+                            ) -> Mapping[str, tf.Tensor]:
     """Creates concatenated inputs and targets fields and adds masks."""
     inputs = features["inputs"]
     targets = features["targets"]
