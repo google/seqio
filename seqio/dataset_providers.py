@@ -968,7 +968,7 @@ class Task(DatasetProviderBase):
   def replace(self, **kwargs):
     """Create a new variant of the current task using properties in kwargs."""
     properties = ["name", "source", "output_features", "preprocessors",
-                  "metric_fns", "metric_objs", "shuffle_buffer_size"]
+                  "metric_objs", "shuffle_buffer_size"]
     task_kwargs = {}
     for key in properties:
       if key in kwargs:
