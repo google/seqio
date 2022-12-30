@@ -71,7 +71,8 @@ flags.DEFINE_integer(
 def _print_length_statistics(task_or_mixture):
   """Utility function for printing length statistics of a feature."""
   print(f"* {task_or_mixture.name} Length Statistics *")
-  percentile_headers = [f"p{int(p * 100)}" for p in FLAGS.length_percentiles]
+  percentiles = [int(p * 100) for p in FLAGS.length_percentiles]
+  percentile_headers = [f"p{p}" for p in percentiles]
   print("split, feature, " + ", ".join(percentile_headers))
   sequence_length = ast.literal_eval(FLAGS.sequence_length)
   for split in task_or_mixture.splits:
@@ -85,8 +86,7 @@ def _print_length_statistics(task_or_mixture):
     features = list(sequence_length.keys())
     for e in dataset.take(FLAGS.length_example_count):
       sizes.append([e[feature].numpy().size for feature in features])
-    all_lengths = np.transpose(
-        np.percentile(sizes, FLAGS.length_percentiles, axis=0))
+    all_lengths = np.transpose(np.percentile(sizes, percentiles, axis=0))
     for feature, lengths in zip(features, all_lengths):
       print(f"{split}, {feature}, " + ", ".join(f"{l:.1f}" for l in lengths))
 
