@@ -23,7 +23,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from absl import logging
 import apache_beam as beam
-import apache_beam.metrics as metrics
+from apache_beam import metrics
 import numpy as np
 import seqio
 import tensorflow.compat.v2 as tf
@@ -48,7 +48,7 @@ def _import_modules(modules):
 
 
 class PreprocessTask(beam.PTransform):
-  """Abstract base class to preprocess a Task.
+  """Preprocesses a Task.
 
   Returns a PCollection of example dicts containing Tensors.
   """
@@ -61,7 +61,7 @@ class PreprocessTask(beam.PTransform):
                modules_to_import: Sequence[str] = (),
                add_provenance: bool = False,
                tfds_data_dir: Optional[str] = None):
-    """BasePreprocessTask constructor.
+    """PreprocessTask constructor.
 
     Args:
       task: Task, the task to process.
@@ -70,7 +70,8 @@ class PreprocessTask(beam.PTransform):
         task preprocessing.
       modules_to_import: (Optional) list, modules to import.
       add_provenance: If True, provenance is added to each example.
-      tfds_data_dir: (Optional) str, directory used to store datasets.
+      tfds_data_dir: (Optional) str, directory where the TFDS datasets are
+        stored.
     """
     self._task = task
     self._split = split
