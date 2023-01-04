@@ -23,6 +23,7 @@ import dataclasses
 import functools
 import inspect
 import json
+import numbers
 import operator
 import os
 import re
@@ -1316,17 +1317,16 @@ SampleFn = Callable[[Sequence[tf.data.Dataset], Sequence[float], Optional[int]],
                     tf.data.Dataset]
 
 
+MixtureRate = Union[int, float, Callable[[Union[Task, "Mixture"]], float]]
+
+
 class Mixture(DatasetProviderBase):
   """Class for mixing multiple tasks."""
 
   def __init__(self,
                name: str,
-               tasks: Union[Sequence[str],
-                            Sequence[Tuple[str, Union[int, float,
-                                                      Callable[[Task],
-                                                               float]]]]],
-               default_rate: Optional[Union[float, Callable[[Task],
-                                                            float]]] = None,
+               tasks: Union[Sequence[str], Sequence[Tuple[str, MixtureRate]]],
+               default_rate: Optional[MixtureRate] = None,
                sample_fn: SampleFn = tf.data.experimental.sample_from_datasets):
     """Mixture constructor.
 
@@ -1405,7 +1405,7 @@ class Mixture(DatasetProviderBase):
 
     for mix in self._sub_mixtures:
       if task in mix.tasks:
-        rate = self._task_to_rate[mix.name]
+        rate = self._get_submixture_rate(mix)
         value += rate * mix.get_rate(task) / mix.total_rate
 
     if task.name in self._task_to_rate:
@@ -1413,6 +1413,14 @@ class Mixture(DatasetProviderBase):
       value += float(rate(task) if callable(rate) else rate)
 
     return value
+
+  def _get_submixture_rate(self, mix: "Mixture") -> float:
+    """Returns the rate for a sub mixture by name."""
+    rate = self._task_to_rate[mix.name]
+    if not isinstance(rate, numbers.Number):
+      raise ValueError(
+          f"'rate' for sub-mixture {repr(mix.name)} must be a number.")
+    return float(rate)
 
   def num_input_examples(self, split: str) -> int:
     return sum(t.num_input_examples(split) for t in self.tasks)
@@ -1550,10 +1558,8 @@ class PyGloveTunableMixture(Mixture):
   def __init__(
       self,
       name: str,
-      tasks: Union[Sequence[str],
-                   Sequence[Tuple[str,
-                                  Union[int, float, Callable[[Task], float]]]]],
-      default_rate: Optional[Union[float, Callable[[Task], float]]] = None,
+      tasks: Union[Sequence[str], Sequence[Tuple[str, MixtureRate]]],
+      default_rate: Optional[MixtureRate] = None,
       sample_fn: SampleFn = tf.data.experimental.sample_from_datasets):
     def hyper_ratio(task_name, hyper):
       """Function for converting PyGlove hyper primitive as ratio fn."""
@@ -1571,6 +1577,13 @@ class PyGloveTunableMixture(Mixture):
         t = (t[0], hyper_ratio(t[0], t[1]))
       converted_tasks.append(t)
     super().__init__(name, converted_tasks, default_rate, sample_fn)
+
+  def _get_submixture_rate(self, mix: "Mixture") -> float:
+    """Overrides this method to make submixture ratio tunable."""
+    rate = self._task_to_rate[mix.name]
+    if callable(rate):
+      rate = rate(mix)
+    return float(rate)
 
 
 
