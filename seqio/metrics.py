@@ -149,7 +149,9 @@ class LegacyMetric(Metric):
     pos_args = tuple(
         key
         for key, param in inspect.signature(metric_fn).parameters.items()
-        if param.default == inspect.Parameter.empty)
+        if param.default == inspect.Parameter.empty
+        and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
+    )
     if pos_args == ("targets", "scores"):
       model_output_type = ModelOutputType.SCORE
     elif pos_args == ("targets", "predictions"):
