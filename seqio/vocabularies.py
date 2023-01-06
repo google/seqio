@@ -466,8 +466,9 @@ class ByteVocabulary(Vocabulary):
       extra_ids: an optional integer
     """
     self._byte_size = 256
-    self._byte_strings = tf.constant([
-      bytes([i]) for i in range(self._byte_size)])
+    self._byte_strings = tf.constant(
+        [bytes([i]) for i in range(self._byte_size)]
+    )
     # The special tokens: 0=PAD, 1=EOS,and 2=UNK
     self._num_special_tokens = 3
     super().__init__(extra_ids=extra_ids)
@@ -579,15 +580,15 @@ class ByteVocabulary(Vocabulary):
             tf.math.greater_equal(ids, lower_bound),
             tf.math.less(ids, upper_bound)))
     ids = ids - self._num_special_tokens
-    string = tf.strings.reduce_join(
-      tf.gather(self._byte_strings, ids), axis=-1)
+    string = tf.strings.reduce_join(tf.gather(self._byte_strings, ids), axis=-1)
 
     # Drop invalid byte sequences.
     return tf.strings.unicode_transcode(
-      input=string,
-      input_encoding="UTF-8",
-      output_encoding="UTF-8",
-      errors="ignore")
+        input=string,
+        input_encoding="UTF-8",
+        output_encoding="UTF-8",
+        errors="ignore",
+    )
 
   def __eq__(self, other):
     if not isinstance(other, ByteVocabulary):
