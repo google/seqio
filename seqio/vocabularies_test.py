@@ -331,9 +331,10 @@ class SentencepieceVocabularyTest(absltest.TestCase):
 
 class ByteVocabularyTest(absltest.TestCase):
 
-  TEST_STRING = "this is a test"
+  TEST_STRING = "this is a test 🤗 你好"
   TEST_BYTE_IDS = (
-      119, 107, 108, 118, 35, 108, 118, 35, 100, 35, 119, 104, 118, 119)
+      119, 107, 108, 118, 35, 108, 118, 35, 100, 35, 119, 104, 118, 119, 35,
+      243, 162, 167, 154, 35, 231, 192, 163, 232, 168, 192)
 
   def test_decode_tf(self):
     vocab = vocabularies.ByteVocabulary()
@@ -360,6 +361,15 @@ class ByteVocabularyTest(absltest.TestCase):
 
     # Add two ids that are outside the allowed interval. They should be ignored.
     ids = tuple(list(self.TEST_BYTE_IDS) + [3000, -4000])
+    expected_str = self.TEST_STRING
+
+    self.assertEqual(expected_str, _decode_tf(vocab, ids))
+
+  def test_decode_tf_invalid_byte_sequence(self):
+    vocab = vocabularies.ByteVocabulary()
+
+    # Add an invalid byte sequence, which should be ignored.
+    ids = tuple(list(self.TEST_BYTE_IDS) + [0xc0, 0xc1])
     expected_str = self.TEST_STRING
 
     self.assertEqual(expected_str, _decode_tf(vocab, ids))
