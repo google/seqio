@@ -79,6 +79,7 @@ class PreprocessTask(beam.PTransform):
     self._modules_to_import = modules_to_import
     self._add_provenance = add_provenance
     self._tfds_data_dir = tfds_data_dir
+    self._int64_max = 2 ** 63 - 1
     self.shards = list(enumerate(task.source.list_shards(split)))
     logging.info("%s %s shards: %s", task.name, split,
                  ", ".join(["%s" % f[1] for f in self.shards]))
@@ -99,10 +100,17 @@ class PreprocessTask(beam.PTransform):
     self._increment_counter("input-shards")
 
     # Create a unique, deterministic preprocessors seed for each task and shard.
+    md5_digest = hashlib.md5(
+        (self._task.name + f"shard{shard_index}").encode()).digest()
     shard_preprocessors_seed = int.from_bytes(
-        hashlib.md5(
-            (self._task.name + f"shard{shard_index}").encode()).digest(),
-        "little") + (self._preprocessors_seed or 0)
+        md5_digest, "little") + (self._preprocessors_seed or 0)
+    if shard_preprocessors_seed > self._int64_max:
+      # The user provided seed is very likely to be much smaller than 2**62,
+      # therefore it's safe to just truncated the rest of the bytes and add up.
+      md5_digest = md5_digest[:7]
+      shard_preprocessors_seed = int.from_bytes(md5_digest, "little") + (
+          self._preprocessors_seed or 0
+      )
 
     ds = self._task.source.get_dataset(
         split=self._split,
