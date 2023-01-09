@@ -366,6 +366,8 @@ class JSONLogger(Logger):
         serializable_metrics[metric_name] = metric_value.value
       elif isinstance(metric_value, metrics_lib.Text):
         serializable_metrics[metric_name] = metric_value.textdata
+      elif isinstance(metric_value, metrics_lib.Generic):
+        serializable_metrics[metric_name] = metric_value.tensor.tolist()
       else:
         logging.warning(
             "Skipping JSON logging of non-serializable metric '%s' of type %s.",

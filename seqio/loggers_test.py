@@ -648,6 +648,12 @@ class JSONLoggerTest(tf.test.TestCase):
             "scalar": metrics_lib.Scalar(100),
             "text": metrics_lib.Text("foo"),
             "image": metrics_lib.Image(np.ones(10)),
+            "1d_array": metrics_lib.Generic(
+                np.array([1, 2, 3]), metadata="1d_array"
+            ),
+            "2d_array": metrics_lib.Generic(
+                np.array([[1, 2, 3], [4, 5, 6]]), metadata="2d_array"
+            ),
         },
         dataset=tf.data.Dataset.range(0),
         inferences={},
@@ -658,7 +664,9 @@ class JSONLoggerTest(tf.test.TestCase):
           json.load(f), {
               "step": 42,
               "scalar": 100.0,
-              "text": "foo"
+              "text": "foo",
+              "1d_array": [1, 2, 3],
+              "2d_array": [[1, 2, 3], [4, 5, 6]],
           })
 
   def test_logging_metrics_only(self):
