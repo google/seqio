@@ -33,7 +33,7 @@ from absl import logging
 import clu.metrics
 import editdistance
 import numpy as np
-from packaging import version
+from packaging import version as version_lib
 import pyglove as pg
 from seqio import metrics as metrics_lib
 from seqio import preprocessors as seqio_preprocessors
@@ -256,11 +256,12 @@ class DataSource(DatasetProviderBase):
     raise NotImplementedError
 
   @abc.abstractmethod
-  def get_dataset(self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
-                  split: str,
-                  shuffle: bool = True,
-                  seed: Optional[int] = None,
-                  shard_info: Optional[ShardInfo] = None) -> tf.data.Dataset:
+  def get_dataset(
+      self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
+      split: str,
+      shuffle: bool = True,
+      seed: Optional[int] = None,
+      shard_info: Optional[ShardInfo] = None) -> tf.data.Dataset:
     """Overrides base class to add shard identifier and remove use_cached.
 
     Args:
@@ -389,16 +390,16 @@ class TfdsDataSource(DataSource):
     """TfdsTask constructor.
 
     Args:
-      tfds_name: The name and version number of a TFDS dataset,
-        optionally with a config.
+      tfds_name: The name and version number of a TFDS dataset, optionally with
+        a config.
       tfds_data_dir: An optional path to a specific TFDS data directory to use.
-        If provided `tfds_name` must be a valid dataset in the directory.
-        If `tfds_name` is empty `tfds_dara_dir` must point to the directory with
+        If provided `tfds_name` must be a valid dataset in the directory. If
+        `tfds_name` is empty `tfds_dara_dir` must point to the directory with
         one dataset.
       splits: an iterable of allowable string split names, a dict mapping
         allowable canonical splits (e.g., 'validation') to TFDS splits or slices
         (e.g., 'train[':1%']), or None. The default, None, uses all available
-          splits from the TFDS dataset info.
+        splits from the TFDS dataset info.
       caching_permitted: indicates whether this data source may be cached.
         Default True.
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
@@ -682,7 +683,11 @@ def _rename_plaintext_to_pretokenized(
   return dataset.map(_rename, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
 
-class _CachedDataSource(FileDataSource):
+class _CachedDataSource(DataSource):
+  """A `DataSource` for reading datasets cached offline."""
+
+
+class _CachedFileDataSource(FileDataSource, _CachedDataSource):
   """A `FileDataSource` for reading datasets cached offline."""
 
   def __init__(self,
@@ -697,9 +702,9 @@ class _CachedDataSource(FileDataSource):
     with tf.io.gfile.GFile(utils.get_cached_stats_path(cache_dir, split)) as f:
       stats = json.load(f)
 
-    version_when_cached = version.Version(
+    version_when_cached = version_lib.Version(
         split_info.get("seqio_version", "0.pre"))
-    version_with_true_dtypes = version.Version("0.0.0")
+    version_with_true_dtypes = version_lib.Version("0.0.0")
     if version_when_cached < version_with_true_dtypes:
       # Assume that all int64 features are really int32.
       for name, feat in features.items():
@@ -753,9 +758,14 @@ class _CachedDataSource(FileDataSource):
 class CacheDatasetPlaceholder(object):
   """A placeholder to signal when in the pipeline offline caching will occur."""
 
-  def __init__(self,
-               required=False,
-               file_shuffle_buffer_size: Optional[int] = None):
+  def __init__(
+      self,
+      required: bool = False,
+      file_shuffle_buffer_size: Optional[int] = None,
+      use_tfds: bool = False,
+      version: str = "1.0.0",
+      description: Optional[str] = None,
+  ):
     """CacheDatasetPlaceholder constructor.
 
     Args:
@@ -765,9 +775,15 @@ class CacheDatasetPlaceholder(object):
         None, the number of files is used as buffer size for a perfect shuffle
         (default and recommended). A value of 16 may be explicitly set to
         replicate earlier behavior.
+      use_tfds: whether to use TFDS to store the cached dataset.
+      version: the version of the cached dataset.
+      description: textual description of this version.
     """
     self._required = required
     self._file_shuffle_buffer_size = file_shuffle_buffer_size
+    self._use_tfds = use_tfds
+    self._version = version
+    self._description = description
 
   @property
   def required(self):
@@ -776,6 +792,18 @@ class CacheDatasetPlaceholder(object):
   @property
   def file_shuffle_buffer_size(self):
     return self._file_shuffle_buffer_size
+
+  @property
+  def use_tfds(self):
+    return self._use_tfds
+
+  @property
+  def version(self):
+    return self._version
+
+  @property
+  def description(self):
+    return self._description
 
   def __call__(self, dataset):
     raise RuntimeError("`CacheDatasetPlaceholder` should never be called.")
@@ -817,14 +845,12 @@ class Task(DatasetProviderBase):
         outputs and converts them to a form that is ready for evaluation using
         the metric functions in `metric_fns`.
       metric_fns: list(callable), an optional list of metric functions with a
-        signature that matches one of three possible forms:
-        - (targets, scores) - Note that `scores` refers to the score the model
-            assigned the target sequence, given the input.
-        - (targets, predictions)
-        - (targets, predictions, aux_values) - Note that
-            `aux_values` refers to a dictionary of auxiliary values that the
-            model assigned to each sequence.
-        metric_fns are being deprecated, please use metric_objs instead.
+        signature that matches one of three possible forms: - (targets, scores)
+        - Note that `scores` refers to the score the model assigned the target
+        sequence, given the input. - (targets, predictions) - (targets,
+        predictions, aux_values) - Note that `aux_values` refers to a dictionary
+        of auxiliary values that the model assigned to each sequence. metric_fns
+        are being deprecated, please use metric_objs instead.
       metric_objs: list(clu Metric instances), an optional list of clu Metric
         objects.
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
@@ -971,8 +997,10 @@ class Task(DatasetProviderBase):
 
   def replace(self, **kwargs):
     """Create a new variant of the current task using properties in kwargs."""
-    properties = ["name", "source", "output_features", "preprocessors",
-                  "metric_objs", "shuffle_buffer_size"]
+    properties = [
+        "name", "source", "output_features", "preprocessors", "metric_objs",
+        "shuffle_buffer_size"
+    ]
     task_kwargs = {}
     for key in properties:
       if key in kwargs:
@@ -1145,16 +1173,17 @@ class Task(DatasetProviderBase):
         self._stats[split] = json.load(f)
     return self._stats[split]
 
-  def get_dataset(self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
-                  sequence_length: Optional[Mapping[str, int]],
-                  split: str = tfds.Split.TRAIN,
-                  use_cached: bool = False,
-                  shuffle: bool = True,
-                  shuffle_buffer_size: Optional[int] = None,
-                  seed: Optional[int] = None,
-                  shard_info: Optional[ShardInfo] = None,
-                  num_epochs: Optional[int] = 1,
-                  trim_output_features: bool = True) -> tf.data.Dataset:
+  def get_dataset(
+      self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
+      sequence_length: Optional[Mapping[str, int]],
+      split: str = tfds.Split.TRAIN,
+      use_cached: bool = False,
+      shuffle: bool = True,
+      shuffle_buffer_size: Optional[int] = None,
+      seed: Optional[int] = None,
+      shard_info: Optional[ShardInfo] = None,
+      num_epochs: Optional[int] = 1,
+      trim_output_features: bool = True) -> tf.data.Dataset:
     """Returns a tf.data.Dataset from cache or generated on the fly.
 
     Args:
@@ -1179,7 +1208,7 @@ class Task(DatasetProviderBase):
         post-cache preprocessors and is therefore typically preferred to calling
         `repeat()` on the returned dataset. Defaults to `1`.
         trim_output_features: If True, it trims output features to be less than
-        the length given by `sequence_length`.
+          the length given by `sequence_length`.
 
     Returns:
       A tf.data.Dataset.
@@ -1258,11 +1287,11 @@ class Task(DatasetProviderBase):
 
   def _get_cached_source(
       self,
-      split,
+      split: str,
       file_shuffle_buffer_size: Optional[int] = None) -> _CachedDataSource:
     """Returns a DataSource to read cached files for split."""
     self.assert_cached()
-    return _CachedDataSource(
+    return _CachedFileDataSource(
         self.cache_dir,
         split,
         file_shuffle_buffer_size=file_shuffle_buffer_size)
@@ -1273,6 +1302,7 @@ class Task(DatasetProviderBase):
     if self._postprocess_fn:
       return self._postprocess_fn(decoded_model_output, **postprocess_kwargs)
     return decoded_model_output
+
 
 
 
@@ -1566,17 +1596,19 @@ class PyGloveTunableMixture(Mixture):
       sample_fn: SampleFn = tf.data.experimental.sample_from_datasets):
     def hyper_ratio(task_name, hyper):
       """Function for converting PyGlove hyper primitive as ratio fn."""
+
       def ratio_fn(unused_task):
         hyper_kwargs = dict(hyper.sym_init_args)
         if "name" not in hyper_kwargs or hyper_kwargs["name"] is None:
           hyper_kwargs["name"] = task_name
         return hyper.__class__(**hyper_kwargs)
+
       return ratio_fn
 
     converted_tasks = []
     for t in tasks:
-      if (isinstance(t, (list, tuple))
-          and isinstance(t[1], pg.hyper.HyperPrimitive)):
+      if (isinstance(t, (list, tuple)) and
+          isinstance(t[1], pg.hyper.HyperPrimitive)):
         t = (t[0], hyper_ratio(t[0], t[1]))
       converted_tasks.append(t)
     super().__init__(name, converted_tasks, default_rate, sample_fn)
@@ -1709,6 +1741,7 @@ class MixtureRegistry(DatasetProviderRegistry):
   @classmethod
   def get(cls, name) -> Mixture:
     return super().get(name)
+
   # pylint: enable=arguments-renamed
 
 
@@ -1731,7 +1764,7 @@ def _get_closest_names(candidate_names: Iterable[str],
   return [k for (k, v) in sorted_d]
 
 
-def get_mixture_or_task(task_or_mixture_name):
+def get_mixture_or_task(task_or_mixture_name: str):
   """Return the Task or Mixture from the appropriate registry."""
   mixtures = MixtureRegistry.names()
   tasks = TaskRegistry.names()
