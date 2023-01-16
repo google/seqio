@@ -30,7 +30,10 @@ with open('README.md') as fp:
 setuptools.setup(
     name='seqio',
     version=__version__,
-    description='SeqIO: Task-based datasets, preprocessing, and evaluation for sequence models.',
+    description=(
+        'SeqIO: Task-based datasets, preprocessing, and evaluation for sequence'
+        ' models.'
+    ),
     long_description=_LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
     author='Google Inc.',
@@ -54,14 +57,20 @@ setuptools.setup(
         'tfds-nightly',
     ],
     extras_require={
-        'gcp': ['gevent', 'google-api-python-client', 'google-compute-engine',
-                'google-cloud-storage', 'oauth2client'],
+        'gcp': [
+            'gevent',
+            'google-api-python-client',
+            'google-compute-engine',
+            'google-cloud-storage',
+            'oauth2client',
+        ],
         'cache-tasks': ['apache-beam'],
         'test': ['pytest'],
     },
     entry_points={
         'console_scripts': [
-            'seqio_cache_tasks = seqio.scripts.cache_tasks_main:console_entry_point'
+            'seqio_cache_tasks ='
+            ' seqio.scripts.cache_tasks_main:console_entry_point'
         ],
     },
     classifiers=[

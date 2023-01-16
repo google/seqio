@@ -40,7 +40,6 @@ def _decode_tf(vocab, tokens):
 
 
 class VocabularyTest(absltest.TestCase):
-
   TEST_STR = "Testing."
   TEST_IDS = [84, 101, 115, 116, 105, 110, 103, 46]
 
@@ -98,8 +97,8 @@ class VocabularyTest(absltest.TestCase):
     test_vocab = self.AsciiVocab()
     self.assertSequenceEqual(test_vocab.encode(self.TEST_STR), self.TEST_IDS)
     self.assertSequenceEqual(
-        tuple(test_vocab.encode_tf(self.TEST_STR).numpy()),
-        self.TEST_IDS)
+        tuple(test_vocab.encode_tf(self.TEST_STR).numpy()), self.TEST_IDS
+    )
 
   def test_decode_unk_and_eos(self):
     test_vocab = self.AsciiVocab(use_eos=True, use_unk=True)
@@ -134,7 +133,7 @@ class VocabularyTest(absltest.TestCase):
 
   def test_decode_no_unk_or_eos(self):
     test_vocab = self.AsciiVocab(use_eos=False, use_unk=False)
-    test_ids = [161] + self.TEST_IDS +  [127, 191, 1, 33, 1]
+    test_ids = [161] + self.TEST_IDS + [127, 191, 1, 33, 1]
     test_str = "¡" + self.TEST_STR + "\x7f¿<eos>!<eos>"
     self.assertEqual(test_vocab.decode(test_ids), test_str)
     self.assertEqual(_decode_tf(test_vocab, test_ids), test_str)
@@ -142,16 +141,16 @@ class VocabularyTest(absltest.TestCase):
   def test_decode_tf_batch(self):
     test_vocab = self.AsciiVocab(use_eos=True, use_unk=True)
     test_ids = (
-        [161] + self.TEST_IDS +  [127, 191, 1, 33, 1],
-        [161] + self.TEST_IDS +  [1, 191, 1, 33, 1],
+        [161] + self.TEST_IDS + [127, 191, 1, 33, 1],
+        [161] + self.TEST_IDS + [1, 191, 1, 33, 1],
     )
     test_str = (
         "\x02" + self.TEST_STR + "\x7f\x02<eos>",
         "\x02" + self.TEST_STR + "<eos>",
     )
     decoded = [
-        dec.decode("UTF-8") for dec in
-        test_vocab.decode_tf(tf.constant(test_ids, tf.int32)).numpy()
+        dec.decode("UTF-8")
+        for dec in test_vocab.decode_tf(tf.constant(test_ids, tf.int32)).numpy()
     ]
     self.assertSequenceEqual(decoded, test_str)
 
@@ -169,8 +168,7 @@ class PassThroughVocabularyTest(absltest.TestCase):
     ids_t = tf.constant([ids], tf.int32)
     np.testing.assert_equal(ids_t, vocab.encode_tf(ids_t).numpy())
     np.testing.assert_equal(ids_t, vocab.decode_tf(ids_t).numpy())
-    self.assertEqual(str(vocab),
-                     "PassThroughVocabulary(size=128, eos_id=None)")
+    self.assertEqual(str(vocab), "PassThroughVocabulary(size=128, eos_id=None)")
 
   def test_eos(self):
     vocab = vocabularies.PassThroughVocabulary(size=128, eos_id=1)
@@ -183,9 +181,9 @@ class PassThroughVocabularyTest(absltest.TestCase):
     ids_t = tf.constant([ids], tf.int32)
     np.testing.assert_equal(ids_t, vocab.encode_tf(ids_t).numpy())
     np.testing.assert_equal(
-        [ids[0:4] + [0]*5], vocab.decode_tf(ids_t).numpy())
-    self.assertEqual(str(vocab),
-                     "PassThroughVocabulary(size=128, eos_id=1)")
+        [ids[0:4] + [0] * 5], vocab.decode_tf(ids_t).numpy()
+    )
+    self.assertEqual(str(vocab), "PassThroughVocabulary(size=128, eos_id=1)")
 
   def test_equal(self):
     vocab1 = vocabularies.PassThroughVocabulary(size=128)
@@ -219,12 +217,15 @@ class UnigramVocabularyTest(absltest.TestCase):
       # encode_tf() rather than the tensor itself. See
       # https://www.tensorflow.org/guide/migrate/tf1_vs_tf2#tensor_equality_by_value
       np.testing.assert_array_equal(
-          vocabulary.encode_tf(tf.constant("that")).numpy(), [2])
+          vocabulary.encode_tf(tf.constant("that")).numpy(), [2]
+      )
       np.testing.assert_array_equal(
-          vocabulary.encode_tf(tf.constant("not")).numpy(), [4])
+          vocabulary.encode_tf(tf.constant("not")).numpy(), [4]
+      )
       np.testing.assert_array_equal(
           vocabulary.encode_tf(tf.constant("apple")).numpy(),
-          [vocabulary.unk_id])
+          [vocabulary.unk_id],
+      )
 
   def test_decode_converts_ints_to_unigrams_correctly(self):
     unigrams = ["this", "that", "is", "not", "a", "the", "test", "ball"]
@@ -242,11 +243,11 @@ class UnigramVocabularyTest(absltest.TestCase):
       self.assertEqual(vocabulary.decode_tf(tf.constant([2])).numpy(), b"that")
       self.assertEqual(vocabulary.decode_tf(tf.constant([4])).numpy(), b"not")
       self.assertEqual(
-          vocabulary.decode_tf(tf.constant([vocabulary.unk_id])).numpy(),
-          b"UNK")
+          vocabulary.decode_tf(tf.constant([vocabulary.unk_id])).numpy(), b"UNK"
+      )
+
 
 class SentencepieceVocabularyTest(absltest.TestCase):
-
   TEST_STRING = "this is a test"
   TEST_TOKENS = (11, 8, 6, 3, 8, 6, 3, 5, 10)
   UNK_STRING = " ⁇ "
@@ -277,8 +278,8 @@ class SentencepieceVocabularyTest(absltest.TestCase):
     self.assertSequenceEqual(self.TEST_TOKENS, vocab.encode(self.TEST_STRING))
     self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_TOKENS))
     self.assertSequenceEqual(
-        self.TEST_TOKENS,
-        tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
+        self.TEST_TOKENS, tuple(vocab.encode_tf(self.TEST_STRING).numpy())
+    )
     self.assertEqual(self.TEST_STRING, _decode_tf(vocab, self.TEST_TOKENS))
 
   def test_extra_ids(self):
@@ -291,15 +292,17 @@ class SentencepieceVocabularyTest(absltest.TestCase):
     self.assertEqual(test_string, _decode_tf(vocab, test_tokens))
     self.assertSequenceEqual(test_tokens, vocab.encode(test_string))
     self.assertSequenceEqual(
-        test_tokens,
-        tuple(vocab.encode_tf(test_string).numpy()))
+        test_tokens, tuple(vocab.encode_tf(test_string).numpy())
+    )
 
   def test_force_repeated_whitespace_preservation(self):
     test_string = "a a  a   a"  # string with repeated whitespaces
 
     vocab = test_utils.sentencepiece_vocab(
         normalizer_spec_overrides=sentencepiece_model_pb2.NormalizerSpec(
-            remove_extra_whitespaces=False))
+            remove_extra_whitespaces=False
+        )
+    )
     self.assertEqual(test_string, vocab.decode(vocab.encode(test_string)))
 
     vocab = test_utils.sentencepiece_vocab()
@@ -317,24 +320,52 @@ class SentencepieceVocabularyTest(absltest.TestCase):
 
   def test_not_reversing_extra_ids(self):
     vocab = test_utils.sentencepiece_vocab(
-        extra_ids=10, reverse_extra_ids=False)
+        extra_ids=10, reverse_extra_ids=False
+    )
     base_vocab_size = vocab.vocab_size - vocab.extra_ids
 
-    self.assertEqual("<extra_id_0> <extra_id_1>",
-                     vocab.decode([base_vocab_size, base_vocab_size + 1]))
+    self.assertEqual(
+        "<extra_id_0> <extra_id_1>",
+        vocab.decode([base_vocab_size, base_vocab_size + 1]),
+    )
 
     reversed_vocab = test_utils.sentencepiece_vocab(
-        extra_ids=10, reverse_extra_ids=True)
+        extra_ids=10, reverse_extra_ids=True
+    )
 
     self.assertNotEqual(vocab, reversed_vocab)
 
 
 class ByteVocabularyTest(absltest.TestCase):
-
   TEST_STRING = "this is a test 🤗 你好"
   TEST_BYTE_IDS = (
-      119, 107, 108, 118, 35, 108, 118, 35, 100, 35, 119, 104, 118, 119, 35,
-      243, 162, 167, 154, 35, 231, 192, 163, 232, 168, 192)
+      119,
+      107,
+      108,
+      118,
+      35,
+      108,
+      118,
+      35,
+      100,
+      35,
+      119,
+      104,
+      118,
+      119,
+      35,
+      243,
+      162,
+      167,
+      154,
+      35,
+      231,
+      192,
+      163,
+      232,
+      168,
+      192,
+  )
 
   def test_decode_tf(self):
     vocab = vocabularies.ByteVocabulary()
@@ -369,7 +400,7 @@ class ByteVocabularyTest(absltest.TestCase):
     vocab = vocabularies.ByteVocabulary()
 
     # Add an invalid byte sequence, which should be ignored.
-    ids = tuple(list(self.TEST_BYTE_IDS) + [0xc0, 0xc1])
+    ids = tuple(list(self.TEST_BYTE_IDS) + [0xC0, 0xC1])
     expected_str = self.TEST_STRING
 
     self.assertEqual(expected_str, _decode_tf(vocab, ids))
@@ -380,8 +411,8 @@ class ByteVocabularyTest(absltest.TestCase):
     self.assertSequenceEqual(self.TEST_BYTE_IDS, vocab.encode(self.TEST_STRING))
     self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_BYTE_IDS))
     self.assertEqual(
-        self.TEST_BYTE_IDS,
-        tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
+        self.TEST_BYTE_IDS, tuple(vocab.encode_tf(self.TEST_STRING).numpy())
+    )
     self.assertEqual(self.TEST_STRING, _decode_tf(vocab, self.TEST_BYTE_IDS))
 
   def test_extra_ids(self):
@@ -407,14 +438,43 @@ class ByteVocabularyTest(absltest.TestCase):
 
 
 class FullCodepointVocabularyTest(absltest.TestCase):
-
   TEST_STRING = "this is a test"
-  TEST_CODEPOINT_IDS = (116, 104, 105, 115, 32, 105, 115, 32, 97, 32, 116, 101,
-                        115, 116)
+  TEST_CODEPOINT_IDS = (
+      116,
+      104,
+      105,
+      115,
+      32,
+      105,
+      115,
+      32,
+      97,
+      32,
+      116,
+      101,
+      115,
+      116,
+  )
   EOS_TEST_STRING = "this is a test" + chr(
-      vocabularies.FullCodepointVocabulary.EOS_CODEPOINT)
-  EOS_TEST_CODEPOINT_IDS = (116, 104, 105, 115, 32, 105, 115, 32, 97, 32, 116,
-                            101, 115, 116, 57349)
+      vocabularies.FullCodepointVocabulary.EOS_CODEPOINT
+  )
+  EOS_TEST_CODEPOINT_IDS = (
+      116,
+      104,
+      105,
+      115,
+      32,
+      105,
+      115,
+      32,
+      97,
+      32,
+      116,
+      101,
+      115,
+      116,
+      57349,
+  )
 
   def test_vocab(self):
     vocab = vocabularies.FullCodepointVocabulary()
@@ -425,30 +485,39 @@ class FullCodepointVocabularyTest(absltest.TestCase):
 
   def test_encode_tf(self):
     vocab = vocabularies.FullCodepointVocabulary()
-    self.assertEqual(self.TEST_CODEPOINT_IDS,
-                     tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
-    self.assertEqual(self.EOS_TEST_CODEPOINT_IDS,
-                     tuple(vocab.encode_tf(self.EOS_TEST_STRING).numpy()))
+    self.assertEqual(
+        self.TEST_CODEPOINT_IDS,
+        tuple(vocab.encode_tf(self.TEST_STRING).numpy()),
+    )
+    self.assertEqual(
+        self.EOS_TEST_CODEPOINT_IDS,
+        tuple(vocab.encode_tf(self.EOS_TEST_STRING).numpy()),
+    )
 
   def test_decode_tf(self):
     vocab = vocabularies.FullCodepointVocabulary()
-    self.assertSequenceEqual(self.TEST_STRING,
-                             _decode_tf(vocab, self.TEST_CODEPOINT_IDS))
-    self.assertSequenceEqual(self.EOS_TEST_STRING,
-                             _decode_tf(vocab, self.EOS_TEST_CODEPOINT_IDS))
+    self.assertSequenceEqual(
+        self.TEST_STRING, _decode_tf(vocab, self.TEST_CODEPOINT_IDS)
+    )
+    self.assertSequenceEqual(
+        self.EOS_TEST_STRING, _decode_tf(vocab, self.EOS_TEST_CODEPOINT_IDS)
+    )
 
   def test_encode(self):
     vocab = vocabularies.FullCodepointVocabulary()
-    self.assertSequenceEqual(self.TEST_CODEPOINT_IDS,
-                             vocab.encode(self.TEST_STRING))
-    self.assertSequenceEqual(self.EOS_TEST_CODEPOINT_IDS,
-                             vocab.encode(self.EOS_TEST_STRING))
+    self.assertSequenceEqual(
+        self.TEST_CODEPOINT_IDS, vocab.encode(self.TEST_STRING)
+    )
+    self.assertSequenceEqual(
+        self.EOS_TEST_CODEPOINT_IDS, vocab.encode(self.EOS_TEST_STRING)
+    )
 
   def test_decode(self):
     vocab = vocabularies.FullCodepointVocabulary()
     self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_CODEPOINT_IDS))
-    self.assertEqual(self.TEST_STRING,
-                     vocab.decode(self.EOS_TEST_CODEPOINT_IDS))
+    self.assertEqual(
+        self.TEST_STRING, vocab.decode(self.EOS_TEST_CODEPOINT_IDS)
+    )
 
   def test_equal(self):
     vocab1 = vocabularies.FullCodepointVocabulary()
@@ -457,7 +526,6 @@ class FullCodepointVocabularyTest(absltest.TestCase):
 
 
 class PartialCodepointVocabularyTest(absltest.TestCase):
-
   TEST_STRING = "this is a test"
   TEST_CODEPOINT_IDS = (3, 4, 5, 6, 9, 5, 6, 9, 7, 9, 3, 8, 6, 3)
 
@@ -467,7 +535,8 @@ class PartialCodepointVocabularyTest(absltest.TestCase):
   UNK_TEST_STRING_ENCODED = chr(UNK_ID) + "his is a test" + chr(UNK_ID)
 
   EOS_TEST_STRING = "this is a test" + chr(
-      vocabularies.PartialCodepointVocabulary.EOS_CODEPOINT)
+      vocabularies.PartialCodepointVocabulary.EOS_CODEPOINT
+  )
   EOS_TEST_CODEPOINT_IDS = (3, 4, 5, 6, 9, 5, 6, 9, 7, 9, 3, 8, 6, 3, 1)
 
   def setUp(self):
@@ -478,7 +547,8 @@ class PartialCodepointVocabularyTest(absltest.TestCase):
 
   def test_vocab(self):
     vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
-        self.char_points_file.full_path)
+        self.char_points_file.full_path
+    )
     self.assertEqual(vocab.vocab_size, vocab.vocab_size)
     self.assertEqual(vocab.pad_id, vocab.PAD_ID)
     self.assertEqual(vocab.eos_id, vocab.EOS_ID)
@@ -493,69 +563,89 @@ class PartialCodepointVocabularyTest(absltest.TestCase):
 
   def test_encode_tf(self):
     vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
-        self.char_points_file.full_path)
-    self.assertEqual(self.TEST_CODEPOINT_IDS,
-                     tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
-    self.assertEqual(self.UNK_TEST_CODEPOINT_IDS,
-                     tuple(vocab.encode_tf(self.UNK_TEST_STRING).numpy()))
+        self.char_points_file.full_path
+    )
+    self.assertEqual(
+        self.TEST_CODEPOINT_IDS,
+        tuple(vocab.encode_tf(self.TEST_STRING).numpy()),
+    )
+    self.assertEqual(
+        self.UNK_TEST_CODEPOINT_IDS,
+        tuple(vocab.encode_tf(self.UNK_TEST_STRING).numpy()),
+    )
     self.assertEqual(
         self.EOS_TEST_CODEPOINT_IDS,
-        tuple(vocab.encode_tf(self.EOS_TEST_STRING).numpy()))
+        tuple(vocab.encode_tf(self.EOS_TEST_STRING).numpy()),
+    )
 
   def test_decode_tf(self):
     vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
-        self.char_points_file.full_path)
-    self.assertSequenceEqual(self.TEST_STRING,
-                             _decode_tf(vocab, self.TEST_CODEPOINT_IDS))
-    self.assertSequenceEqual(self.EOS_TEST_STRING,
-                             _decode_tf(vocab, self.EOS_TEST_CODEPOINT_IDS))
-    self.assertSequenceEqual(self.UNK_TEST_STRING_ENCODED,
-                             _decode_tf(vocab, self.UNK_TEST_CODEPOINT_IDS))
+        self.char_points_file.full_path
+    )
+    self.assertSequenceEqual(
+        self.TEST_STRING, _decode_tf(vocab, self.TEST_CODEPOINT_IDS)
+    )
+    self.assertSequenceEqual(
+        self.EOS_TEST_STRING, _decode_tf(vocab, self.EOS_TEST_CODEPOINT_IDS)
+    )
+    self.assertSequenceEqual(
+        self.UNK_TEST_STRING_ENCODED,
+        _decode_tf(vocab, self.UNK_TEST_CODEPOINT_IDS),
+    )
 
   def test_encode(self):
     vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
-        self.char_points_file.full_path)
-    self.assertSequenceEqual(self.TEST_CODEPOINT_IDS,
-                             vocab.encode(self.TEST_STRING))
-    self.assertSequenceEqual(self.UNK_TEST_CODEPOINT_IDS,
-                             vocab.encode(self.UNK_TEST_STRING))
-    self.assertSequenceEqual(self.EOS_TEST_CODEPOINT_IDS,
-                             vocab.encode(self.EOS_TEST_STRING))
+        self.char_points_file.full_path
+    )
+    self.assertSequenceEqual(
+        self.TEST_CODEPOINT_IDS, vocab.encode(self.TEST_STRING)
+    )
+    self.assertSequenceEqual(
+        self.UNK_TEST_CODEPOINT_IDS, vocab.encode(self.UNK_TEST_STRING)
+    )
+    self.assertSequenceEqual(
+        self.EOS_TEST_CODEPOINT_IDS, vocab.encode(self.EOS_TEST_STRING)
+    )
 
   def test_decode(self):
     vocab = vocabularies.PartialCodepointVocabulary.create_from_file(
-        self.char_points_file.full_path)
+        self.char_points_file.full_path
+    )
     self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_CODEPOINT_IDS))
-    self.assertEqual(self.UNK_TEST_STRING_ENCODED,
-                     vocab.decode(self.UNK_TEST_CODEPOINT_IDS))
-    self.assertEqual(self.TEST_STRING,
-                     vocab.decode(self.EOS_TEST_CODEPOINT_IDS))
+    self.assertEqual(
+        self.UNK_TEST_STRING_ENCODED, vocab.decode(self.UNK_TEST_CODEPOINT_IDS)
+    )
+    self.assertEqual(
+        self.TEST_STRING, vocab.decode(self.EOS_TEST_CODEPOINT_IDS)
+    )
 
   def test_not_equal(self):
     vocab1 = vocabularies.PartialCodepointVocabulary.create_from_file(
-        self.char_points_file.full_path)
+        self.char_points_file.full_path
+    )
     vocab2 = vocabularies.PartialCodepointVocabulary.create_from_file(
-        self.char_points_file.full_path, extra_ids=10)
+        self.char_points_file.full_path, extra_ids=10
+    )
     self.assertNotEqual(vocab1, vocab2)
 
 
 class BertWordpieceVocabularyTest(absltest.TestCase):
-
   TEST_STRING = "this is a test"
   TEST_TOKENS = (106, 105, 104, 107)
 
   def test_vocab(self):
-
     vocab = test_utils.bertwordpiece_vocab()
     self.assertEqual(109, vocab.vocab_size)
 
     self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_TOKENS))
     self.assertEqual(self.TEST_STRING, _decode_tf(vocab, self.TEST_TOKENS))
 
-    self.assertSequenceEqual(self.TEST_TOKENS,
-                             tuple(vocab.encode(self.TEST_STRING)))
-    self.assertSequenceEqual(self.TEST_TOKENS,
-                             tuple(vocab.encode_tf(self.TEST_STRING).numpy()))
+    self.assertSequenceEqual(
+        self.TEST_TOKENS, tuple(vocab.encode(self.TEST_STRING))
+    )
+    self.assertSequenceEqual(
+        self.TEST_TOKENS, tuple(vocab.encode_tf(self.TEST_STRING).numpy())
+    )
 
   def test_special_ids(self):
     # Set preserve_unused_token to True so that detokenization remains the

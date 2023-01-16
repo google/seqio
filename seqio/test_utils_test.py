@@ -30,39 +30,43 @@ class TestUtilsTest(absltest.TestCase):
 
   def test_assert_dataset(self):
     first_dataset = tf.data.Dataset.from_tensor_slices(
-        {'key1': ['val1'], 'key2': ['val2']})
+        {'key1': ['val1'], 'key2': ['val2']}
+    )
     ragged_tensor_dataset = tf.data.Dataset.from_tensor_slices(
-        {'key': tf.ragged.constant([[[1.0, 2.0], [3.0]]])})
-    float_dataset = tf.data.Dataset.from_tensor_slices({
-        'float_key1': [0.2, 0.3],
-        'float_key2': [0.4, 0.5]
-    })
+        {'key': tf.ragged.constant([[[1.0, 2.0], [3.0]]])}
+    )
+    float_dataset = tf.data.Dataset.from_tensor_slices(
+        {'float_key1': [0.2, 0.3], 'float_key2': [0.4, 0.5]}
+    )
 
     # Equal
     assert_dataset(first_dataset, {'key1': [b'val1'], 'key2': [b'val2']})
-    assert_dataset(first_dataset, {'key1': [b'val1'], 'key2': [b'val2']},
-                   expected_dtypes={'key1': tf.string})
+    assert_dataset(
+        first_dataset,
+        {'key1': [b'val1'], 'key2': [b'val2']},
+        expected_dtypes={'key1': tf.string},
+    )
 
     # Equal ragged tensor
     assert_dataset(ragged_tensor_dataset, {'key': [[1.0, 2.0], [3.0]]})
 
     # Equal floating-point
-    assert_dataset(float_dataset, [{
-        'float_key1': 0.2,
-        'float_key2': 0.4
-    }, {
-        'float_key1': 0.3,
-        'float_key2': 0.5
-    }])
+    assert_dataset(
+        float_dataset,
+        [
+            {'float_key1': 0.2, 'float_key2': 0.4},
+            {'float_key1': 0.3, 'float_key2': 0.5},
+        ],
+    )
 
     # Close enough floating-point
-    assert_dataset(float_dataset, [{
-        'float_key1': 0.20000001,
-        'float_key2': 0.39999999
-    }, {
-        'float_key1': 0.30000001,
-        'float_key2': 0.49999999
-    }])
+    assert_dataset(
+        float_dataset,
+        [
+            {'float_key1': 0.20000001, 'float_key2': 0.39999999},
+            {'float_key1': 0.30000001, 'float_key2': 0.49999999},
+        ],
+    )
 
     # Unequal value
     with self.assertRaises(AssertionError):
@@ -73,34 +77,40 @@ class TestUtilsTest(absltest.TestCase):
 
     # Unequal floating-point, not close enough.
     with self.assertRaises(AssertionError):
-      assert_dataset(float_dataset, [{
-          'float_key1': 0.201,
-          'float_key2': 0.399
-      }, {
-          'float_key1': 0.301,
-          'float_key2': 0.499
-      }])
+      assert_dataset(
+          float_dataset,
+          [
+              {'float_key1': 0.201, 'float_key2': 0.399},
+              {'float_key1': 0.301, 'float_key2': 0.499},
+          ],
+      )
 
     # Wrong dtype
     with self.assertRaises(AssertionError):
-      assert_dataset(first_dataset, {'key1': [b'val1'], 'key2': [b'val2']},
-                     expected_dtypes={'key1': tf.int32})
+      assert_dataset(
+          first_dataset,
+          {'key1': [b'val1'], 'key2': [b'val2']},
+          expected_dtypes={'key1': tf.int32},
+      )
 
     # Additional key, value
     with self.assertRaises(AssertionError):
-      assert_dataset(first_dataset,
-                     {'key1': [b'val1'], 'key2': [b'val2'], 'key3': [b'val3']})
+      assert_dataset(
+          first_dataset,
+          {'key1': [b'val1'], 'key2': [b'val2'], 'key3': [b'val3']},
+      )
 
     # Additional key, value
     with self.assertRaises(AssertionError):
-      assert_dataset(first_dataset,
-                     {'key1': [b'val1'], 'key2': [b'val2'], 'key3': [b'val3']})
+      assert_dataset(
+          first_dataset,
+          {'key1': [b'val1'], 'key2': [b'val2'], 'key3': [b'val3']},
+      )
 
 
 class TasksTest(FakeTaskTest):
 
   def test_data_injection(self):
-
     def ds_fn(split, shuffle_files):
       del shuffle_files
       data = {'train': {'data': b'not used'}}
@@ -108,14 +118,16 @@ class TasksTest(FakeTaskTest):
       return ds
 
     source = dataset_providers.FunctionDataSource(
-        dataset_fn=ds_fn, splits=['train'])
+        dataset_fn=ds_fn, splits=['train']
+    )
 
     dataset_providers.TaskRegistry.add(
         'test_data_injection_task',
         source=source,
         preprocessors=[],
         output_features={},
-        metric_fns=[])
+        metric_fns=[],
+    )
 
     data = {'train': {'data': b'This data is not used.'}}
     with DataInjector('test_data_injection_task', data):

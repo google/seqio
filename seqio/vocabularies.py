@@ -95,13 +95,10 @@ class Vocabulary(metaclass=abc.ABCMeta):
 
     if self.unk_id is not None:
       vocab_size = self._base_vocab_size
-      clean_ids = [
-          self.unk_id if i >= vocab_size else i
-          for i in clean_ids
-      ]
+      clean_ids = [self.unk_id if i >= vocab_size else i for i in clean_ids]
 
     if self.eos_id is not None and self.eos_id in clean_ids:
-      clean_ids = clean_ids[:clean_ids.index(self.eos_id) + 1]
+      clean_ids = clean_ids[: clean_ids.index(self.eos_id) + 1]
 
     return self._decode(clean_ids)
 
@@ -123,13 +120,16 @@ class Vocabulary(metaclass=abc.ABCMeta):
 
     if self.unk_id is not None:
       clean_ids = tf.where(
-          tf.less(clean_ids, self._base_vocab_size), clean_ids, self.unk_id)
+          tf.less(clean_ids, self._base_vocab_size), clean_ids, self.unk_id
+      )
 
     if self.eos_id is not None:
       # Replace everything after the first eos_id with pad_id.
       after_eos = tf.cumsum(
           tf.cast(tf.equal(clean_ids, self.eos_id), tf.int32),
-          exclusive=True, axis=-1)
+          exclusive=True,
+          axis=-1,
+      )
       clean_ids = tf.where(tf.cast(after_eos, tf.bool), self.pad_id, clean_ids)
 
     return self._decode_tf(clean_ids)
@@ -138,10 +138,7 @@ class Vocabulary(metaclass=abc.ABCMeta):
 class PassThroughVocabulary(Vocabulary):
   """Vocabulary that passes through inputs unchanged."""
 
-  def __init__(
-      self,
-      size: int,
-      eos_id: Optional[Any] = None):
+  def __init__(self, size: int, eos_id: Optional[Any] = None):
     """PassThroughVocabulary constructor.
 
     Args:
@@ -179,12 +176,10 @@ class PassThroughVocabulary(Vocabulary):
   def __eq__(self, other):
     if not isinstance(other, PassThroughVocabulary):
       return False
-    return (self._size == other._size and
-            self.eos_id == other.eos_id)
+    return self._size == other._size and self.eos_id == other.eos_id
 
   def __str__(self) -> str:
-    return (f"PassThroughVocabulary(size={self._size}, "
-            f"eos_id={self.eos_id})")
+    return f"PassThroughVocabulary(size={self._size}, eos_id={self.eos_id})"
 
 
 class UnigramVocabulary(Vocabulary):
@@ -206,9 +201,11 @@ class UnigramVocabulary(Vocabulary):
     initializer = tf.lookup.KeyValueTensorInitializer(
         keys=tf.constant(["PAD"] + unigrams_as_list),
         # One extra value because the leading 0 corresponds to PAD
-        values=tf.constant(range(len(unigrams) + 1), dtype=tf.int64))
-    self._id_by_unigram_tf = tf.lookup.StaticVocabularyTable(initializer,
-                                                             num_oov_buckets=1)
+        values=tf.constant(range(len(unigrams) + 1), dtype=tf.int64),
+    )
+    self._id_by_unigram_tf = tf.lookup.StaticVocabularyTable(
+        initializer, num_oov_buckets=1
+    )
     self._unigram_by_id_tf = tf.constant(self._unigram_by_id)
 
   def _encode(self, s: str) -> Sequence[int]:
@@ -253,12 +250,15 @@ class SentencePieceVocabulary(Vocabulary):
   "I like peanut butter and jel<extra_id_0> sandwiches is not.").
   """
 
-  def __init__(self,
-               sentencepiece_model_file,
-               extra_ids=None,
-               normalizer_spec_overrides: Optional[
-                   sentencepiece_model_pb2.NormalizerSpec] = None,
-               reverse_extra_ids: bool = True):
+  def __init__(
+      self,
+      sentencepiece_model_file,
+      extra_ids=None,
+      normalizer_spec_overrides: Optional[
+          sentencepiece_model_pb2.NormalizerSpec
+      ] = None,
+      reverse_extra_ids: bool = True,
+  ):
     """Create a SentencePieceVocabulary.
 
     Optionally, specify a number of extra ids to add to the end of the
@@ -322,9 +322,10 @@ class SentencePieceVocabulary(Vocabulary):
 
           for i in extra_id_tokens:
             model.pieces.add(
-                piece=f"▁<extra_id_{i}>", score=0.0,
-                type=
-                sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED)
+                piece=f"▁<extra_id_{i}>",
+                score=0.0,
+                type=sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED,
+            )
         if self._normalizer_spec_overrides is not None:
           model.normalizer_spec.MergeFrom(self._normalizer_spec_overrides)
           model.denormalizer_spec.MergeFrom(self._normalizer_spec_overrides)
@@ -334,9 +335,13 @@ class SentencePieceVocabulary(Vocabulary):
       self._tokenizer.LoadFromSerializedProto(self._sp_model)
       if self._tokenizer.pad_id() != PAD_ID:
         logging.warning(
-            "T5 library uses PAD_ID=%s, which is different from the "
-            "sentencepiece vocabulary, which defines pad_id=%s",
-            PAD_ID, self._tokenizer.pad_id())
+            (
+                "T5 library uses PAD_ID=%s, which is different from the "
+                "sentencepiece vocabulary, which defines pad_id=%s"
+            ),
+            PAD_ID,
+            self._tokenizer.pad_id(),
+        )
 
   @property
   def eos_id(self) -> Optional[int]:
@@ -387,6 +392,7 @@ class SentencePieceVocabulary(Vocabulary):
 
     Args:
       s: a string
+
     Returns:
       a list of integers (not terminated by EOS)
     """
@@ -397,6 +403,7 @@ class SentencePieceVocabulary(Vocabulary):
 
     Args:
       ids: a list of integers (not terminated by EOS)
+
     Returns:
       a string
     """
@@ -413,6 +420,7 @@ class SentencePieceVocabulary(Vocabulary):
 
     Args:
       s: a tf.Scalar with dtype tf.string
+
     Returns:
       a 1d tf.Tensor with dtype tf.int32
     """
@@ -423,6 +431,7 @@ class SentencePieceVocabulary(Vocabulary):
 
     Args:
       ids: a 1d or 2d tf.Tensor with dtype tf.int32
+
     Returns:
       a 1d or 2d tf.Tensor with dtype tf.string
     """
@@ -440,9 +449,11 @@ class SentencePieceVocabulary(Vocabulary):
     return our_md5 == their_md5
 
   def __str__(self) -> str:
-    return (f"SentencePieceVocabulary(file={self._sentencepiece_model_file}, "
-            f"extra_ids={self.extra_ids}, "
-            f"spm_md5={hashlib.md5(self.sp_model).hexdigest()})")
+    return (
+        f"SentencePieceVocabulary(file={self._sentencepiece_model_file}, "
+        f"extra_ids={self.extra_ids}, "
+        f"spm_md5={hashlib.md5(self.sp_model).hexdigest()})"
+    )
 
 
 class ByteVocabulary(Vocabulary):
@@ -486,6 +497,7 @@ class ByteVocabulary(Vocabulary):
 
     Args:
       s: a string
+
     Returns:
       ids: a list of integers
     """
@@ -496,6 +508,7 @@ class ByteVocabulary(Vocabulary):
 
     Args:
       ids: a list of integers
+
     Returns:
       s: a string
     """
@@ -506,6 +519,7 @@ class ByteVocabulary(Vocabulary):
 
     Args:
       ids: a list of integers
+
     Returns:
       ids: a list of integers
     """
@@ -530,6 +544,7 @@ class ByteVocabulary(Vocabulary):
 
     Args:
       s: a string
+
     Returns:
       a list of integers (not terminated by EOS)
     """
@@ -545,6 +560,7 @@ class ByteVocabulary(Vocabulary):
 
     Args:
       ids: a list of integers (not terminated by EOS)
+
     Returns:
       a string
     """
@@ -558,6 +574,7 @@ class ByteVocabulary(Vocabulary):
 
     Args:
       s: a tf.Scalar with dtype tf.string
+
     Returns:
       a 1d tf.Tensor with dtype tf.int32
     """
@@ -569,6 +586,7 @@ class ByteVocabulary(Vocabulary):
 
     Args:
       ids: a n-d tf.Tensor with dtype tf.int32
+
     Returns:
       a n-d tf.Tensor with dtype tf.string
     """
@@ -578,7 +596,9 @@ class ByteVocabulary(Vocabulary):
         data=ids,
         mask=tf.math.logical_and(
             tf.math.greater_equal(ids, lower_bound),
-            tf.math.less(ids, upper_bound)))
+            tf.math.less(ids, upper_bound),
+        ),
+    )
     ids = ids - self._num_special_tokens
     string = tf.strings.reduce_join(tf.gather(self._byte_strings, ids), axis=-1)
 
@@ -593,9 +613,11 @@ class ByteVocabulary(Vocabulary):
   def __eq__(self, other):
     if not isinstance(other, ByteVocabulary):
       return False
-    return (self.extra_ids == other.extra_ids and
-            self.eos_id == other.eos_id and
-            self.unk_id == other.unk_id)
+    return (
+        self.extra_ids == other.extra_ids
+        and self.eos_id == other.eos_id
+        and self.unk_id == other.unk_id
+    )
 
 
 class FullCodepointVocabulary(Vocabulary):
@@ -610,13 +632,14 @@ class FullCodepointVocabulary(Vocabulary):
   well-defined mapping from the set of codepoint integers onto the set of all
   Unicode characters.
   """
+
   # While this should generally match `sys.maxunicode`, we want to provide this
   # as a constant to avoid architecture/system-dependent array overruns. If
   # downstream preprocessors choose to use `vocab_size-1` as a sentinel ID,
   # then this will still map such characters onto the Unicode private range on
   # planes 15-16. See:
   # https://en.wikipedia.org/wiki/Unicode#Code_planes_and_blocks.
-  LARGEST_CODEPOINT = 0x10ffff  # Decimal: 1,114,111
+  LARGEST_CODEPOINT = 0x10FFFF  # Decimal: 1,114,111
   # Padding is always index zero. This means that the NULL character is
   # technically not embeddable. This seems fine according to all reasonable
   # interpretations of the NULL character as a past-end-of-string marker.
@@ -706,9 +729,11 @@ class PartialCodepointVocabulary(Vocabulary):
     self._id_to_codepoint = {v: k for k, v in self._codepoint_to_id.items()}
 
     self._codepoint_to_id_tf = PartialCodepointVocabulary.convert_dict_to_tf(
-        self._codepoint_to_id, default_value=self.UNK_ID)
+        self._codepoint_to_id, default_value=self.UNK_ID
+    )
     self._id_to_codepoint_tf = PartialCodepointVocabulary.convert_dict_to_tf(
-        self._id_to_codepoint, default_value=self.unk_id)
+        self._id_to_codepoint, default_value=self.unk_id
+    )
     super().__init__(extra_ids=extra_ids)
 
   @classmethod
@@ -737,13 +762,14 @@ class PartialCodepointVocabulary(Vocabulary):
 
   @staticmethod
   def convert_dict_to_tf(
-      d: Dict[Any, Any],
-      default_value: Optional[Any] = None) -> tf.lookup.StaticHashTable:
+      d: Dict[Any, Any], default_value: Optional[Any] = None
+  ) -> tf.lookup.StaticHashTable:
     keys_tensor = tf.constant(list(d))
     vals_tensor = tf.constant(list(d.values()))
     return tf.lookup.StaticHashTable(
         tf.lookup.KeyValueTensorInitializer(keys_tensor, vals_tensor),
-        default_value=default_value)
+        default_value=default_value,
+    )
 
   def _encode(self, s: str) -> Sequence[int]:
     output_ids = []
@@ -756,23 +782,28 @@ class PartialCodepointVocabulary(Vocabulary):
     output_str = ""
     for id_ in ids:
       codepoint = self._id_to_codepoint.get(int(id_), self.UNK_CODEPOINT)
-      if codepoint == self.EOS_CODEPOINT: continue
+      if codepoint == self.EOS_CODEPOINT:
+        continue
       output_str += chr(codepoint)
     return output_str
 
   def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
-    return self._codepoint_to_id_tf[tf.strings.unicode_decode(
-        s, input_encoding="UTF-8")]
+    return self._codepoint_to_id_tf[
+        tf.strings.unicode_decode(s, input_encoding="UTF-8")
+    ]
 
   def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
     return tf.strings.unicode_encode(
-        self._id_to_codepoint_tf[ids], output_encoding="UTF-8")
+        self._id_to_codepoint_tf[ids], output_encoding="UTF-8"
+    )
 
   def __eq__(self, other):
     if not isinstance(other, PartialCodepointVocabulary):
       return False
-    return (self._codepoint_to_id == other._codepoint_to_id and
-            self.extra_ids == other.extra_ids)
+    return (
+        self._codepoint_to_id == other._codepoint_to_id
+        and self.extra_ids == other.extra_ids
+    )
 
 
 class BertWordPieceVocabulary(Vocabulary):
@@ -782,21 +813,23 @@ class BertWordPieceVocabulary(Vocabulary):
   end-to-end, text string to wordpiece tokenization.
   """
 
-  def __init__(self,
-               vocab_lookup_table: str,
-               suffix_indicator: str = "##",
-               max_bytes_per_word: int = 100,
-               max_chars_per_token: Optional[int] = None,
-               token_out_type: tf.dtypes.DType = tf.dtypes.int64,
-               unknown_token: str = "[UNK]",
-               split_unknown_characters: bool = False,
-               lower_case: bool = False,
-               keep_whitespace: bool = False,
-               normalization_form: Optional[str] = None,
-               preserve_unused_token: bool = False,
-               pad_id: int = 0,
-               start_of_sequence_id: int = 101,
-               end_of_sequence_id: int = 102):
+  def __init__(
+      self,
+      vocab_lookup_table: str,
+      suffix_indicator: str = "##",
+      max_bytes_per_word: int = 100,
+      max_chars_per_token: Optional[int] = None,
+      token_out_type: tf.dtypes.DType = tf.dtypes.int64,
+      unknown_token: str = "[UNK]",
+      split_unknown_characters: bool = False,
+      lower_case: bool = False,
+      keep_whitespace: bool = False,
+      normalization_form: Optional[str] = None,
+      preserve_unused_token: bool = False,
+      pad_id: int = 0,
+      start_of_sequence_id: int = 101,
+      end_of_sequence_id: int = 102,
+  ):
     r"""Create a Bert WordPieceVocabulary.
 
     Args:
@@ -907,6 +940,7 @@ class BertWordPieceVocabulary(Vocabulary):
 
     Args:
       s: a string
+
     Returns:
       a list of integers (not terminated by EOS)
     """
@@ -917,6 +951,7 @@ class BertWordPieceVocabulary(Vocabulary):
 
     Args:
       ids: a list of integers (not terminated by EOS)
+
     Returns:
       a string
     """
@@ -931,6 +966,7 @@ class BertWordPieceVocabulary(Vocabulary):
 
     Args:
       s: a tf.Scalar with dtype tf.string
+
     Returns:
       a 1d tf.Tensor with dtype tf.int32
     """
@@ -943,6 +979,7 @@ class BertWordPieceVocabulary(Vocabulary):
 
     Args:
       ids: a 1d tf.Tensor with dtype tf.int32
+
     Returns:
       a tf Scalar with dtype tf.string
     """

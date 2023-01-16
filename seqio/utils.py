@@ -42,6 +42,7 @@ _RandomMapTransform = object
 @dataclasses.dataclass(frozen=True)
 class Feature:
   """A container for attributes of output features of data providers."""
+
   vocabulary: Vocabulary
   add_eos: bool = True
   required: bool = True
@@ -110,7 +111,10 @@ class LazyTfdsLoader(object):
       if self._data_dir:
         logging.warning(
             "Overriding TFDS data directory '%s' with '%s' for dataset '%s'.",
-            self._data_dir, _TFDS_DATA_DIR_OVERRIDE, self.name)
+            self._data_dir,
+            _TFDS_DATA_DIR_OVERRIDE,
+            self.name,
+        )
       return _TFDS_DATA_DIR_OVERRIDE
     return self._data_dir
 
@@ -127,10 +131,12 @@ class LazyTfdsLoader(object):
     if builder_key not in LazyTfdsLoader._MEMOIZED_BUILDERS:
       if self.name:
         LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = tfds.builder(
-            self.name, data_dir=self.data_dir)
+            self.name, data_dir=self.data_dir
+        )
       else:
-        LazyTfdsLoader._MEMOIZED_BUILDERS[
-            builder_key] = tfds.builder_from_directory(self.data_dir)
+        LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = (
+            tfds.builder_from_directory(self.data_dir)
+        )
     return LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key]
 
   @property
@@ -160,9 +166,14 @@ class LazyTfdsLoader(object):
     """Returns a tf.data.Dataset for the given split."""
     split = self._map_split(split)
     read_config = self.read_config
-    read_config.input_context = tf.distribute.InputContext(
-        num_input_pipelines=shard_info.num_shards,
-        input_pipeline_id=shard_info.index) if shard_info else None
+    read_config.input_context = (
+        tf.distribute.InputContext(
+            num_input_pipelines=shard_info.num_shards,
+            input_pipeline_id=shard_info.index,
+        )
+        if shard_info
+        else None
+    )
     read_config.shuffle_seed = seed
     read_config.skip_prefetch = True
     return tfds.load(
@@ -173,7 +184,8 @@ class LazyTfdsLoader(object):
         download=True,
         try_gcs=True,
         read_config=read_config,
-        decoders=self._decoders)
+        decoders=self._decoders,
+    )
 
   def load_shard(self, file_instruction, shuffle_files=False, seed=None):
     """Returns a dataset for a single shard of the TFDS TFRecord files."""
@@ -181,7 +193,8 @@ class LazyTfdsLoader(object):
     ds = self.builder._tfrecords_reader.read_files(  # pylint:disable=protected-access
         [file_instruction],
         read_config=tfds.ReadConfig(shuffle_seed=seed),
-        shuffle_files=shuffle_files)
+        shuffle_files=shuffle_files,
+    )
     # pytype:enable=attribute-error
     return ds
 
@@ -198,8 +211,9 @@ class LazyTfdsLoader(object):
 # ============================== TFExamples ====================================
 
 # Type alias for "dictionary of tensors"
-TFDict = Dict[str, Union[np.ndarray, tf.Tensor, tf.RaggedTensor,
-                         tf.SparseTensor]]
+TFDict = Dict[
+    str, Union[np.ndarray, tf.Tensor, tf.RaggedTensor, tf.SparseTensor]
+]
 # NOTE: We use short prefixes to minimize feature key overhead.
 # Used to demarcate features used to store shapes of other tensor
 _TFEXAMPLE_SHAPE_PREFIX = "_sh:"
@@ -291,8 +305,9 @@ def _to_tffeature(tensor: tf.Tensor) -> tf.train.Feature:
     raise ValueError(f"Unsupported type {tensor.dtype}")
 
 
-def dict_to_tfexample(dct: TFDict,
-                      store_shapes: bool = False) -> tf.train.Example:
+def dict_to_tfexample(
+    dct: TFDict, store_shapes: bool = False
+) -> tf.train.Example:
   """Convert dictionary of tensors to a `tf.train.Example` proto.
 
   NOTE: Unfortunately, tensorflow.Example is a very simple proto that can only
@@ -325,17 +340,20 @@ def dict_to_tfexample(dct: TFDict,
       value: tf.SparseTensor
       features[key] = _to_tffeature(value.values)
       for dim, indices in enumerate(tf.transpose(value.indices)):
-        features[tfexample_sparse_indices_key(key,
-                                              dim)] = _to_tffeature(indices)
+        features[tfexample_sparse_indices_key(key, dim)] = _to_tffeature(
+            indices
+        )
       if store_shapes:
         features[_TFEXAMPLE_SHAPE_PREFIX + key] = _to_tffeature(
-            tf.constant(value.shape))
+            tf.constant(value.shape)
+        )
     else:
       # Cast to a dense tensor.
       value = tf.constant(value)
       if store_shapes and len(value.shape) > 1:
         features[_TFEXAMPLE_SHAPE_PREFIX + key] = _to_tffeature(
-            tf.constant(value.shape))
+            tf.constant(value.shape)
+        )
       features[key] = _to_tffeature(value)
 
   return tf.train.Example(features=tf.train.Features(feature=features))
@@ -379,7 +397,7 @@ def tfexample_to_dict(example: tf.train.Example) -> TFDict:
       _, dim, key = key.split(":", 2)
       sparse_indices[key][int(dim)] = value
     elif key.startswith(_TFEXAMPLE_SHAPE_PREFIX):
-      key = key[len(_TFEXAMPLE_SHAPE_PREFIX):]
+      key = key[len(_TFEXAMPLE_SHAPE_PREFIX) :]
       shapes[key] = value
     else:
       dct[key] = value
@@ -392,8 +410,9 @@ def tfexample_to_dict(example: tf.train.Example) -> TFDict:
       if dim not in length_map:
         raise ValueError(f"Couldn't find {dim}-th ragged length for {key}")
       nested_row_lengths.append(length_map[dim])
-    dct[key] = tf.RaggedTensor.from_nested_row_lengths(flat_values,
-                                                       nested_row_lengths)
+    dct[key] = tf.RaggedTensor.from_nested_row_lengths(
+        flat_values, nested_row_lengths
+    )
 
   # Assemble SparseTensors
   for key, indices_map in sparse_indices.items():
@@ -417,14 +436,16 @@ def tfexample_to_dict(example: tf.train.Example) -> TFDict:
 
 
 # Type alias that supports nested TFDicts.
-NestedTFDict = Dict[str, Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor,
-                               "NestedTFDict"]]
+NestedTFDict = Dict[
+    str, Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor, "NestedTFDict"]
+]
 # Used to linearize keys in nested TFDicts
 _TFEXAMPLE_NESTED_DELIMITER = "/"
 
 
-def unflatten_dict(dct: TFDict,
-                   delimiter=_TFEXAMPLE_NESTED_DELIMITER) -> NestedTFDict:
+def unflatten_dict(
+    dct: TFDict, delimiter=_TFEXAMPLE_NESTED_DELIMITER
+) -> NestedTFDict:
   """Create a nested dictionary from one with nested keys.
 
   This method converts a "flat" TFDict with nested keys like:
@@ -465,8 +486,9 @@ def unflatten_dict(dct: TFDict,
   return nested_dct
 
 
-def flatten_dict(nested_dct: NestedTFDict,
-                 delimiter=_TFEXAMPLE_NESTED_DELIMITER) -> TFDict:
+def flatten_dict(
+    nested_dct: NestedTFDict, delimiter=_TFEXAMPLE_NESTED_DELIMITER
+) -> TFDict:
   """Create a "flattened" dictionary from one with nested keys.
 
   This method converts a nested TFDict like:
@@ -561,13 +583,15 @@ def stateless_shuffle(value, seed):
   """Randomly shuffles a tensor, statelessly."""
   flat_value = tf.reshape(value, [-1])
   indices = tf.argsort(
-      tf.random.stateless_uniform(tf.shape(flat_value), seed=seed))
+      tf.random.stateless_uniform(tf.shape(flat_value), seed=seed)
+  )
   flat_shuffle = tf.gather(flat_value, indices)
   return tf.reshape(flat_shuffle, tf.shape(value))
 
 
-def trim_and_pad_dataset(dataset: tf.data.Dataset,
-                         feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+def trim_and_pad_dataset(
+    dataset: tf.data.Dataset, feature_lengths: Mapping[str, int]
+) -> tf.data.Dataset:
   """Trim and pad first dimension of features to `feature_lengths`.
 
   Args:
@@ -603,16 +627,22 @@ def trim_and_pad_dataset(dataset: tf.data.Dataset,
 
   return dataset.map(
       lambda x: {k: _trim_and_pad(k, t) for k, t in x.items()},
-      num_parallel_calls=tf.data.experimental.AUTOTUNE)
+      num_parallel_calls=tf.data.experimental.AUTOTUNE,
+  )
 
 
-def trim_dataset(dataset: tf.data.Dataset, sequence_length,
-                 output_features) -> tf.data.Dataset:
+def trim_dataset(
+    dataset: tf.data.Dataset, sequence_length, output_features
+) -> tf.data.Dataset:
   """Trim output features to sequence length."""
 
   def _trim(k: str, v: tf.Tensor) -> tf.Tensor:
-    if (k not in output_features or not sequence_length or
-        k not in sequence_length or sequence_length[k] is None):
+    if (
+        k not in output_features
+        or not sequence_length
+        or k not in sequence_length
+        or sequence_length[k] is None
+    ):
       return v
     # Unify lengths into an iterable so we can create a slice for each
     # dimension, even if the length is a single int.
@@ -624,17 +654,20 @@ def trim_dataset(dataset: tf.data.Dataset, sequence_length,
 
   return dataset.map(
       lambda ex: {k: _trim(k, v) for k, v in ex.items()},
-      num_parallel_calls=tf.data.experimental.AUTOTUNE)
+      num_parallel_calls=tf.data.experimental.AUTOTUNE,
+  )
 
 
 def _strip_packed_feature_key(key: str) -> str:
-  strip_suffix = lambda k, s: k[:-len(s)] if k.endswith(s) else k
+  strip_suffix = lambda k, s: k[: -len(s)] if k.endswith(s) else k
   return strip_suffix(strip_suffix(key, "_positions"), "_segment_ids")
 
 
-def trim_and_pack_dataset(dataset: tf.data.Dataset,
-                          feature_lengths: Mapping[str, int],
-                          use_custom_ops: bool = False) -> tf.data.Dataset:
+def trim_and_pack_dataset(
+    dataset: tf.data.Dataset,
+    feature_lengths: Mapping[str, int],
+    use_custom_ops: bool = False,
+) -> tf.data.Dataset:
   """Creates a 'packed' version of a dataset on-the-fly.
 
   Modified from the tensor2tensor library.
@@ -692,23 +725,29 @@ def trim_and_pack_dataset(dataset: tf.data.Dataset,
     if k not in element_spec:
       raise ValueError(
           f"Feature '{k}' not found in dataset. Available keys are "
-          f"{list(element_spec.keys())}")
-    if (not element_spec[k].shape.is_compatible_with(tf.TensorShape([None])) and
-        not use_custom_ops):
+          f"{list(element_spec.keys())}"
+      )
+    if (
+        not element_spec[k].shape.is_compatible_with(tf.TensorShape([None]))
+        and not use_custom_ops
+    ):
       raise ValueError(
           f"Features to be packed must be one-dimensional. '{k}' is not.' "
-          "Consider setting use_custom_ops if you have higher-rank features.")
+          "Consider setting use_custom_ops if you have higher-rank features."
+      )
 
   # Warn if there are any additional keys that will be removed.
   additional_keys = set(element_spec) - set(feature_lengths)
   if additional_keys:
     logging.warning(
         "Features not in `features_length` will be removed during packing: %s",
-        additional_keys)
+        additional_keys,
+    )
 
   ds = dataset.map(
       lambda x: {k: x[k][:l, ...] for k, l in feature_lengths.items()},
-      num_parallel_calls=tf.data.experimental.AUTOTUNE)
+      num_parallel_calls=tf.data.experimental.AUTOTUNE,
+  )
 
   # Setting batch_size=length ensures that the concatenated sequences (if they
   # have length >=1) are sufficient to fill at least one packed example.
@@ -734,8 +773,9 @@ def trim_and_pack_dataset(dataset: tf.data.Dataset,
   return ds.map(_set_shape, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
 
-def _pack_with_tf_ops(dataset: tf.data.Dataset,
-                      feature_lengths: Mapping[str, int]) -> tf.data.Dataset:
+def _pack_with_tf_ops(
+    dataset: tf.data.Dataset, feature_lengths: Mapping[str, int]
+) -> tf.data.Dataset:
   """Helper-function for packing a dataset which has already been batched.
 
   See trim_and_pack_dataset()
@@ -762,10 +802,15 @@ def _pack_with_tf_ops(dataset: tf.data.Dataset,
     for k in keys_etc:
       new_outputs[k] = outputs[k].write(
           outputs[k].size(),
-          tf.pad(partial[k], [[
-              0, feature_lengths[_strip_packed_feature_key(k)] -
-              tf.size(partial[k])
-          ]]))
+          tf.pad(
+              partial[k],
+              [[
+                  0,
+                  feature_lengths[_strip_packed_feature_key(k)]
+                  - tf.size(partial[k]),
+              ]],
+          ),
+      )
     return new_partial, new_outputs
 
   def pack_batch(x: Mapping[str, tf.Tensor]) -> Mapping[str, tf.Tensor]:
@@ -790,61 +835,69 @@ def _pack_with_tf_ops(dataset: tf.data.Dataset,
           tf.int32,
           size=0,
           dynamic_size=True,
-          element_shape=[feature_lengths[k]])
+          element_shape=[feature_lengths[k]],
+      )
       outputs[k + "_positions"] = tf.TensorArray(
           tf.int32,
           size=0,
           dynamic_size=True,
-          element_shape=[feature_lengths[k]])
+          element_shape=[feature_lengths[k]],
+      )
 
     for i in tf.range(0, dynamic_batch_size):
-      tf.autograph.experimental.set_loop_options(shape_invariants=[(
-          partial, {k: tf.TensorShape([None]) for k in keys_etc}
-      ), (outputs, {k: tf.TensorShape(None) for k in keys_etc})])
+      tf.autograph.experimental.set_loop_options(
+          shape_invariants=[
+              (partial, {k: tf.TensorShape([None]) for k in keys_etc}),
+              (outputs, {k: tf.TensorShape(None) for k in keys_etc}),
+          ]
+      )
 
       can_append = True
       one_example = {}
       for k in keys:
         val = tf.cast(x[k][i], tf.int32)
-        val = val[:tf.reduce_sum(tf.cast(tf.not_equal(val, 0), tf.int32))]
+        val = val[: tf.reduce_sum(tf.cast(tf.not_equal(val, 0), tf.int32))]
         one_example[k] = val
       for k in keys:
         can_append = tf.logical_and(
             can_append,
             tf.less_equal(
                 tf.size(partial[k]) + tf.size(one_example[k]),
-                feature_lengths[k]))
+                feature_lengths[k],
+            ),
+        )
 
       if not can_append:
         partial, outputs = _write_packed_example(partial, outputs)
 
       new_partial = {}
       for k in keys:
-        new_seq = one_example[k][:feature_lengths[k]]
+        new_seq = one_example[k][: feature_lengths[k]]
         new_seq_len = tf.size(new_seq)
         new_partial[k] = tf.concat([partial[k], new_seq], 0)
         new_partial[k + "_positions"] = tf.concat(
-            [partial[k + "_positions"],
-             tf.range(new_seq_len, dtype=tf.int32)], 0)
+            [partial[k + "_positions"], tf.range(new_seq_len, dtype=tf.int32)],
+            0,
+        )
       partial = new_partial
 
     partial, outputs = _write_packed_example(partial, outputs)
     packed = {k: outputs[k].stack() for k in keys_etc}
     for k in keys:
-      packed[k + "_segment_ids"] = (
-          tf.cumsum(
-              tf.cast(tf.equal(packed[k + "_positions"], 0), tf.int32), axis=1)
-          * tf.cast(tf.not_equal(packed[k], 0), tf.int32))
+      packed[k + "_segment_ids"] = tf.cumsum(
+          tf.cast(tf.equal(packed[k + "_positions"], 0), tf.int32), axis=1
+      ) * tf.cast(tf.not_equal(packed[k], 0), tf.int32)
     return packed
 
   dataset = dataset.map(
-      pack_batch, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+      pack_batch, num_parallel_calls=tf.data.experimental.AUTOTUNE
+  )
   return dataset.unbatch()
 
 
 def _pack_with_custom_ops(
-    dataset: tf.data.Dataset, feature_lengths: Mapping[str,
-                                                       int]) -> tf.data.Dataset:
+    dataset: tf.data.Dataset, feature_lengths: Mapping[str, int]
+) -> tf.data.Dataset:
   """Helper-function for packing a dataset which has already been batched.
 
   See trim_and_pack_dataset()
@@ -861,31 +914,43 @@ def _pack_with_custom_ops(
   """
   # TODO(adarob): Move ops into this library and fix int64 issue.
   from tensor2tensor.data_generators.ops import pack_sequences_ops  # pylint: disable=g-import-not-at-top
+
   keys = list(feature_lengths)
   use_generic_custom_ops = False
   if len(keys) == 1:
-    k1, = keys
+    (k1,) = keys
     k2 = k1
   elif len(keys) == 2:
     k1, k2 = keys
   else:
     use_generic_custom_ops = True
-    logging.info("`pack_sequences_2` cannot pack more than 2 features. "
-                 "Using `pack_sequences_k` instead.")
+    logging.info(
+        "`pack_sequences_2` cannot pack more than 2 features. "
+        "Using `pack_sequences_k` instead."
+    )
 
   element_spec = dataset.element_spec
   for k in feature_lengths:
     if not element_spec[k].dtype.is_integer:
       use_generic_custom_ops = True
       logging.info(
-          "`pack_sequences_2` cannot pack non-integer feature '%s'. "
-          "Using `pack_sequences_k` instead.", k)
+          (
+              "`pack_sequences_2` cannot pack non-integer feature '%s'. "
+              "Using `pack_sequences_k` instead."
+          ),
+          k,
+      )
     if not element_spec[k].shape.is_compatible_with(
-        tf.TensorShape([None, None])):
+        tf.TensorShape([None, None])
+    ):
       use_generic_custom_ops = True
       logging.info(
-          "`pack_sequences_2` cannot pack higher rank feature '%s'. "
-          "Using `pack_sequences_k` instead.", k)
+          (
+              "`pack_sequences_2` cannot pack higher rank feature '%s'. "
+              "Using `pack_sequences_k` instead."
+          ),
+          k,
+      )
 
   def custom_pack_batch(x):
     """Map-function."""
@@ -896,23 +961,32 @@ def _pack_with_custom_ops(
         xs.append(x[k])
         max_lengths.append(feature_lengths[k])
       (packed, segment_ids, positions) = pack_sequences_ops.pack_sequences_k(
-          inputs=xs, max_lengths=max_lengths)
+          inputs=xs, max_lengths=max_lengths
+      )
       y = {}
       for i, k in enumerate(sorted(feature_lengths.keys())):
         y[k] = packed[i]
         y[f"{k}_segment_ids"] = segment_ids[i]
         y[f"{k}_positions"] = positions[i]
       return y
-    logging.info("Features are compatible with `pack_sequences_2`. "
-                 "Not using `pack_sequences_k`.")
-    (k1_packed, k1_segment_ids, k1_positions, k2_packed, k2_segment_ids,
-     k2_positions) = (
-         pack_sequences_ops.pack_sequences2(
-             # cast to int64 for compatibility with custom ops
-             tf.cast(x[k1], tf.int64),
-             tf.cast(x[k2], tf.int64),
-             feature_lengths[k1],
-             feature_lengths[k2]))
+    logging.info(
+        "Features are compatible with `pack_sequences_2`. "
+        "Not using `pack_sequences_k`."
+    )
+    (
+        k1_packed,
+        k1_segment_ids,
+        k1_positions,
+        k2_packed,
+        k2_segment_ids,
+        k2_positions,
+    ) = pack_sequences_ops.pack_sequences2(
+        # cast to int64 for compatibility with custom ops
+        tf.cast(x[k1], tf.int64),
+        tf.cast(x[k2], tf.int64),
+        feature_lengths[k1],
+        feature_lengths[k2],
+    )
     packed = {
         k1: k1_packed,
         k1 + "_segment_ids": k1_segment_ids,
@@ -932,7 +1006,8 @@ def _pack_with_custom_ops(
     return packed
 
   dataset = dataset.map(
-      custom_pack_batch, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+      custom_pack_batch, num_parallel_calls=tf.data.experimental.AUTOTUNE
+  )
   dataset = dataset.unbatch()
   return dataset
 
@@ -959,7 +1034,8 @@ def make_autoregressive_inputs(
     targets: tf.Tensor,
     sequence_id: tf.Tensor = None,
     output_dtype: Optional[tf.dtypes.DType] = None,
-    bos_id: int = 0) -> tf.Tensor:
+    bos_id: int = 0,
+) -> tf.Tensor:
   """Generate inputs for an autoregressive model, by shifting the targets.
 
   Modified from mesh_tensorflow.transformer.transformer.autoregressive_inputs.
@@ -996,8 +1072,10 @@ def make_autoregressive_inputs(
         "The sequence_id should be integer-valued tensors for a packed dataset."
     )
   if sequence_id is not None and len(targets.shape) > 1:
-    raise ValueError("Only 1-D sequences are supported with packing. Got a "
-                     f"packed {len(targets.shape)}-D sequence.")
+    raise ValueError(
+        "Only 1-D sequences are supported with packing. Got a "
+        f"packed {len(targets.shape)}-D sequence."
+    )
 
   inputs = _shift_right_by_one(targets, bos_id)
   if inputs.dtype != output_dtype:
@@ -1006,8 +1084,9 @@ def make_autoregressive_inputs(
   # We should have a 0 at the beginning of each sequence rather than the
   # shifted EOS (e.g. 1) from the previous sequence.
   if sequence_id is not None:
-    not_first_in_sequence = tf.equal(sequence_id,
-                                     _shift_right_by_one(sequence_id))
+    not_first_in_sequence = tf.equal(
+        sequence_id, _shift_right_by_one(sequence_id)
+    )
     not_first_in_sequence = tf.cast(not_first_in_sequence, output_dtype)
     first_ids = tf.cast((1 - not_first_in_sequence) * bos_id, output_dtype)
     inputs = inputs * not_first_in_sequence + first_ids
@@ -1022,7 +1101,8 @@ def mixing_rate_num_examples(
     maximum: Optional[int] = None,
     scale: float = 1.0,
     temperature: float = 1.0,
-    fallback_to_num_input_examples: bool = True) -> float:
+    fallback_to_num_input_examples: bool = True,
+) -> float:
   """Mixing rate based on the number of examples for the task's 'train' split.
 
   Args:
@@ -1043,21 +1123,25 @@ def mixing_rate_num_examples(
     ret = task.get_cached_stats("train")["examples"]
   else:
     logging.warning(
-        "Task '%s' not cached so using number of input examples instead of "
-        "preprocessed examples to compute rate.", task.name)
+        (
+            "Task '%s' not cached so using number of input examples instead of "
+            "preprocessed examples to compute rate."
+        ),
+        task.name,
+    )
     ret = task.num_input_examples("train")
 
   ret *= scale
   if maximum:
     ret = min(ret, maximum)
   if temperature != 1.0:
-    ret = ret**(1.0 / temperature)
+    ret = ret ** (1.0 / temperature)
   return ret
 
 
-def mixing_rate_num_characters(task,
-                               temperature: float = 1.0,
-                               char_count_name: str = "text_chars") -> float:
+def mixing_rate_num_characters(
+    task, temperature: float = 1.0, char_count_name: str = "text_chars"
+) -> float:
   """Mixing rate based on the number of characters for the task's 'train' split.
 
   Args:
@@ -1072,10 +1156,11 @@ def mixing_rate_num_characters(task,
   if task.cache_dir is None:
     raise ValueError(
         "`mixing_rate_num_characters` requires that each task has is cached "
-        "with the character count stats.")
+        "with the character count stats."
+    )
   ret = task.get_cached_stats("train")[char_count_name]
   if temperature != 1.0:
-    ret = ret**(1.0 / temperature)
+    ret = ret ** (1.0 / temperature)
   return ret
 
 
@@ -1100,6 +1185,7 @@ _SPECIAL_KWARGS = ("sequence_length", "output_features")
 @dataclasses.dataclass
 class _GrainRandomMapFn(_RandomMapTransform):
   """Grain Transform to represent existing SeqIO random map preprocessors."""
+
   map_fn: Callable[..., Any]
   num_seeds: int
   num_parallel_calls: int = tf.data.AUTOTUNE
@@ -1134,25 +1220,33 @@ class _GrainRandomMapFn(_RandomMapTransform):
     if _NEXT_MAP_SEED is None:
       random_ds_seeds = ((None, None),) * self.num_seeds
     else:
-      random_ds_seeds = np.arange(_NEXT_MAP_SEED, _NEXT_MAP_SEED +
-                                  2 * self.num_seeds).reshape(-1, 2)
+      random_ds_seeds = np.arange(
+          _NEXT_MAP_SEED, _NEXT_MAP_SEED + 2 * self.num_seeds
+      ).reshape(-1, 2)
       random_ds_seeds = tuple(tuple(s) for s in random_ds_seeds)
       _NEXT_MAP_SEED += 2 * self.num_seeds
-    seed_datasets = tf.nest.map_structure(tf.data.experimental.RandomDataset,
-                                          random_ds_seeds)
+    seed_datasets = tf.nest.map_structure(
+        tf.data.experimental.RandomDataset, random_ds_seeds
+    )
+
     def map_fn(element, seeds):
       if self.num_seeds == 1:
         return self._map_fn_with_special_kwargs(
-            element, seed=seeds[0], *args, **kwargs)
+            element, seed=seeds[0], *args, **kwargs
+        )
       return self._map_fn_with_special_kwargs(
-          element, seeds=seeds, *args, **kwargs)
+          element, seeds=seeds, *args, **kwargs
+      )
+
     return tf.data.Dataset.zip((dataset, seed_datasets)).map(
-        map_fn, num_parallel_calls=self.num_parallel_calls)
+        map_fn, num_parallel_calls=self.num_parallel_calls
+    )
 
 
 @dataclasses.dataclass
 class _GrainMapFn(_MapTransform):
   """Grain Transform to represent existing SeqIO map preprocessors."""
+
   map_fn: Callable[..., Any]
   num_parallel_calls: int
 
@@ -1176,17 +1270,18 @@ class _GrainMapFn(_MapTransform):
     return self._map_fn_with_special_kwargs(element)
 
   # Path for SeqIO
-  def __call__(self, dataset: tf.data.Dataset, *args,
-               **kwargs) -> tf.data.Dataset:
+  def __call__(
+      self, dataset: tf.data.Dataset, *args, **kwargs
+  ) -> tf.data.Dataset:
     return dataset.map(
         lambda x: self._map_fn_with_special_kwargs(x, *args, **kwargs),
-        num_parallel_calls=self.num_parallel_calls)
+        num_parallel_calls=self.num_parallel_calls,
+    )
 
 
-def map_over_dataset(fn=None,
-                     *,
-                     num_seeds=None,
-                     num_parallel_calls=tf.data.experimental.AUTOTUNE):
+def map_over_dataset(
+    fn=None, *, num_seeds=None, num_parallel_calls=tf.data.experimental.AUTOTUNE
+):
   """Decorator to map decorated function over dataset.
 
   Many preprocessors map a function over a dataset. This decorator helps reduce
@@ -1210,8 +1305,8 @@ def map_over_dataset(fn=None,
   Returns:
     Callable transform which takes dataset as first argument.
   """
-  def map_without_seeds(fn):
 
+  def map_without_seeds(fn):
     @functools.wraps(fn)
     def wrapped_fn(ds, *args, **kwargs):
       return _GrainMapFn(fn, num_parallel_calls)(ds, *args, **kwargs)
@@ -1219,11 +1314,11 @@ def map_over_dataset(fn=None,
     return wrapped_fn
 
   def map_with_seeds(fn):
-
     @functools.wraps(fn)
     def wrapped_fn(ds, *args, **kwargs):
-      return _GrainRandomMapFn(fn, num_seeds,
-                               num_parallel_calls)(ds, *args, **kwargs)
+      return _GrainRandomMapFn(fn, num_seeds, num_parallel_calls)(
+          ds, *args, **kwargs
+      )
 
     return wrapped_fn
 

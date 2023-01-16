@@ -40,7 +40,7 @@ class TensorBoardLoggerTestV1(tf.test.TestCase):
   def test_logging(self):
     task_metrics = {
         "rouge1": metrics_lib.Scalar(50),
-        "rouge2": metrics_lib.Scalar(100)
+        "rouge2": metrics_lib.Scalar(100),
     }
     self.logger(
         task_name="log_eval_task",
@@ -48,19 +48,24 @@ class TensorBoardLoggerTestV1(tf.test.TestCase):
         metrics=task_metrics,
         dataset=tf.data.Dataset.range(0),
         inferences={},
-        targets=[])
+        targets=[],
+    )
     task_output_dir = os.path.join(self.logger.output_dir, "log_eval_task")
-    event_file = os.path.join(task_output_dir,
-                              tf.io.gfile.listdir(task_output_dir)[0])
+    event_file = os.path.join(
+        task_output_dir, tf.io.gfile.listdir(task_output_dir)[0]
+    )
     # First event is boilerplate
     serialized_events = list(
-        tfds.as_numpy(tf.data.TFRecordDataset(event_file)))[1:]
-    event1 = tf.compat.v1.Event.FromString(
-        serialized_events[0]).summary.value[0]
+        tfds.as_numpy(tf.data.TFRecordDataset(event_file))
+    )[1:]
+    event1 = tf.compat.v1.Event.FromString(serialized_events[0]).summary.value[
+        0
+    ]
     rouge1 = event1.simple_value
     tag_rouge1 = event1.tag
-    event2 = tf.compat.v1.Event.FromString(
-        serialized_events[1]).summary.value[0]
+    event2 = tf.compat.v1.Event.FromString(serialized_events[1]).summary.value[
+        0
+    ]
     rouge2 = event2.simple_value
     tag_rouge2 = event2.tag
 
@@ -83,10 +88,12 @@ class TensorBoardLoggerTest(tf.test.TestCase):
         metrics=metrics,
         dataset=tf.data.Dataset.range(0),
         inferences={},
-        targets=[])
+        targets=[],
+    )
     task_summary_dir = os.path.join(self.logger.output_dir, "log_eval_task")
-    event_file = os.path.join(task_summary_dir,
-                              tf.io.gfile.listdir(task_summary_dir)[0])
+    event_file = os.path.join(
+        task_summary_dir, tf.io.gfile.listdir(task_summary_dir)[0]
+    )
     logged_metrics = {}
     plugin = {}
     for event_str in tfds.as_numpy(tf.data.TFRecordDataset(event_file).skip(1)):
@@ -102,14 +109,12 @@ class TensorBoardLoggerTest(tf.test.TestCase):
         "rouge2": metrics_lib.Scalar(np.float32(100)),
     }
     logged_metrics, plugins = self._log_and_read(task_metrics)
-    self.assertDictEqual(plugins, {
-        "eval/rouge1": "scalars",
-        "eval/rouge2": "scalars"
-    })
-    self.assertDictEqual(logged_metrics, {
-        "eval/rouge1": 50.0,
-        "eval/rouge2": 100.0
-    })
+    self.assertDictEqual(
+        plugins, {"eval/rouge1": "scalars", "eval/rouge2": "scalars"}
+    )
+    self.assertDictEqual(
+        logged_metrics, {"eval/rouge1": 50.0, "eval/rouge2": 100.0}
+    )
 
   def test_log_text(self):
     task_metrics = {
@@ -117,29 +122,28 @@ class TensorBoardLoggerTest(tf.test.TestCase):
         "bytes_sample": metrics_lib.Text(b"test2"),
     }
     logged_metrics, plugins = self._log_and_read(task_metrics)
-    self.assertDictEqual(plugins, {
-        "eval/str_sample": "text",
-        "eval/bytes_sample": "text"
-    })
     self.assertDictEqual(
-        logged_metrics, {
+        plugins, {"eval/str_sample": "text", "eval/bytes_sample": "text"}
+    )
+    self.assertDictEqual(
+        logged_metrics,
+        {
             "eval/str_sample": np.array(b"test1"),
-            "eval/bytes_sample": np.array(b"test2")
-        })
+            "eval/bytes_sample": np.array(b"test2"),
+        },
+    )
 
   def test_log_image(self):
     task_metrics = {
-        "1image":
-            metrics_lib.Image(np.arange(36).reshape((1, 3, 4, 3))),
-        "3image":
-            metrics_lib.Image(
-                np.arange(108).reshape((3, 3, 4, 3)), max_outputs=2),
+        "1image": metrics_lib.Image(np.arange(36).reshape((1, 3, 4, 3))),
+        "3image": metrics_lib.Image(
+            np.arange(108).reshape((3, 3, 4, 3)), max_outputs=2
+        ),
     }
     logged_metrics, plugins = self._log_and_read(task_metrics)
-    self.assertDictEqual(plugins, {
-        "eval/1image": "images",
-        "eval/3image": "images"
-    })
+    self.assertDictEqual(
+        plugins, {"eval/1image": "images", "eval/3image": "images"}
+    )
     self.assertLen(logged_metrics, 2)
     # All images have shape (3, 4):
     for res in logged_metrics.values():
@@ -154,33 +158,37 @@ class TensorBoardLoggerTest(tf.test.TestCase):
         "1d": metrics_lib.Histogram(np.arange(10), bins=2),
     }
     logged_metrics, plugins = self._log_and_read(task_metrics)
-    self.assertDictEqual(plugins, {
-        "eval/1d": "histograms",
-    })
+    self.assertDictEqual(
+        plugins,
+        {
+            "eval/1d": "histograms",
+        },
+    )
     self.assertSameElements(logged_metrics, ["eval/1d"])
-    self.assertAllEqual(logged_metrics["eval/1d"],
-                        np.array([[0., 4.5, 5.], [4.5, 9., 5.]]))
+    self.assertAllEqual(
+        logged_metrics["eval/1d"], np.array([[0.0, 4.5, 5.0], [4.5, 9.0, 5.0]])
+    )
 
   def test_log_audio(self):
     task_metrics = {
-        "1mono":
-            metrics_lib.Audio(
-                np.linspace(-1, 1, 10).reshape((1, 10, 1)), max_outputs=2),
-        "3mono":
-            metrics_lib.Audio(
-                np.linspace(-1, 1, 30).reshape((3, 10, 1)), max_outputs=2),
-        "1stereo":
-            metrics_lib.Audio(
-                np.linspace(-1, 1, 20).reshape((1, 10, 2)), max_outputs=2),
+        "1mono": metrics_lib.Audio(
+            np.linspace(-1, 1, 10).reshape((1, 10, 1)), max_outputs=2
+        ),
+        "3mono": metrics_lib.Audio(
+            np.linspace(-1, 1, 30).reshape((3, 10, 1)), max_outputs=2
+        ),
+        "1stereo": metrics_lib.Audio(
+            np.linspace(-1, 1, 20).reshape((1, 10, 2)), max_outputs=2
+        ),
     }
     logged_metrics, plugins = self._log_and_read(task_metrics)
-    self.assertDictEqual(plugins, {
-        "eval/1mono": "audio",
-        "eval/3mono": "audio",
-        "eval/1stereo": "audio"
-    })
-    self.assertSameElements(logged_metrics,
-                            ["eval/1mono", "eval/3mono", "eval/1stereo"])
+    self.assertDictEqual(
+        plugins,
+        {"eval/1mono": "audio", "eval/3mono": "audio", "eval/1stereo": "audio"},
+    )
+    self.assertSameElements(
+        logged_metrics, ["eval/1mono", "eval/3mono", "eval/1stereo"]
+    )
     # 1 input, 1 output.
     self.assertLen(logged_metrics["eval/1mono"], 1)
     # 3 inputs, 2 outputs.
@@ -190,12 +198,14 @@ class TensorBoardLoggerTest(tf.test.TestCase):
 
   def test_log_generic(self):
     task_metrics = {
-        "foo":
-            metrics_lib.Generic(
-                tensor=np.array([1, 2, 3, 4, 5]),
-                metadata=tf.compat.v1.SummaryMetadata(
-                    plugin_data=tf.compat.v1.SummaryMetadata.PluginData(
-                        plugin_name="frobber")))
+        "foo": metrics_lib.Generic(
+            tensor=np.array([1, 2, 3, 4, 5]),
+            metadata=tf.compat.v1.SummaryMetadata(
+                plugin_data=tf.compat.v1.SummaryMetadata.PluginData(
+                    plugin_name="frobber"
+                )
+            ),
+        )
     }
     logged_metrics, plugins = self._log_and_read(task_metrics)
     self.assertDictEqual(plugins, {"eval/foo": "frobber"})
@@ -206,20 +216,18 @@ class TensorBoardLoggerTest(tf.test.TestCase):
 class JSONLoggerTest(tf.test.TestCase):
 
   def _get_task_dataset_for_write_to_file_tests(self):
-    x = [{
-        "inputs_pretokenized": "i0",
-        "targets_pretokenized": "t0"
-    }, {
-        "inputs_pretokenized": "i1",
-        "targets_pretokenized": "t1"
-    }]
+    x = [
+        {"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
+        {"inputs_pretokenized": "i1", "targets_pretokenized": "t1"},
+    ]
     output_types = {
         "inputs_pretokenized": tf.string,
-        "targets_pretokenized": tf.string
+        "targets_pretokenized": tf.string,
     }
     output_shapes = {"targets_pretokenized": [], "inputs_pretokenized": []}
     task_dataset = tf.data.Dataset.from_generator(
-        lambda: x, output_types=output_types, output_shapes=output_shapes)
+        lambda: x, output_types=output_types, output_shapes=output_shapes
+    )
     return task_dataset
 
   def test_logging(self):
@@ -235,7 +243,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=task_dataset,
         inferences=inferences,
-        targets=targets)
+        targets=targets,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -245,23 +254,26 @@ class JSONLoggerTest(tf.test.TestCase):
     with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
-    expected = [{
-        "input": {
-            "inputs_pretokenized": "i0",
-            "targets_pretokenized": "t0"
+    expected = [
+        {
+            "input": {
+                "inputs_pretokenized": "i0",
+                "targets_pretokenized": "t0",
+            },
+            "prediction": "pred0",
+            "target": "target0",
+            "score": 0.2,
         },
-        "prediction": "pred0",
-        "target": "target0",
-        "score": 0.2
-    }, {
-        "input": {
-            "inputs_pretokenized": "i1",
-            "targets_pretokenized": "t1"
+        {
+            "input": {
+                "inputs_pretokenized": "i1",
+                "targets_pretokenized": "t1",
+            },
+            "prediction": "pred1",
+            "target": "target1",
+            "score": 0.3,
         },
-        "prediction": "pred1",
-        "target": "target1",
-        "score": 0.3
-    }]
+    ]
     self.assertEqual(actual, expected)
 
   def test_n_prediction_and_scores(self):
@@ -277,7 +289,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=task_dataset,
         inferences=inferences,
-        targets=targets)
+        targets=targets,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -288,13 +301,10 @@ class JSONLoggerTest(tf.test.TestCase):
       actual = [json.loads(line.strip()) for line in f]
 
     expected = [{
-        "input": {
-            "inputs_pretokenized": "i0",
-            "targets_pretokenized": "t0"
-        },
+        "input": {"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
         "prediction": "pred0",
         "target": "target0",
-        "score": 0.2
+        "score": 0.2,
     }]
     self.assertEqual(actual, expected)
 
@@ -311,7 +321,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=task_dataset,
         inferences=inferences,
-        targets=targets)
+        targets=targets,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -321,21 +332,24 @@ class JSONLoggerTest(tf.test.TestCase):
     with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
-    expected = [{
-        "input": {
-            "inputs_pretokenized": "i0",
-            "targets_pretokenized": "t0"
+    expected = [
+        {
+            "input": {
+                "inputs_pretokenized": "i0",
+                "targets_pretokenized": "t0",
+            },
+            "prediction": "pred0",
+            "target": "target0",
         },
-        "prediction": "pred0",
-        "target": "target0",
-    }, {
-        "input": {
-            "inputs_pretokenized": "i1",
-            "targets_pretokenized": "t1"
+        {
+            "input": {
+                "inputs_pretokenized": "i1",
+                "targets_pretokenized": "t1",
+            },
+            "prediction": "pred1",
+            "target": "target1",
         },
-        "prediction": "pred1",
-        "target": "target1",
-    }]
+    ]
     self.assertEqual(actual, expected)
 
   def test_predictions_and_aux_values(self):
@@ -357,7 +371,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=task_dataset,
         inferences=inferences,
-        targets=targets)
+        targets=targets,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -367,31 +382,34 @@ class JSONLoggerTest(tf.test.TestCase):
     with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
-    expected = [{
-        "input": {
-            "inputs_pretokenized": "i0",
-            "targets_pretokenized": "t0"
+    expected = [
+        {
+            "input": {
+                "inputs_pretokenized": "i0",
+                "targets_pretokenized": "t0",
+            },
+            "prediction": "pred0",
+            "target": "target0",
+            "aux_scores": 0.2,
+            "aux_other_aux_values": 10.0,
         },
-        "prediction": "pred0",
-        "target": "target0",
-        "aux_scores": 0.2,
-        "aux_other_aux_values": 10.0,
-    }, {
-        "input": {
-            "inputs_pretokenized": "i1",
-            "targets_pretokenized": "t1"
+        {
+            "input": {
+                "inputs_pretokenized": "i1",
+                "targets_pretokenized": "t1",
+            },
+            "prediction": "pred1",
+            "target": "target1",
+            "aux_scores": 0.3,
+            "aux_other_aux_values": 20.0,
         },
-        "prediction": "pred1",
-        "target": "target1",
-        "aux_scores": 0.3,
-        "aux_other_aux_values": 20.0,
-    }]
+    ]
     self.assertEqual(actual, expected)
 
   def test_numpy_data(self):
     inferences = {
         "prediction": [np.zeros((2, 2)), np.ones((2, 2))],
-        "score": [0.2, 0.3]
+        "score": [0.2, 0.3],
     }
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
@@ -404,7 +422,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(np.float32(100))},
         dataset=task_dataset,
         inferences=inferences,
-        targets=targets)
+        targets=targets,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -414,23 +433,26 @@ class JSONLoggerTest(tf.test.TestCase):
     with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
-    expected = [{
-        "input": {
-            "inputs_pretokenized": "i0",
-            "targets_pretokenized": "t0"
+    expected = [
+        {
+            "input": {
+                "inputs_pretokenized": "i0",
+                "targets_pretokenized": "t0",
+            },
+            "prediction": [[0.0, 0.0], [0.0, 0.0]],
+            "score": 0.2,
+            "target": "target0",
         },
-        "prediction": [[0.0, 0.0], [0.0, 0.0]],
-        "score": 0.2,
-        "target": "target0",
-    }, {
-        "input": {
-            "inputs_pretokenized": "i1",
-            "targets_pretokenized": "t1"
+        {
+            "input": {
+                "inputs_pretokenized": "i1",
+                "targets_pretokenized": "t1",
+            },
+            "prediction": [[1.0, 1.0], [1.0, 1.0]],
+            "score": 0.3,
+            "target": "target1",
         },
-        "prediction": [[1.0, 1.0], [1.0, 1.0]],
-        "score": 0.3,
-        "target": "target1",
-    }]
+    ]
     self.assertEqual(actual, expected)
 
   def test_non_serializable_prediction(self):
@@ -446,7 +468,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=task_dataset,
         inferences=inferences,
-        targets=targets)
+        targets=targets,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -456,21 +479,24 @@ class JSONLoggerTest(tf.test.TestCase):
     with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
-    expected = [{
-        "input": {
-            "inputs_pretokenized": "i0",
-            "targets_pretokenized": "t0"
+    expected = [
+        {
+            "input": {
+                "inputs_pretokenized": "i0",
+                "targets_pretokenized": "t0",
+            },
+            "score": 0.2,
+            "target": "target0",
         },
-        "score": 0.2,
-        "target": "target0",
-    }, {
-        "input": {
-            "inputs_pretokenized": "i1",
-            "targets_pretokenized": "t1"
+        {
+            "input": {
+                "inputs_pretokenized": "i1",
+                "targets_pretokenized": "t1",
+            },
+            "score": 0.3,
+            "target": "target1",
         },
-        "score": 0.3,
-        "target": "target1",
-    }]
+    ]
     self.assertEqual(actual, expected)
 
   def test_non_serializable_target(self):
@@ -486,7 +512,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=task_dataset,
         inferences=inferences,
-        targets=targets)
+        targets=targets,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -496,21 +523,24 @@ class JSONLoggerTest(tf.test.TestCase):
     with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
-    expected = [{
-        "input": {
-            "inputs_pretokenized": "i0",
-            "targets_pretokenized": "t0"
+    expected = [
+        {
+            "input": {
+                "inputs_pretokenized": "i0",
+                "targets_pretokenized": "t0",
+            },
+            "prediction": "pred0",
+            "score": 0.2,
         },
-        "prediction": "pred0",
-        "score": 0.2,
-    }, {
-        "input": {
-            "inputs_pretokenized": "i1",
-            "targets_pretokenized": "t1"
+        {
+            "input": {
+                "inputs_pretokenized": "i1",
+                "targets_pretokenized": "t1",
+            },
+            "prediction": "pred1",
+            "score": 0.3,
         },
-        "prediction": "pred1",
-        "score": 0.3,
-    }]
+    ]
     self.assertEqual(actual, expected)
 
   def test_prediction_bytes(self):
@@ -528,7 +558,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=task_dataset,
         inferences=inferences,
-        targets=targets)
+        targets=targets,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -538,37 +569,44 @@ class JSONLoggerTest(tf.test.TestCase):
     with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
-    expected = [{
-        "input": {
-            "inputs_pretokenized": "i0",
-            "targets_pretokenized": "t0"
+    expected = [
+        {
+            "input": {
+                "inputs_pretokenized": "i0",
+                "targets_pretokenized": "t0",
+            },
+            "prediction": "mQ==",
+            "target": "target0",
         },
-        "prediction": "mQ==",
-        "target": "target0",
-    }, {
-        "input": {
-            "inputs_pretokenized": "i1",
-            "targets_pretokenized": "t1"
+        {
+            "input": {
+                "inputs_pretokenized": "i1",
+                "targets_pretokenized": "t1",
+            },
+            "prediction": "iA==",
+            "target": "target1",
         },
-        "prediction": "iA==",
-        "target": "target1",
-    }]
+    ]
     self.assertEqual(actual, expected)
 
   def test_2d_ragged_input(self):
-    x = [{
-        "inputs": tf.ragged.constant([[9, 4, 1], [8, 1]]),
-        "inputs_pretokenized": ["i0_0", "i0_1"]
-    }, {
-        "inputs": tf.ragged.constant([[9, 1], [7, 2, 3, 1]]),
-        "inputs_pretokenized": ["i1_0", "i1_1"]
-    }]
+    x = [
+        {
+            "inputs": tf.ragged.constant([[9, 4, 1], [8, 1]]),
+            "inputs_pretokenized": ["i0_0", "i0_1"],
+        },
+        {
+            "inputs": tf.ragged.constant([[9, 1], [7, 2, 3, 1]]),
+            "inputs_pretokenized": ["i1_0", "i1_1"],
+        },
+    ]
     task_dataset = tf.data.Dataset.from_generator(
         lambda: x,
         output_signature={
             "inputs": tf.RaggedTensorSpec(shape=[None, None], dtype=tf.int32),
-            "inputs_pretokenized": tf.TensorSpec(shape=[None], dtype=tf.string)
-        })
+            "inputs_pretokenized": tf.TensorSpec(shape=[None], dtype=tf.string),
+        },
+    )
     inferences = {"prediction": ["pred0", "pred1"], "score": [0.2, 0.3]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
@@ -580,7 +618,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=task_dataset,
         inferences=inferences,
-        targets=targets)
+        targets=targets,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -590,23 +629,26 @@ class JSONLoggerTest(tf.test.TestCase):
     with open(os.path.join(tmp_dir, "test-000042.jsonl")) as f:
       actual = [json.loads(line.strip()) for line in f]
 
-    expected = [{
-        "input": {
-            "inputs": [[9, 4, 1], [8, 1]],
-            "inputs_pretokenized": ["i0_0", "i0_1"]
+    expected = [
+        {
+            "input": {
+                "inputs": [[9, 4, 1], [8, 1]],
+                "inputs_pretokenized": ["i0_0", "i0_1"],
+            },
+            "prediction": "pred0",
+            "target": "target0",
+            "score": 0.2,
         },
-        "prediction": "pred0",
-        "target": "target0",
-        "score": 0.2
-    }, {
-        "input": {
-            "inputs": [[9, 1], [7, 2, 3, 1]],
-            "inputs_pretokenized": ["i1_0", "i1_1"]
+        {
+            "input": {
+                "inputs": [[9, 1], [7, 2, 3, 1]],
+                "inputs_pretokenized": ["i1_0", "i1_1"],
+            },
+            "prediction": "pred1",
+            "target": "target1",
+            "score": 0.3,
         },
-        "prediction": "pred1",
-        "target": "target1",
-        "score": 0.3
-    }]
+    ]
     self.assertEqual(actual, expected)
 
   def test_metrics_multiple_steps(self):
@@ -619,7 +661,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=tf.data.Dataset.range(0),
         inferences={},
-        targets=[])
+        targets=[],
+    )
 
     logger(
         task_name="test",
@@ -627,7 +670,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(50)},
         dataset=tf.data.Dataset.range(0),
         inferences={},
-        targets=[])
+        targets=[],
+    )
 
     # Read the written jsonl file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -657,17 +701,20 @@ class JSONLoggerTest(tf.test.TestCase):
         },
         dataset=tf.data.Dataset.range(0),
         inferences={},
-        targets=[])
+        targets=[],
+    )
 
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
       self.assertDictEqual(
-          json.load(f), {
+          json.load(f),
+          {
               "step": 42,
               "scalar": 100.0,
               "text": "foo",
               "1d_array": [1, 2, 3],
               "2d_array": [[1, 2, 3], [4, 5, 6]],
-          })
+          },
+      )
 
   def test_logging_metrics_only(self):
     tmp_dir = self.create_tempdir().full_path
@@ -679,7 +726,8 @@ class JSONLoggerTest(tf.test.TestCase):
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=None,
         inferences=None,
-        targets=None)
+        targets=None,
+    )
 
     # Validate the metrics file.
     with open(os.path.join(tmp_dir, "test-metrics.jsonl")) as f:
@@ -687,7 +735,8 @@ class JSONLoggerTest(tf.test.TestCase):
 
     # Verify inferences not written.
     self.assertFalse(
-        tf.io.gfile.exists(os.path.join(tmp_dir, "test-000042.jsonl")))
+        tf.io.gfile.exists(os.path.join(tmp_dir, "test-000042.jsonl"))
+    )
 
 
 class TensorAndNumpyEncoderLoggerTest(tf.test.TestCase):
@@ -706,13 +755,17 @@ class TensorAndNumpyEncoderLoggerTest(tf.test.TestCase):
 
   def test_long_numpy(self):
     obj = np.arange(100, dtype=np.int32)
-    self.assertEqual(self.logger.encode(obj),
-                     '"ndarray(shape=(100,), dtype=int32); summary: 0, 1, 2, '
-                     '3, 4 ... 95, 96, 97, 98, 99"')
+    self.assertEqual(
+        self.logger.encode(obj),
+        (
+            '"ndarray(shape=(100,), dtype=int32); summary: 0, 1, 2, '
+            '3, 4 ... 95, 96, 97, 98, 99"'
+        ),
+    )
 
   def test_dataclass(self):
     @dataclasses.dataclass
-    class Foo():
+    class Foo:
       bar: int
       baz: str
 
@@ -721,7 +774,7 @@ class TensorAndNumpyEncoderLoggerTest(tf.test.TestCase):
 
   def test_dataclass_with_none_value(self):
     @dataclasses.dataclass
-    class Foo():
+    class Foo:
       bar: int
       baz: Optional[str] = None
 

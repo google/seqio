@@ -40,7 +40,8 @@ class FullyCachedTaskTest(absltest.TestCase):
     MixtureRegistry.reset()
 
     self.fake_source = dataset_providers.FunctionDataSource(
-        lambda split, shuffle_files: tf.data.Dataset.range(2), ['train'])
+        lambda split, shuffle_files: tf.data.Dataset.range(2), ['train']
+    )
 
     self.vocabulary = vocabularies.PassThroughVocabulary(100)
 
@@ -48,7 +49,7 @@ class FullyCachedTaskTest(absltest.TestCase):
 
     def fake_preprocessor(ds):
       """Adds one and casts to int32."""
-      return ds.map(lambda x: tf.cast(x+1, tf.int32))
+      return ds.map(lambda x: tf.cast(x + 1, tf.int32))
 
     def fake_preprocessor_of(ds, output_features):
       """Creates output feature dict from scalar input."""
@@ -59,15 +60,21 @@ class FullyCachedTaskTest(absltest.TestCase):
       return ds.map(
           lambda x: {  # pylint:disable=g-long-lambda
               k: tf.concat([v, [sequence_length[k]]], 0) for k, v in x.items()
-          })
+          }
+      )
 
     def fake_preprocessor_sl_of(ds, sequence_length, output_features):
       """Adds the sequence length to each feature with `add_eos` enabled."""
       return ds.map(
           lambda x: {  # pylint:disable=g-long-lambda
-              k: tf.concat([v, [sequence_length[k]]], 0)
-                 if output_features[k].add_eos else v for k, v in x.items()
-          })
+              k: (
+                  tf.concat([v, [sequence_length[k]]], 0)
+                  if output_features[k].add_eos
+                  else v
+              )
+              for k, v in x.items()
+          }
+      )
 
     self.preprocessors = [
         fake_preprocessor,
@@ -77,7 +84,8 @@ class FullyCachedTaskTest(absltest.TestCase):
     ]
 
   def validate_fully_cached_task(
-      self, name, sequence_length, actual_sequence_length, expected_dataset):
+      self, name, sequence_length, actual_sequence_length, expected_dataset
+  ):
     new_task = TaskRegistry.get(name)
     self.assertLen(new_task.preprocessors, 6)
     self.assertEqual(new_task.metric_fns, self.metrics_fns)
@@ -86,8 +94,11 @@ class FullyCachedTaskTest(absltest.TestCase):
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
-        f"Task '{name}' requires caching, but was called with "
-        "`use_cached=False`."):
+        (
+            f"Task '{name}' requires caching, but was called with "
+            '`use_cached=False`.'
+        ),
+    ):
       new_task.get_dataset(None)
 
     # Disable caching restriction to verify dataset is correct.
@@ -95,19 +106,20 @@ class FullyCachedTaskTest(absltest.TestCase):
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
-        f"Fully-cached task '{name}' can only be loaded with "
-        f'`sequence_length={sequence_length}` or `None`. '
-        f'Given sequence_length={actual_sequence_length}.'):
+        (
+            f"Fully-cached task '{name}' can only be loaded with "
+            f'`sequence_length={sequence_length}` or `None`. '
+            f'Given sequence_length={actual_sequence_length}.'
+        ),
+    ):
       new_task.get_dataset(
-          {k: v+1 for k, v in sequence_length.items()},
-          use_cached=False)
+          {k: v + 1 for k, v in sequence_length.items()}, use_cached=False
+      )
 
+    assert_dataset(new_task.get_dataset(None, shuffle=False), expected_dataset)
     assert_dataset(
-        new_task.get_dataset(None, shuffle=False),
-        expected_dataset)
-    assert_dataset(
-        new_task.get_dataset(sequence_length, shuffle=False),
-        expected_dataset)
+        new_task.get_dataset(sequence_length, shuffle=False), expected_dataset
+    )
 
   def test_add_fully_cached_task(self):
     preprocessors = list(self.preprocessors)
@@ -119,9 +131,10 @@ class FullyCachedTaskTest(absltest.TestCase):
         preprocessors=preprocessors,
         output_features={
             'inputs': Feature(self.vocabulary, add_eos=True),
-            'targets': Feature(self.vocabulary, add_eos=False)
+            'targets': Feature(self.vocabulary, add_eos=False),
         },
-        metric_fns=self.metrics_fns)
+        metric_fns=self.metrics_fns,
+    )
 
     sequence_length = {'inputs': 5, 'targets': 6}
     actual_sequence_length = {'inputs': 6, 'targets': 7}
@@ -133,17 +146,17 @@ class FullyCachedTaskTest(absltest.TestCase):
         [
             {'inputs': [1, 5, 5], 'targets': [1, 6]},
             {'inputs': [2, 5, 5], 'targets': [2, 6]},
-        ])
+        ],
+    )
 
   def test_add_fully_cached_task_single_feature(self):
     TaskRegistry.add(
         'decoder_task',
         source=self.fake_source,
         preprocessors=self.preprocessors,
-        output_features={
-            'targets': Feature(self.vocabulary, add_eos=True)
-        },
-        metric_fns=self.metrics_fns)
+        output_features={'targets': Feature(self.vocabulary, add_eos=True)},
+        metric_fns=self.metrics_fns,
+    )
 
     sequence_length = {'targets': 6}
     actual_sequence_length = {'targets': 7}
@@ -155,7 +168,8 @@ class FullyCachedTaskTest(absltest.TestCase):
         [
             {'targets': [1, 6, 6]},
             {'targets': [2, 6, 6]},
-        ])
+        ],
+    )
 
   def test_add_fully_cached_task_unique_prefix(self):
     TaskRegistry.add(
@@ -164,14 +178,14 @@ class FullyCachedTaskTest(absltest.TestCase):
         preprocessors=self.preprocessors,
         output_features={
             'tar': Feature(self.vocabulary, add_eos=True),
-            'targets': Feature(self.vocabulary, add_eos=False)
+            'targets': Feature(self.vocabulary, add_eos=False),
         },
-        metric_fns=self.metrics_fns)
+        metric_fns=self.metrics_fns,
+    )
 
     sequence_length = {'tar': 5, 'targets': 6}
     actual_sequence_length = {'tar': 6, 'targets': 7}
-    experimental.add_fully_cached_task(
-        'feature_prefix_task', sequence_length)
+    experimental.add_fully_cached_task('feature_prefix_task', sequence_length)
     self.validate_fully_cached_task(
         'feature_prefix_task_tar5_targ6',
         sequence_length,
@@ -179,29 +193,33 @@ class FullyCachedTaskTest(absltest.TestCase):
         [
             {'tar': [1, 5, 5], 'targets': [1, 6]},
             {'tar': [2, 5, 5], 'targets': [2, 6]},
-        ])
+        ],
+    )
 
   def test_add_fully_cached_task_disallow_shuffling(self):
     TaskRegistry.add(
         'decoder_task',
         source=self.fake_source,
         preprocessors=self.preprocessors,
-        output_features={
-            'targets': Feature(self.vocabulary, add_eos=True)
-        },
-        metric_fns=self.metrics_fns)
+        output_features={'targets': Feature(self.vocabulary, add_eos=True)},
+        metric_fns=self.metrics_fns,
+    )
 
     sequence_length = {'targets': 6}
     new_task = experimental.add_fully_cached_task(
-        'decoder_task', sequence_length, disallow_shuffling=True)
+        'decoder_task', sequence_length, disallow_shuffling=True
+    )
 
     # Disable caching restriction to get past cache check.
     new_task.preprocessors[-2]._required = False
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
-        "Shuffling is disallowed for Task 'decoder_task_6' since its "
-        '`shuffle_buffer_size` was set to `None` on construction.'):
+        (
+            "Shuffling is disallowed for Task 'decoder_task_6' since its "
+            '`shuffle_buffer_size` was set to `None` on construction.'
+        ),
+    ):
       new_task.get_dataset(None, shuffle=True, use_cached=False)
 
     new_task.get_dataset(None, shuffle=False, use_cached=False)
@@ -211,19 +229,17 @@ class FullyCachedTaskTest(absltest.TestCase):
         'task1',
         source=self.fake_source,
         preprocessors=self.preprocessors,
-        output_features={
-            'targets': Feature(self.vocabulary, add_eos=False)
-        },
-        metric_fns=self.metrics_fns)
+        output_features={'targets': Feature(self.vocabulary, add_eos=False)},
+        metric_fns=self.metrics_fns,
+    )
 
     TaskRegistry.add(
         'task2',
         source=self.fake_source,
         preprocessors=self.preprocessors,
-        output_features={
-            'targets': Feature(self.vocabulary, add_eos=True)
-        },
-        metric_fns=self.metrics_fns)
+        output_features={'targets': Feature(self.vocabulary, add_eos=True)},
+        metric_fns=self.metrics_fns,
+    )
 
     MixtureRegistry.add('mix', [('task1', 2), ('task2', lambda x: 1)])
 
@@ -241,8 +257,11 @@ class FullyCachedTaskTest(absltest.TestCase):
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
-        "Task 'task1_6' requires caching, but was called with "
-        "`use_cached=False`."):
+        (
+            "Task 'task1_6' requires caching, but was called with "
+            '`use_cached=False`.'
+        ),
+    ):
       new_mix.get_dataset(None)
 
     # Disable caching restriction to get past cache check.
@@ -251,9 +270,12 @@ class FullyCachedTaskTest(absltest.TestCase):
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
-        "Fully-cached task 'task1_6' can only be loaded with "
-        "`sequence_length={'targets': 6}` or `None`. "
-        "Given sequence_length={'targets': 7}."):
+        (
+            "Fully-cached task 'task1_6' can only be loaded with "
+            "`sequence_length={'targets': 6}` or `None`. "
+            "Given sequence_length={'targets': 7}."
+        ),
+    ):
       new_mix.get_dataset({'targets': 7}, use_cached=False)
 
     expected_dataset = [
@@ -266,35 +288,35 @@ class FullyCachedTaskTest(absltest.TestCase):
     ]
 
     assert_dataset(
-        new_mix.get_dataset(None, shuffle=False).take(6),
-        expected_dataset)
+        new_mix.get_dataset(None, shuffle=False).take(6), expected_dataset
+    )
     assert_dataset(
         new_mix.get_dataset({'targets': 6}, shuffle=False).take(6),
-        expected_dataset)
+        expected_dataset,
+    )
 
   def test_add_fully_cached_mixture_disallow_shuffling(self):
     TaskRegistry.add(
         'task1',
         source=self.fake_source,
         preprocessors=self.preprocessors,
-        output_features={
-            'targets': Feature(self.vocabulary, add_eos=False)
-        },
-        metric_fns=self.metrics_fns)
+        output_features={'targets': Feature(self.vocabulary, add_eos=False)},
+        metric_fns=self.metrics_fns,
+    )
 
     TaskRegistry.add(
         'task2',
         source=self.fake_source,
         preprocessors=self.preprocessors,
-        output_features={
-            'targets': Feature(self.vocabulary, add_eos=True)
-        },
-        metric_fns=self.metrics_fns)
+        output_features={'targets': Feature(self.vocabulary, add_eos=True)},
+        metric_fns=self.metrics_fns,
+    )
 
     MixtureRegistry.add('mix', [('task1', 2), ('task2', lambda x: 1)])
 
     new_mixture = experimental.add_fully_cached_mixture(
-        'mix', sequence_length={'targets': 6}, disallow_shuffling=True)
+        'mix', sequence_length={'targets': 6}, disallow_shuffling=True
+    )
 
     # Disable caching restriction to get past cache check.
     for t in new_mixture.tasks:
@@ -302,8 +324,11 @@ class FullyCachedTaskTest(absltest.TestCase):
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
-        "Shuffling is disallowed for Task 'task1_6' since its "
-        '`shuffle_buffer_size` was set to `None` on construction.'):
+        (
+            "Shuffling is disallowed for Task 'task1_6' since its "
+            '`shuffle_buffer_size` was set to `None` on construction.'
+        ),
+    ):
       new_mixture.get_dataset(None, shuffle=True, use_cached=False)
 
     new_mixture.get_dataset(None, shuffle=False, use_cached=False)
@@ -312,7 +337,6 @@ class FullyCachedTaskTest(absltest.TestCase):
 class FewshotTest(absltest.TestCase):
 
   def test_fewshot_data_source(self):
-
     def fake_dataset_fn(split, shuffle_files, seed=None):
       # Note that for the purposes of this unit test, fake_dataset_fn
       # deliberately does not properly implement shuffling. We test whether
@@ -326,22 +350,29 @@ class FewshotTest(absltest.TestCase):
     # 0 shot
     src = experimental.FewshotDataSource(
         dataset_providers.FunctionDataSource(
-            dataset_fn=fake_dataset_fn,
-            splits=['train', 'validation']
+            dataset_fn=fake_dataset_fn, splits=['train', 'validation']
         ),
-        num_shots=0
+        num_shots=0,
     )
     dataset = src.get_dataset('validation', shuffle=False)
     assert_dataset(
-        dataset, [{'eval': 0,}, {'eval': 1}]
+        dataset,
+        [
+            {
+                'eval': 0,
+            },
+            {'eval': 1},
+        ],
     )
 
     # 1 shot
     preprocessors = [
-        utils.map_over_dataset(lambda x: {'inputs': 0, 'targets': x})]
+        utils.map_over_dataset(lambda x: {'inputs': 0, 'targets': x})
+    ]
     src = experimental.FewshotDataSource(
         dataset_providers.FunctionDataSource(
-            dataset_fn=fake_dataset_fn, splits=['train', 'validation']),
+            dataset_fn=fake_dataset_fn, splits=['train', 'validation']
+        ),
         train_preprocessors=preprocessors,
         eval_preprocessors=preprocessors,
         num_shots=1,
@@ -364,37 +395,35 @@ class FewshotTest(absltest.TestCase):
     # by random chance, which would break this test.
     self.assertFalse(
         train_and_eval_fields_always_same(
-            src.get_dataset(split='train', shuffle=True, seed=123)))
+            src.get_dataset(split='train', shuffle=True, seed=123)
+        )
+    )
 
     # Even when shuffle is off, we don't want the train and eval fields to be
     # the same. Instead, the 'train' field should be deterministically shuffled.
     self.assertFalse(
         train_and_eval_fields_always_same(
-            src.get_dataset(split='train', shuffle=False)))
+            src.get_dataset(split='train', shuffle=False)
+        )
+    )
 
     # 3 shot
     src = experimental.FewshotDataSource(
         dataset_providers.FunctionDataSource(
-            dataset_fn=fake_dataset_fn,
-            splits=['train', 'validation']
+            dataset_fn=fake_dataset_fn, splits=['train', 'validation']
         ),
         train_preprocessors=[
             utils.map_over_dataset(lambda x: {'inputs': 0, 'targets': x})
         ],
-        num_shots=3
+        num_shots=3,
     )
     dataset = src.get_dataset('validation', shuffle=False)
     assert_dataset(
-        dataset, [
-            {
-                'eval': 0,
-                'train': {'inputs': [0, 0, 0], 'targets': [3, 5, 4]}
-            },
-            {
-                'eval': 1,
-                'train': {'inputs': [0, 0, 0], 'targets': [6, 6, 3]}
-            },
-        ]
+        dataset,
+        [
+            {'eval': 0, 'train': {'inputs': [0, 0, 0], 'targets': [3, 5, 4]}},
+            {'eval': 1, 'train': {'inputs': [0, 0, 0], 'targets': [6, 6, 3]}},
+        ],
     )
     # Note: the train split has been deterministically shuffled, so the values
     # of the 'targets' field that we test for are deterministic but arbitrary.
@@ -402,60 +431,56 @@ class FewshotTest(absltest.TestCase):
     # 3-shot, sharded.
     assert_dataset(
         src.get_dataset(
-            'validation', shuffle=False, shard_info=ShardInfo(0, 2)), [
-                {
-                    'eval': 0,
-                    'train': {
-                        'inputs': [0, 0, 0],
-                        'targets': [3, 5, 5]
-                    }
-                },
-            ])
+            'validation', shuffle=False, shard_info=ShardInfo(0, 2)
+        ),
+        [
+            {'eval': 0, 'train': {'inputs': [0, 0, 0], 'targets': [3, 5, 5]}},
+        ],
+    )
     assert_dataset(
         src.get_dataset(
-            'validation', shuffle=False, shard_info=ShardInfo(1, 2)), [
-                {
-                    'eval': 1,
-                    'train': {
-                        'inputs': [0, 0, 0],
-                        'targets': [4, 6, 6]
-                    }
-                },
-            ])
+            'validation', shuffle=False, shard_info=ShardInfo(1, 2)
+        ),
+        [
+            {'eval': 1, 'train': {'inputs': [0, 0, 0], 'targets': [4, 6, 6]}},
+        ],
+    )
     # Note: the train split has been deterministically shuffled, so the values
     # of the 'targets' field that we test for are deterministic but arbitrary.
 
     # Missing train
     src = experimental.FewshotDataSource(
         dataset_providers.FunctionDataSource(
-            dataset_fn=fake_dataset_fn,
-            splits=['validation']
+            dataset_fn=fake_dataset_fn, splits=['validation']
         ),
-        num_shots=3
+        num_shots=3,
     )
     with self.assertRaisesRegex(
         ValueError,
-        'Train split \'train\' is not one of the original source splits: '
-        r'\(\'validation\',\)'):
+        "Train split 'train' is not one of the original source splits: "
+        r'\(\'validation\',\)',
+    ):
       dataset = src.get_dataset('validation')
 
   def test_fewshot_data_source_eval_on_fixed_exemplars(self):
-
     def fake_dataset_fn(split, shuffle_files, seed=None):
       # Note that for the purposes of this unit test, fake_dataset_fn
       # deliberately does not properly implement shuffling. We test whether
       # FewShotDataSource is robust to this.
       del shuffle_files
       del seed
-      return tf.data.Dataset.range(*((0, 2) if split == 'validation' else (3,
-                                                                           7)))
+      return tf.data.Dataset.range(
+          *((0, 2) if split == 'validation' else (3, 7))
+      )
 
     # 1 shot
     preprocessors = [
-        utils.map_over_dataset(lambda x: {'inputs': 0, 'targets': x})]
+        utils.map_over_dataset(lambda x: {'inputs': 0, 'targets': x})
+    ]
     src = experimental.FewshotDataSource(
         dataset_providers.FunctionDataSource(
-            dataset_fn=fake_dataset_fn, splits=['train', 'validation']),
+            dataset_fn=fake_dataset_fn, splits=['train', 'validation']
+        ),
         train_preprocessors=preprocessors,
         num_shots=1,
         eval_on_fixed_exemplars=True,
@@ -477,30 +502,36 @@ class FewshotTest(absltest.TestCase):
     # set of exemplars.
     self.assertTrue(
         exemplars_always_same(
-            src.get_dataset(split='validation', shuffle=True, seed=123)))
+            src.get_dataset(split='validation', shuffle=True, seed=123)
+        )
+    )
 
     assert_dataset(
-        src.get_dataset('validation', shuffle=False), [
+        src.get_dataset('validation', shuffle=False),
+        [
             {
                 'eval': 0,
                 'train': {
                     'inputs': [0],
                     'targets': [3],
-                }
+                },
             },
             {
                 'eval': 1,
                 'train': {
                     'inputs': [0],
                     'targets': [3],
-                }
+                },
             },
-        ])
+        ],
+    )
 
     # `eval_on_fixed_exemplars` is ignored when `split` equals `train_split`.
     self.assertFalse(
         exemplars_always_same(
-            src.get_dataset(split='train', shuffle=True, seed=123)))
+            src.get_dataset(split='train', shuffle=True, seed=123)
+        )
+    )
 
   def test_fewshot_preprocessor(self):
     train_examples = [
@@ -515,20 +546,20 @@ class FewshotTest(absltest.TestCase):
         {
             'inputs': 'How many cents in a quarter?',
             'targets': '25',
-        }
+        },
     ]
 
     eval_examples = [
         {
             'inputs': 'Who was in the Beatles?',
             'targets': 'John',
-            'answers': ['John', 'Paul', 'George', 'Ringo']
+            'answers': ['John', 'Paul', 'George', 'Ringo'],
         },
         {
             'inputs': 'When did the Beatles break up?',
             'targets': '1970',
             'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
-        }
+        },
     ]
 
     def _from_generator(examples):
@@ -538,7 +569,8 @@ class FewshotTest(absltest.TestCase):
           output_shapes={
               k: [None] if isinstance(v, list) else []
               for k, v in examples[0].items()
-          })
+          },
+      )
 
     train_ds = _from_generator(train_examples).repeat()
     eval_ds = _from_generator(eval_examples)
@@ -548,46 +580,52 @@ class FewshotTest(absltest.TestCase):
         tf.data.Dataset.zip({'eval': eval_ds}),
         inputs_prefix='0 ',
         targets_prefix=' X 1 ',
-        example_separator=' X ')
+        example_separator=' X ',
+    )
     assert_dataset(
         dataset,
         [
             {
                 'inputs': '0 Who was in the Beatles? X 1',
                 'targets': 'John',
-                'answers': ['John', 'Paul', 'George', 'Ringo']
+                'answers': ['John', 'Paul', 'George', 'Ringo'],
             },
             {
                 'inputs': '0 When did the Beatles break up? X 1',
                 'targets': '1970',
                 'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
-            }
-        ])
+            },
+        ],
+    )
 
     # 2-shot
     dataset = experimental.fewshot_preprocessor(
         tf.data.Dataset.zip({'train': train_ds.batch(2), 'eval': eval_ds}),
         inputs_prefix='0 ',
         targets_prefix=' X 1 ',
-        example_separator=' X ')
+        example_separator=' X ',
+    )
     assert_dataset(
         dataset,
         [
             {
-                'inputs':
+                'inputs': (
                     '0 How many states in the US? X 1 50 X 0 How many cents in '
-                    'a dollar? X 1 100 X 0 Who was in the Beatles? X 1',
+                    'a dollar? X 1 100 X 0 Who was in the Beatles? X 1'
+                ),
                 'targets': 'John',
-                'answers': ['John', 'Paul', 'George', 'Ringo']
+                'answers': ['John', 'Paul', 'George', 'Ringo'],
             },
             {
-                'inputs':
+                'inputs': (
                     '0 How many cents in a quarter? X 1 25 X 0 How many states '
-                    'in the US? X 1 50 X 0 When did the Beatles break up? X 1',
+                    'in the US? X 1 50 X 0 When did the Beatles break up? X 1'
+                ),
                 'targets': '1970',
                 'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
-            }
-        ])
+            },
+        ],
+    )
 
     # 1-shot, batched eval
     dataset = experimental.fewshot_preprocessor(
@@ -596,25 +634,29 @@ class FewshotTest(absltest.TestCase):
         ),
         inputs_prefix='0 ',
         targets_prefix=' X 1 ',
-        example_separator=' X ')
+        example_separator=' X ',
+    )
     assert_dataset(
         dataset,
         [
             {
-                'inputs':
+                'inputs': (
                     '0 How many states in the US? X 1 50 X 0 Who was in the '
-                    'Beatles? X 1',
+                    'Beatles? X 1'
+                ),
                 'targets': 'John',
-                'answers': ['John', 'Paul', 'George', 'Ringo']
+                'answers': ['John', 'Paul', 'George', 'Ringo'],
             },
             {
-                'inputs':
+                'inputs': (
                     '0 How many states in the US? X 1 50 X 0 When did the '
-                    'Beatles break up? X 1',
+                    'Beatles break up? X 1'
+                ),
                 'targets': '1970',
                 'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
             },
-        ])
+        ],
+    )
 
     # 0-shot + prompt
     dataset = experimental.fewshot_preprocessor(
@@ -622,121 +664,158 @@ class FewshotTest(absltest.TestCase):
         inputs_prefix='0 ',
         targets_prefix=' X 1 ',
         example_separator=' X ',
-        prompt='Answer the question')
-    assert_dataset(dataset, [{
-        'inputs': 'Answer the question X 0 Who was in the Beatles? X 1',
-        'targets': 'John',
-        'answers': ['John', 'Paul', 'George', 'Ringo']
-    }, {
-        'inputs': 'Answer the question X 0 When did the Beatles break up? X 1',
-        'targets': '1970',
-        'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
-    }])
+        prompt='Answer the question',
+    )
+    assert_dataset(
+        dataset,
+        [
+            {
+                'inputs': 'Answer the question X 0 Who was in the Beatles? X 1',
+                'targets': 'John',
+                'answers': ['John', 'Paul', 'George', 'Ringo'],
+            },
+            {
+                'inputs': (
+                    'Answer the question X 0 When did the Beatles break up? X 1'
+                ),
+                'targets': '1970',
+                'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
+            },
+        ],
+    )
 
     # 2-shot + prompt
     dataset = experimental.fewshot_preprocessor(
-        tf.data.Dataset.zip({
-            'train': train_ds.batch(2),
-            'eval': eval_ds
-        }),
+        tf.data.Dataset.zip({'train': train_ds.batch(2), 'eval': eval_ds}),
         inputs_prefix='0 ',
         targets_prefix=' X 1 ',
         example_separator=' X ',
-        prompt='Answer the question')
-    assert_dataset(dataset, [{
-        'inputs':
-            'Answer the question X 0 How many states in the US? X 1 50 X 0 How many cents in '
-            'a dollar? X 1 100 X 0 Who was in the Beatles? X 1',
-        'targets': 'John',
-        'answers': ['John', 'Paul', 'George', 'Ringo']
-    }, {
-        'inputs':
-            'Answer the question X 0 How many cents in a quarter? X 1 25 X 0 How many states '
-            'in the US? X 1 50 X 0 When did the Beatles break up? X 1',
-        'targets': '1970',
-        'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
-    }])
+        prompt='Answer the question',
+    )
+    assert_dataset(
+        dataset,
+        [
+            {
+                'inputs': (
+                    'Answer the question X 0 How many states in the US? X 1 50'
+                    ' X 0 How many cents in a dollar? X 1 100 X 0 Who was in'
+                    ' the Beatles? X 1'
+                ),
+                'targets': 'John',
+                'answers': ['John', 'Paul', 'George', 'Ringo'],
+            },
+            {
+                'inputs': (
+                    'Answer the question X 0 How many cents in a quarter? X 1'
+                    ' 25 X 0 How many states in the US? X 1 50 X 0 When did the'
+                    ' Beatles break up? X 1'
+                ),
+                'targets': '1970',
+                'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
+            },
+        ],
+    )
 
     # 1-shot, batched eval + prompt
     dataset = experimental.fewshot_preprocessor(
-        tf.data.Dataset.zip({
-            'train': train_ds.batch(1),
-            'eval': eval_ds.batch(2)
-        }),
+        tf.data.Dataset.zip(
+            {'train': train_ds.batch(1), 'eval': eval_ds.batch(2)}
+        ),
         inputs_prefix='0 ',
         targets_prefix=' X 1 ',
         example_separator=' X ',
-        prompt='Answer the question')
-    assert_dataset(dataset, [
-        {
-            'inputs':
-                'Answer the question X 0 How many states in the US? X 1 50 X 0 Who was in the '
-                'Beatles? X 1',
-            'targets': 'John',
-            'answers': ['John', 'Paul', 'George', 'Ringo']
-        },
-        {
-            'inputs':
-                'Answer the question X 0 How many states in the US? X 1 50 X 0 When did the '
-                'Beatles break up? X 1',
-            'targets': '1970',
-            'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
-        },
-    ])
+        prompt='Answer the question',
+    )
+    assert_dataset(
+        dataset,
+        [
+            {
+                'inputs': (
+                    'Answer the question X 0 How many states in the US? X 1 50'
+                    ' X 0 Who was in the Beatles? X 1'
+                ),
+                'targets': 'John',
+                'answers': ['John', 'Paul', 'George', 'Ringo'],
+            },
+            {
+                'inputs': (
+                    'Answer the question X 0 How many states in the US? X 1 50'
+                    ' X 0 When did the Beatles break up? X 1'
+                ),
+                'targets': '1970',
+                'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
+            },
+        ],
+    )
 
     # 1-shot + eval_on_fixed_exemplars + reverse
     dataset = experimental.fewshot_preprocessor(
-        tf.data.Dataset.zip({
-            'train': train_ds.batch(1).take(1).repeat(),
-            'eval': eval_ds
-        }),
+        tf.data.Dataset.zip(
+            {'train': train_ds.batch(1).take(1).repeat(), 'eval': eval_ds}
+        ),
         inputs_prefix='0 ',
         targets_prefix=' X 1 ',
         example_separator=' X ',
-        reverse=True)
-    assert_dataset(dataset, [{
-        'inputs':
-            '0 How many states in the US? X 1 50 X 0 Who was in the Beatles? '
-            'X 1',
-        'targets': 'John',
-        'answers': ['John', 'Paul', 'George', 'Ringo']
-    }, {
-        'inputs':
-            '0 How many states in the US? X 1 50 X 0 When did the Beatles '
-            'break up? X 1',
-        'targets': '1970',
-        'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
-    }])
+        reverse=True,
+    )
+    assert_dataset(
+        dataset,
+        [
+            {
+                'inputs': (
+                    '0 How many states in the US? X 1 50 X 0 Who was in the'
+                    ' Beatles? X 1'
+                ),
+                'targets': 'John',
+                'answers': ['John', 'Paul', 'George', 'Ringo'],
+            },
+            {
+                'inputs': (
+                    '0 How many states in the US? X 1 50 X 0 When did the'
+                    ' Beatles break up? X 1'
+                ),
+                'targets': '1970',
+                'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
+            },
+        ],
+    )
 
     # 2-shot + eval_on_fixed_exemplars + reverse
     dataset = experimental.fewshot_preprocessor(
-        tf.data.Dataset.zip({
-            'train': train_ds.batch(2).take(1).repeat(),
-            'eval': eval_ds
-        }),
+        tf.data.Dataset.zip(
+            {'train': train_ds.batch(2).take(1).repeat(), 'eval': eval_ds}
+        ),
         inputs_prefix='0 ',
         targets_prefix=' X 1 ',
         example_separator=' X ',
-        reverse=True)
-    assert_dataset(dataset, [{
-        'inputs':
-            '0 How many cents in a dollar? X 1 100 X 0 How many states '
-            'in the US? X 1 50 X 0 Who was in the Beatles? X 1',
-        'targets': 'John',
-        'answers': ['John', 'Paul', 'George', 'Ringo']
-    }, {
-        'inputs':
-            '0 How many cents in a dollar? X 1 100 X 0 How many states '
-            'in the US? X 1 50 X 0 When did the Beatles break up? X 1',
-        'targets': '1970',
-        'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
-    }])
+        reverse=True,
+    )
+    assert_dataset(
+        dataset,
+        [
+            {
+                'inputs': (
+                    '0 How many cents in a dollar? X 1 100 X 0 How many states '
+                    'in the US? X 1 50 X 0 Who was in the Beatles? X 1'
+                ),
+                'targets': 'John',
+                'answers': ['John', 'Paul', 'George', 'Ringo'],
+            },
+            {
+                'inputs': (
+                    '0 How many cents in a dollar? X 1 100 X 0 How many states '
+                    'in the US? X 1 50 X 0 When did the Beatles break up? X 1'
+                ),
+                'targets': '1970',
+                'answers': ['1970', 'April 10, 1970', 'April 10', '4/10/1970'],
+            },
+        ],
+    )
 
 
 class SentinelTaskTest(FullyCachedTaskTest):
 
-  def validate_sentinel_task(
-      self, name, sequence_length, expected_dataset):
+  def validate_sentinel_task(self, name, sequence_length, expected_dataset):
     new_task = TaskRegistry.get(name)
     # With sentinels inserted we want +1 processors.
     self.assertLen(new_task.preprocessors, 5)
@@ -744,8 +823,8 @@ class SentinelTaskTest(FullyCachedTaskTest):
     self.assertIsNotNone(new_task.postprocessor)
 
     assert_dataset(
-        new_task.get_dataset(sequence_length, shuffle=False),
-        expected_dataset)
+        new_task.get_dataset(sequence_length, shuffle=False), expected_dataset
+    )
 
   def test_add_sentinel_task(self):
     preprocessors = list(self.preprocessors)
@@ -756,30 +835,35 @@ class SentinelTaskTest(FullyCachedTaskTest):
         preprocessors=preprocessors,
         output_features={
             'inputs': Feature(self.vocabulary, add_eos=True),
-            'targets': Feature(self.vocabulary, add_eos=False)
+            'targets': Feature(self.vocabulary, add_eos=False),
         },
-        metric_fns=self.metrics_fns)
+        metric_fns=self.metrics_fns,
+    )
 
     sequence_length = {'inputs': 10, 'targets': 11}
     for num_sentinels in [1, 2, 4]:
       experimental.add_task_with_sentinels(
-          'encoder_decoder_task', num_sentinels=num_sentinels)
+          'encoder_decoder_task', num_sentinels=num_sentinels
+      )
 
     for sentinel_num in [1, 2, 4]:
       sentinel_ids = [
-          self.vocabulary.vocab_size - (i + 1) for i in range(sentinel_num)]
+          self.vocabulary.vocab_size - (i + 1) for i in range(sentinel_num)
+      ]
       self.validate_sentinel_task(
-          f'encoder_decoder_task_{sentinel_num}_sentinel', sequence_length,
+          f'encoder_decoder_task_{sentinel_num}_sentinel',
+          sequence_length,
           [
               {
                   'inputs': [1, 10, 10] + sentinel_ids,
-                  'targets': sentinel_ids + [1, 11]
+                  'targets': sentinel_ids + [1, 11],
               },
               {
                   'inputs': [2, 10, 10] + sentinel_ids,
-                  'targets': sentinel_ids + [2, 11]
+                  'targets': sentinel_ids + [2, 11],
               },
-          ])
+          ],
+      )
 
 
 if __name__ == '__main__':

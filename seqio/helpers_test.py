@@ -45,18 +45,22 @@ class HelpersTest(test_utils.FakeTaskTest):
         preprocessors=[pr.tokenize],
         output_features={
             "feature_a": dp.Feature(VOCAB1),
-            "feature_b": dp.Feature(VOCAB1, add_eos=False)
-        })
+            "feature_b": dp.Feature(VOCAB1, add_eos=False),
+        },
+    )
     helpers.mixture_or_task_with_new_vocab(
-        "my_test_task", "my_new_test_task", new_vocab=VOCAB2)
+        "my_test_task", "my_new_test_task", new_vocab=VOCAB2
+    )
     new_task = dp.get_mixture_or_task("my_new_test_task")
     self.assertEqual(new_task.source, test_task.source)
     self.assertEqual(new_task.preprocessors, test_task.preprocessors)
     self.assertEqual(
-        new_task.output_features, {
+        new_task.output_features,
+        {
             "feature_a": dp.Feature(VOCAB2),
-            "feature_b": dp.Feature(VOCAB2, add_eos=False)
-        })
+            "feature_b": dp.Feature(VOCAB2, add_eos=False),
+        },
+    )
 
   def test_task_new_output_features(self):
     task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
@@ -66,178 +70,220 @@ class HelpersTest(test_utils.FakeTaskTest):
         preprocessors=[pr.tokenize],
         output_features={
             "feature_a": dp.Feature(VOCAB1),
-            "feature_b": dp.Feature(VOCAB1, add_eos=False)
-        })
+            "feature_b": dp.Feature(VOCAB1, add_eos=False),
+        },
+    )
     new_task = helpers.mixture_or_task_with_new_vocab(
         "my_test_task",
         "my_new_test_task",
         new_output_features={
             "feature_a": dp.Feature(VOCAB2, add_eos=False),
-            "feature_b": dp.Feature(VOCAB1)
+            "feature_b": dp.Feature(VOCAB1),
         },
-        add_to_seqio_registry=False)
+        add_to_seqio_registry=False,
+    )
     self.assertNotIn("my_new_test_task", dp.TaskRegistry.names())
     self.assertEqual(new_task.source, test_task.source)
     self.assertEqual(new_task.preprocessors, test_task.preprocessors)
     self.assertEqual(
-        new_task.output_features, {
+        new_task.output_features,
+        {
             "feature_a": dp.Feature(VOCAB2, add_eos=False),
-            "feature_b": dp.Feature(VOCAB1)
-        })
+            "feature_b": dp.Feature(VOCAB1),
+        },
+    )
 
   def test_mixture_new_vocab(self):
     # Step 1: Define test Tasks.
     test_dataset_fn1 = functools.partial(
-        _dataset_fn, data=["this is", "a test"])
+        _dataset_fn, data=["this is", "a test"]
+    )
     test_dataset_fn2 = functools.partial(
-        _dataset_fn, data=["this is", "another test"])
+        _dataset_fn, data=["this is", "another test"]
+    )
     og_output_features = {
         "feature_a": dp.Feature(VOCAB1),
-        "feature_b": dp.Feature(VOCAB1, add_eos=False)
+        "feature_b": dp.Feature(VOCAB1, add_eos=False),
     }
     test_task1 = dp.TaskRegistry.add(
         "my_test_task1",
         source=dp.FunctionDataSource(test_dataset_fn1, splits=["train"]),
         preprocessors=[pr.tokenize],
-        output_features=og_output_features)
+        output_features=og_output_features,
+    )
     test_task2 = dp.TaskRegistry.add(
         "my_test_task2",
         source=dp.FunctionDataSource(test_dataset_fn2, splits=["train"]),
         preprocessors=[pr.tokenize],
-        output_features=og_output_features)
+        output_features=og_output_features,
+    )
 
     # Step 2: Define test Mixtures
     dp.MixtureRegistry.add(
-        "my_test_mix1", [("my_test_task1", 0.5), "my_test_task2"],
-        default_rate=1.0)
+        "my_test_mix1",
+        [("my_test_task1", 0.5), "my_test_task2"],
+        default_rate=1.0,
+    )
     dp.MixtureRegistry.add(
-        "my_test_mix2", ["my_test_task1", "my_test_mix1"], default_rate=1.0)
+        "my_test_mix2", ["my_test_task1", "my_test_mix1"], default_rate=1.0
+    )
 
     # Step 3: Call helper to convert the mixture
     new_mix = helpers.mixture_or_task_with_new_vocab(
         "my_test_mix2",
         "my_new_test_mix2",
         new_vocab=VOCAB2,
-        add_to_seqio_registry=True)
+        add_to_seqio_registry=True,
+    )
 
     # Step 4: Get new Tasks and Mixtures from the Registry.
     new_mix = dp.get_mixture_or_task("my_new_test_mix2")
     new_submix = dp.get_mixture_or_task("my_new_test_mix2.my_test_mix1")
     new_submix_subtask1 = dp.get_mixture_or_task(
-        "my_new_test_mix2.my_test_mix1.my_test_task1")
+        "my_new_test_mix2.my_test_mix1.my_test_task1"
+    )
     new_submix_subtask2 = dp.get_mixture_or_task(
-        "my_new_test_mix2.my_test_mix1.my_test_task2")
+        "my_new_test_mix2.my_test_mix1.my_test_task2"
+    )
     new_subtask = dp.get_mixture_or_task("my_new_test_mix2.my_test_task1")
 
     # Step 5: Verify mixing rates for new mixtures.
-    self.assertDictEqual(new_mix._task_to_rate, {
-        "my_new_test_mix2.my_test_task1": 1.0,
-        "my_new_test_mix2.my_test_mix1": 1.0
-    })
     self.assertDictEqual(
-        new_submix._task_to_rate, {
+        new_mix._task_to_rate,
+        {
+            "my_new_test_mix2.my_test_task1": 1.0,
+            "my_new_test_mix2.my_test_mix1": 1.0,
+        },
+    )
+    self.assertDictEqual(
+        new_submix._task_to_rate,
+        {
             "my_new_test_mix2.my_test_mix1.my_test_task1": 0.5,
-            "my_new_test_mix2.my_test_mix1.my_test_task2": 1.0
-        })
+            "my_new_test_mix2.my_test_mix1.my_test_task2": 1.0,
+        },
+    )
 
     # Step 6: Verify output features for new Tasks and Mixtures.
     expected_output_features = {
         "feature_a": dp.Feature(VOCAB2),
-        "feature_b": dp.Feature(VOCAB2, add_eos=False)
+        "feature_b": dp.Feature(VOCAB2, add_eos=False),
     }
     self.assertDictEqual(new_mix.output_features, expected_output_features)
     self.assertDictEqual(new_submix.output_features, expected_output_features)
-    self.assertDictEqual(new_submix_subtask1.output_features,
-                         expected_output_features)
-    self.assertDictEqual(new_submix_subtask2.output_features,
-                         expected_output_features)
+    self.assertDictEqual(
+        new_submix_subtask1.output_features, expected_output_features
+    )
+    self.assertDictEqual(
+        new_submix_subtask2.output_features, expected_output_features
+    )
     self.assertDictEqual(new_subtask.output_features, expected_output_features)
 
     # Step 7: Verify source and preprocessors for new Tasks.
     self.assertEqual(new_submix_subtask1.source, test_task1.source)
-    self.assertEqual(new_submix_subtask1.preprocessors,
-                     test_task1.preprocessors)
+    self.assertEqual(
+        new_submix_subtask1.preprocessors, test_task1.preprocessors
+    )
     self.assertEqual(new_submix_subtask2.source, test_task2.source)
-    self.assertEqual(new_submix_subtask2.preprocessors,
-                     test_task2.preprocessors)
+    self.assertEqual(
+        new_submix_subtask2.preprocessors, test_task2.preprocessors
+    )
     self.assertEqual(new_subtask.source, test_task1.source)
     self.assertEqual(new_subtask.preprocessors, test_task1.preprocessors)
 
   def test_mixture_new_output_features(self):
     # Step 1: Define test Tasks.
     test_dataset_fn1 = functools.partial(
-        _dataset_fn, data=["this is", "a test"])
+        _dataset_fn, data=["this is", "a test"]
+    )
     test_dataset_fn2 = functools.partial(
-        _dataset_fn, data=["this is", "another test"])
+        _dataset_fn, data=["this is", "another test"]
+    )
     og_output_features = {
         "feature_a": dp.Feature(VOCAB1),
-        "feature_b": dp.Feature(VOCAB1, add_eos=False)
+        "feature_b": dp.Feature(VOCAB1, add_eos=False),
     }
     test_task1 = dp.TaskRegistry.add(
         "my_test_task1",
         source=dp.FunctionDataSource(test_dataset_fn1, splits=["train"]),
         preprocessors=[pr.tokenize],
-        output_features=og_output_features)
+        output_features=og_output_features,
+    )
     test_task2 = dp.TaskRegistry.add(
         "my_test_task2",
         source=dp.FunctionDataSource(test_dataset_fn2, splits=["train"]),
         preprocessors=[pr.tokenize],
-        output_features=og_output_features)
+        output_features=og_output_features,
+    )
 
     # Step 2: Define test Mixtures
     dp.MixtureRegistry.add(
-        "my_test_mix1", [("my_test_task1", 0.5), "my_test_task2"],
-        default_rate=1.0)
+        "my_test_mix1",
+        [("my_test_task1", 0.5), "my_test_task2"],
+        default_rate=1.0,
+    )
     dp.MixtureRegistry.add(
-        "my_test_mix2", ["my_test_task1", "my_test_mix1"], default_rate=1.0)
+        "my_test_mix2", ["my_test_task1", "my_test_mix1"], default_rate=1.0
+    )
 
     # Step 3: Call helper to convert the mixture
     new_output_features = {
         "feature_a": dp.Feature(VOCAB2, add_eos=False),
-        "feature_b": dp.Feature(VOCAB1)
+        "feature_b": dp.Feature(VOCAB1),
     }
     new_mix = helpers.mixture_or_task_with_new_vocab(
         "my_test_mix2",
         "my_new_test_mix2",
         new_output_features=new_output_features,
-        add_to_seqio_registry=False)
+        add_to_seqio_registry=False,
+    )
 
     # Step 4: Get new Tasks and Mixtures from the Registry.
     self.assertNotIn("my_new_test_mix2", dp.MixtureRegistry.names())
     new_submix = dp.get_mixture_or_task("my_new_test_mix2.my_test_mix1")
     new_submix_subtask1 = dp.get_mixture_or_task(
-        "my_new_test_mix2.my_test_mix1.my_test_task1")
+        "my_new_test_mix2.my_test_mix1.my_test_task1"
+    )
     new_submix_subtask2 = dp.get_mixture_or_task(
-        "my_new_test_mix2.my_test_mix1.my_test_task2")
+        "my_new_test_mix2.my_test_mix1.my_test_task2"
+    )
     new_subtask = dp.get_mixture_or_task("my_new_test_mix2.my_test_task1")
 
     # Step 5: Verify mixing rates for new mixtures.
-    self.assertDictEqual(new_mix._task_to_rate, {
-        "my_new_test_mix2.my_test_task1": 1.0,
-        "my_new_test_mix2.my_test_mix1": 1.0
-    })
     self.assertDictEqual(
-        new_submix._task_to_rate, {
+        new_mix._task_to_rate,
+        {
+            "my_new_test_mix2.my_test_task1": 1.0,
+            "my_new_test_mix2.my_test_mix1": 1.0,
+        },
+    )
+    self.assertDictEqual(
+        new_submix._task_to_rate,
+        {
             "my_new_test_mix2.my_test_mix1.my_test_task1": 0.5,
-            "my_new_test_mix2.my_test_mix1.my_test_task2": 1.0
-        })
+            "my_new_test_mix2.my_test_mix1.my_test_task2": 1.0,
+        },
+    )
 
     # Step 6: Verify output features for new Tasks and Mixtures.
     self.assertDictEqual(new_mix.output_features, new_output_features)
     self.assertDictEqual(new_submix.output_features, new_output_features)
-    self.assertDictEqual(new_submix_subtask1.output_features,
-                         new_output_features)
-    self.assertDictEqual(new_submix_subtask2.output_features,
-                         new_output_features)
+    self.assertDictEqual(
+        new_submix_subtask1.output_features, new_output_features
+    )
+    self.assertDictEqual(
+        new_submix_subtask2.output_features, new_output_features
+    )
     self.assertDictEqual(new_subtask.output_features, new_output_features)
 
     # Step 7: Verify source and preprocessors for new Tasks.
     self.assertEqual(new_submix_subtask1.source, test_task1.source)
-    self.assertEqual(new_submix_subtask1.preprocessors,
-                     test_task1.preprocessors)
+    self.assertEqual(
+        new_submix_subtask1.preprocessors, test_task1.preprocessors
+    )
     self.assertEqual(new_submix_subtask2.source, test_task2.source)
-    self.assertEqual(new_submix_subtask2.preprocessors,
-                     test_task2.preprocessors)
+    self.assertEqual(
+        new_submix_subtask2.preprocessors, test_task2.preprocessors
+    )
     self.assertEqual(new_subtask.source, test_task1.source)
     self.assertEqual(new_subtask.preprocessors, test_task1.preprocessors)
 
@@ -249,8 +295,9 @@ class HelpersTest(test_utils.FakeTaskTest):
         preprocessors=[pr.tokenize],
         output_features={
             "feature_a": dp.Feature(VOCAB1),
-            "feature_b": dp.Feature(VOCAB1, add_eos=False)
-        })
+            "feature_b": dp.Feature(VOCAB1, add_eos=False),
+        },
+    )
     with self.assertRaises(ValueError):  # None set
       helpers.mixture_or_task_with_new_vocab("my_test_task", "my_new_test_task")
     with self.assertRaises(ValueError):  # Both set
@@ -260,23 +307,26 @@ class HelpersTest(test_utils.FakeTaskTest):
           new_vocab=VOCAB2,
           new_output_features={
               "feature_a": dp.Feature(VOCAB2, add_eos=False),
-              "feature_b": dp.Feature(VOCAB1)
-          })
+              "feature_b": dp.Feature(VOCAB1),
+          },
+      )
     with self.assertRaises(ValueError):  # Incorrect feature set
       helpers.mixture_or_task_with_new_vocab(
           "my_test_task",
           "my_new_test_task",
           new_output_features={
               "feature_a": dp.Feature(VOCAB2),
-          })
+          },
+      )
     with self.assertRaises(ValueError):  # Incompatible features
       helpers.mixture_or_task_with_new_vocab(
           "my_test_task",
           "my_new_test_task",
           new_output_features={
               "feature_a": dp.Feature(VOCAB2, rank=3),
-              "feature_b": dp.Feature(VOCAB1)
-          })
+              "feature_b": dp.Feature(VOCAB1),
+          },
+      )
 
   def test_task_with_truncated_data(self):
     task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
@@ -286,16 +336,19 @@ class HelpersTest(test_utils.FakeTaskTest):
         preprocessors=[pr.tokenize],
         output_features={
             "feature_a": dp.Feature(VOCAB1),
-            "feature_b": dp.Feature(VOCAB1, add_eos=False)
-        })
+            "feature_b": dp.Feature(VOCAB1, add_eos=False),
+        },
+    )
     helpers.mixture_or_task_with_truncated_data(
-        "my_test_task", "my_new_test_task", split_sizes={"train": 1})
+        "my_test_task", "my_new_test_task", split_sizes={"train": 1}
+    )
     new_task = dp.get_mixture_or_task("my_new_test_task")
     ds = new_task.get_dataset(_SEQUENCE_LENGTH, "train")
     examples = list(ds.as_numpy_iterator())
     self.assertEqual(len(examples), 1)
-    self.assertEqual(examples[0]["feature_a_pretokenized"].decode("utf-8"),
-                     "this is")
+    self.assertEqual(
+        examples[0]["feature_a_pretokenized"].decode("utf-8"), "this is"
+    )
 
   def test_mixture_without_missing_task_splits(self):
     # Step 1: Register Tasks with different splits.
@@ -303,50 +356,60 @@ class HelpersTest(test_utils.FakeTaskTest):
     task_preprocessors = [pr.tokenize]
     task_output_features = {
         "feature_a": dp.Feature(VOCAB1),
-        "feature_b": dp.Feature(VOCAB1, add_eos=False)
+        "feature_b": dp.Feature(VOCAB1, add_eos=False),
     }
     dp.TaskRegistry.add(  # train + test
         "my_test_task_train_test",
         source=dp.FunctionDataSource(task_dataset_fn, splits=["train", "test"]),
         preprocessors=task_preprocessors,
-        output_features=task_output_features)
+        output_features=task_output_features,
+    )
     dp.TaskRegistry.add(  # train
         "my_test_task_train",
         source=dp.FunctionDataSource(task_dataset_fn, splits=["train"]),
         preprocessors=task_preprocessors,
-        output_features=task_output_features)
+        output_features=task_output_features,
+    )
     dp.TaskRegistry.add(  # test
         "my_test_task_test",
         source=dp.FunctionDataSource(task_dataset_fn, splits=["test"]),
         preprocessors=task_preprocessors,
-        output_features=task_output_features)
+        output_features=task_output_features,
+    )
 
     # Step 2: Create super-mixture of all splits.
-    mix = dp.MixtureRegistry.add("super_mix", [("my_test_task_train_test", 0.3),
-                                               ("my_test_task_train", 0.9),
-                                               ("my_test_task_test", 0.7)])
+    mix = dp.MixtureRegistry.add(
+        "super_mix",
+        [
+            ("my_test_task_train_test", 0.3),
+            ("my_test_task_train", 0.9),
+            ("my_test_task_test", 0.7),
+        ],
+    )
 
     # Step 3: Create and verify per-split mixtures.
     mix_train = helpers.mixture_with_missing_task_splits_removed(
         mix.name,
         split="train",
         new_mixture_name="super_mix_train",
-        add_to_seqio_registry=False)
+        add_to_seqio_registry=False,
+    )
     mix_test = helpers.mixture_with_missing_task_splits_removed(
         mix.name,
         split="test",
         new_mixture_name="super_mix_test",
-        add_to_seqio_registry=True)
+        add_to_seqio_registry=True,
+    )
     self.assertNotIn("super_mix_train", list(dp.MixtureRegistry.names()))
     self.assertIn("super_mix_test", list(dp.MixtureRegistry.names()))
-    self.assertDictEqual(mix_train._task_to_rate, {
-        "my_test_task_train_test": 0.3,
-        "my_test_task_train": 0.9
-    })
-    self.assertDictEqual(mix_test._task_to_rate, {
-        "my_test_task_train_test": 0.3,
-        "my_test_task_test": 0.7
-    })
+    self.assertDictEqual(
+        mix_train._task_to_rate,
+        {"my_test_task_train_test": 0.3, "my_test_task_train": 0.9},
+    )
+    self.assertDictEqual(
+        mix_test._task_to_rate,
+        {"my_test_task_train_test": 0.3, "my_test_task_test": 0.7},
+    )
 
 
 if __name__ == "__main__":

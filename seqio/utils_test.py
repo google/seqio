@@ -45,8 +45,9 @@ class LazyTfdsLoaderTest(absltest.TestCase):
 
   @mock.patch("tensorflow_datasets.builder")
   def test_builder_memoization(self, mock_tfds_builder):
-    mock_tfds_builder.side_effect = (
-        lambda name, data_dir: ",".join([name, data_dir or ""]))
+    mock_tfds_builder.side_effect = lambda name, data_dir: ",".join(
+        [name, data_dir or ""]
+    )
 
     ds1 = utils.LazyTfdsLoader("ds1")
     self.assertEqual("ds1,", ds1.builder)
@@ -86,17 +87,17 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     utils.LazyTfdsLoader._MEMOIZED_BUILDERS[("ds/c1", None)] = mock.Mock(
         info=mock.Mock(
             splits={
-                "validation":
-                    mock.Mock(num_examples=420, file_instructions=["f1", "f2"]),
-                "test":
-                    mock.Mock(num_examples=42, file_instructions=["f3"]),
-            }))
+                "validation": mock.Mock(
+                    num_examples=420, file_instructions=["f1", "f2"]
+                ),
+                "test": mock.Mock(num_examples=42, file_instructions=["f3"]),
+            }
+        )
+    )
 
     ds = utils.LazyTfdsLoader(
-        "ds/c1", split_map={
-            "train": "validation",
-            "validation": "test"
-        })
+        "ds/c1", split_map={"train": "validation", "validation": "test"}
+    )
 
     # test .load()
     ds.load("train", shuffle_files=False, seed=seed)
@@ -108,7 +109,8 @@ class LazyTfdsLoaderTest(absltest.TestCase):
         download=True,
         try_gcs=True,
         read_config=AnyArg(),
-        decoders=None)
+        decoders=None,
+    )
 
     # test .size()
     self.assertEqual(420, ds.size(split="train"))
@@ -125,10 +127,8 @@ class LazyTfdsLoaderTest(absltest.TestCase):
   @mock.patch("tensorflow_datasets.load")
   def test_read_config_override_default(self, mock_tfds_load):
     ds = utils.LazyTfdsLoader(
-        "ds/c1", split_map={
-            "train": "validation",
-            "validation": "test"
-        })
+        "ds/c1", split_map={"train": "validation", "validation": "test"}
+    )
     ds.load("train", shuffle_files=False, seed=42)
     mock_tfds_load.assert_called_once()
     kwargs = mock_tfds_load.call_args.kwargs
@@ -143,10 +143,8 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     read_config.shuffle_reshuffle_each_iteration = True
     utils.set_tfds_read_config_override(read_config)
     ds = utils.LazyTfdsLoader(
-        "ds/c1", split_map={
-            "train": "validation",
-            "validation": "test"
-        })
+        "ds/c1", split_map={"train": "validation", "validation": "test"}
+    )
     ds.load("train", shuffle_files=False, seed=42)
     mock_tfds_load.assert_called_once()
     kwargs = mock_tfds_load.call_args.kwargs
@@ -162,7 +160,6 @@ class LazyTfdsLoaderTest(absltest.TestCase):
 class TransformUtilsTest(parameterized.TestCase):
 
   def test_add_kwargs_to_transform_callable(self):
-
     def fn(x, y):
       return x * y
 
@@ -170,7 +167,6 @@ class TransformUtilsTest(parameterized.TestCase):
     self.assertEqual(6, fn(3))
 
   def test_add_kwargs_to_transform_dataclass(self):
-
     @dataclasses.dataclass
     class Fn:
       factor: int
@@ -187,7 +183,6 @@ class TransformUtilsTest(parameterized.TestCase):
 class MapOverDatasetTest(parameterized.TestCase):
 
   def test_map_fn_simple(self):
-
     @utils.map_over_dataset
     def fn(ex):
       ex["field"] += 1
@@ -225,7 +220,6 @@ class MapOverDatasetTest(parameterized.TestCase):
     self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
 
   def test_random_map_fn_simple(self):
-
     @utils.map_over_dataset(num_seeds=1)
     def fn(ex, seed):
       rand_int = tf.random.stateless_uniform([], seed, 0, 10, tf.int32)
@@ -301,98 +295,103 @@ class MapOverDatasetTest(parameterized.TestCase):
 
 class UtilsTest(parameterized.TestCase, tf.test.TestCase):
   _tfdict = {
-      "bool":
-          tf.constant([True, False], dtype=tf.bool),
-      "int32":
-          tf.constant([1], dtype=tf.int32),
-      "int64":
-          tf.constant([1], dtype=tf.int64),
-      "float":
-          tf.constant([1.]),
-      "string":
-          tf.constant(["a"]),
-      "2d_tensor":
-          tf.reshape(tf.range(4), [2, 2]),
-      "3d_tensor":
-          tf.reshape(tf.range(6), [2, 1, 3]),
-      "2d_ragged":
-          tf.ragged.constant([[1], [2, 3]]),
-      "3d_ragged":
-          tf.ragged.constant([[[1]], [[2, 3], [4, 5, 6]]]),
-      "2d_sparse":
-          tf.sparse.SparseTensor(
-              indices=[[0, 1], [2, 3]],
-              values=[10, 20],
-              dense_shape=[3, 4],
-          ),
-      "3d_sparse":
-          tf.sparse.SparseTensor(
-              indices=[[0, 1, 2], [3, 4, 5]],
-              values=[10, 20],
-              dense_shape=[4, 5, 6],
-          ),
+      "bool": tf.constant([True, False], dtype=tf.bool),
+      "int32": tf.constant([1], dtype=tf.int32),
+      "int64": tf.constant([1], dtype=tf.int64),
+      "float": tf.constant([1.0]),
+      "string": tf.constant(["a"]),
+      "2d_tensor": tf.reshape(tf.range(4), [2, 2]),
+      "3d_tensor": tf.reshape(tf.range(6), [2, 1, 3]),
+      "2d_ragged": tf.ragged.constant([[1], [2, 3]]),
+      "3d_ragged": tf.ragged.constant([[[1]], [[2, 3], [4, 5, 6]]]),
+      "2d_sparse": tf.sparse.SparseTensor(
+          indices=[[0, 1], [2, 3]],
+          values=[10, 20],
+          dense_shape=[3, 4],
+      ),
+      "3d_sparse": tf.sparse.SparseTensor(
+          indices=[[0, 1, 2], [3, 4, 5]],
+          values=[10, 20],
+          dense_shape=[4, 5, 6],
+      ),
   }
   _tfexample = tf.train.Example(
       features=tf.train.Features(
           feature={
-              "bool":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 0])),
+              "bool": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1, 0])
+              ),
               # NOTE: TFExamples only stores int64s, so we can't avoid the
               # up-casting here.
-              "int32":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1])),
-              "int64":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1])),
-              "float":
-                  tf.train.Feature(float_list=tf.train.FloatList(value=[1.])),
-              "string":
-                  tf.train.Feature(bytes_list=tf.train.BytesList(value=[b"a"])),
-              "2d_tensor":
-                  tf.train.Feature(
-                      int64_list=tf.train.Int64List(value=[0, 1, 2, 3])),
-              "_sh:2d_tensor":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[2, 2])),
-              "3d_tensor":
-                  tf.train.Feature(
-                      int64_list=tf.train.Int64List(value=[0, 1, 2, 3, 4, 5])),
-              "_sh:3d_tensor":
-                  tf.train.Feature(
-                      int64_list=tf.train.Int64List(value=[2, 1, 3])),
-              "2d_ragged":
-                  tf.train.Feature(
-                      int64_list=tf.train.Int64List(value=[1, 2, 3])),
-              "_rl:0:2d_ragged":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 2])),
-              "3d_ragged":
-                  tf.train.Feature(
-                      int64_list=tf.train.Int64List(value=[1, 2, 3, 4, 5, 6])),
-              "_rl:0:3d_ragged":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 2])),
-              "_rl:1:3d_ragged":
-                  tf.train.Feature(
-                      int64_list=tf.train.Int64List(value=[1, 2, 3])),
-              "2d_sparse":
-                  tf.train.Feature(
-                      int64_list=tf.train.Int64List(value=[10, 20])),
-              "_sp:0:2d_sparse":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[0, 2])),
-              "_sp:1:2d_sparse":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 3])),
-              "_sh:2d_sparse":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[3, 4])),
-              "3d_sparse":
-                  tf.train.Feature(
-                      int64_list=tf.train.Int64List(value=[10, 20])),
-              "_sp:0:3d_sparse":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[0, 3])),
-              "_sp:1:3d_sparse":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[1, 4])),
-              "_sp:2:3d_sparse":
-                  tf.train.Feature(int64_list=tf.train.Int64List(value=[2, 5])),
-              "_sh:3d_sparse":
-                  tf.train.Feature(
-                      int64_list=tf.train.Int64List(value=[4, 5, 6])),
-          }))
+              "int32": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1])
+              ),
+              "int64": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1])
+              ),
+              "float": tf.train.Feature(
+                  float_list=tf.train.FloatList(value=[1.0])
+              ),
+              "string": tf.train.Feature(
+                  bytes_list=tf.train.BytesList(value=[b"a"])
+              ),
+              "2d_tensor": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[0, 1, 2, 3])
+              ),
+              "_sh:2d_tensor": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[2, 2])
+              ),
+              "3d_tensor": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[0, 1, 2, 3, 4, 5])
+              ),
+              "_sh:3d_tensor": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[2, 1, 3])
+              ),
+              "2d_ragged": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1, 2, 3])
+              ),
+              "_rl:0:2d_ragged": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1, 2])
+              ),
+              "3d_ragged": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1, 2, 3, 4, 5, 6])
+              ),
+              "_rl:0:3d_ragged": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1, 2])
+              ),
+              "_rl:1:3d_ragged": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1, 2, 3])
+              ),
+              "2d_sparse": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[10, 20])
+              ),
+              "_sp:0:2d_sparse": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[0, 2])
+              ),
+              "_sp:1:2d_sparse": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1, 3])
+              ),
+              "_sh:2d_sparse": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[3, 4])
+              ),
+              "3d_sparse": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[10, 20])
+              ),
+              "_sp:0:3d_sparse": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[0, 3])
+              ),
+              "_sp:1:3d_sparse": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[1, 4])
+              ),
+              "_sp:2:3d_sparse": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[2, 5])
+              ),
+              "_sh:3d_sparse": tf.train.Feature(
+                  int64_list=tf.train.Int64List(value=[4, 5, 6])
+              ),
+          }
+      )
+  )
 
   def assertTensorDictEqual(
       self,
@@ -409,7 +408,8 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
         # Default assertEqual implementation does not check equality of sparse
         # tensors.
         self.assertAllEqual(
-            tf.sparse.to_dense(expected_value), tf.sparse.to_dense(actual[key]))
+            tf.sparse.to_dense(expected_value), tf.sparse.to_dense(actual[key])
+        )
       else:
         self.assertAllEqual(expected_value, actual[key])
 
@@ -427,58 +427,55 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     actual = tf.io.parse_single_example(
         serialized=tf.constant(self._tfexample.SerializeToString(), tf.string),
         features={
-            "bool":
-                tf.io.FixedLenFeature([2], dtype=tf.int64),
-            "int32":
-                tf.io.FixedLenFeature([1], dtype=tf.int64),
-            "int64":
-                tf.io.FixedLenFeature([1], dtype=tf.int64),
-            "float":
-                tf.io.FixedLenFeature([1], dtype=tf.float32),
-            "string":
-                tf.io.FixedLenFeature([1], dtype=tf.string),
-            "2d_tensor":
-                tf.io.FixedLenFeature([2, 2], dtype=tf.int64),
-            "3d_tensor":
-                tf.io.FixedLenFeature([2, 1, 3], dtype=tf.int64),
-            "2d_ragged":
-                tf.io.RaggedFeature(
-                    dtype=tf.int64,
-                    value_key="2d_ragged",
-                    partitions=(tf.io.RaggedFeature.RowLengths(
-                        utils.tfexample_ragged_length_key("2d_ragged", 0)),)),
-            "3d_ragged":
-                tf.io.RaggedFeature(
-                    dtype=tf.int64,
-                    value_key="3d_ragged",
-                    partitions=(
-                        tf.io.RaggedFeature.RowLengths(
-                            utils.tfexample_ragged_length_key("3d_ragged", 0)),
-                        tf.io.RaggedFeature.RowLengths(
-                            utils.tfexample_ragged_length_key("3d_ragged", 1)),
-                    )),
-            "2d_sparse":
-                tf.io.SparseFeature(
-                    value_key="2d_sparse",
-                    index_key=[
-                        utils.tfexample_sparse_indices_key("2d_sparse", 0),
-                        utils.tfexample_sparse_indices_key("2d_sparse", 1),
-                    ],
-                    size=[3, 4],
-                    dtype=tf.int64,
+            "bool": tf.io.FixedLenFeature([2], dtype=tf.int64),
+            "int32": tf.io.FixedLenFeature([1], dtype=tf.int64),
+            "int64": tf.io.FixedLenFeature([1], dtype=tf.int64),
+            "float": tf.io.FixedLenFeature([1], dtype=tf.float32),
+            "string": tf.io.FixedLenFeature([1], dtype=tf.string),
+            "2d_tensor": tf.io.FixedLenFeature([2, 2], dtype=tf.int64),
+            "3d_tensor": tf.io.FixedLenFeature([2, 1, 3], dtype=tf.int64),
+            "2d_ragged": tf.io.RaggedFeature(
+                dtype=tf.int64,
+                value_key="2d_ragged",
+                partitions=(
+                    tf.io.RaggedFeature.RowLengths(
+                        utils.tfexample_ragged_length_key("2d_ragged", 0)
+                    ),
                 ),
-            "3d_sparse":
-                tf.io.SparseFeature(
-                    value_key="3d_sparse",
-                    index_key=[
-                        utils.tfexample_sparse_indices_key("3d_sparse", 0),
-                        utils.tfexample_sparse_indices_key("3d_sparse", 1),
-                        utils.tfexample_sparse_indices_key("3d_sparse", 2),
-                    ],
-                    size=[4, 5, 6],
-                    dtype=tf.int64,
+            ),
+            "3d_ragged": tf.io.RaggedFeature(
+                dtype=tf.int64,
+                value_key="3d_ragged",
+                partitions=(
+                    tf.io.RaggedFeature.RowLengths(
+                        utils.tfexample_ragged_length_key("3d_ragged", 0)
+                    ),
+                    tf.io.RaggedFeature.RowLengths(
+                        utils.tfexample_ragged_length_key("3d_ragged", 1)
+                    ),
                 ),
-        })
+            ),
+            "2d_sparse": tf.io.SparseFeature(
+                value_key="2d_sparse",
+                index_key=[
+                    utils.tfexample_sparse_indices_key("2d_sparse", 0),
+                    utils.tfexample_sparse_indices_key("2d_sparse", 1),
+                ],
+                size=[3, 4],
+                dtype=tf.int64,
+            ),
+            "3d_sparse": tf.io.SparseFeature(
+                value_key="3d_sparse",
+                index_key=[
+                    utils.tfexample_sparse_indices_key("3d_sparse", 0),
+                    utils.tfexample_sparse_indices_key("3d_sparse", 1),
+                    utils.tfexample_sparse_indices_key("3d_sparse", 2),
+                ],
+                size=[4, 5, 6],
+                dtype=tf.int64,
+            ),
+        },
+    )
     self.assertTensorDictEqual(expected, actual)
 
   def test_tfexample_to_dict(self):
@@ -504,24 +501,33 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     tfe = utils.dict_to_tfexample(features)
 
     self.assertLen(tfe.features.feature, len(features))
-    self.assertEqual(tfe.features.feature["inputs"].bytes_list.value,
-                     [b"this is an input"])
-    self.assertEqual(tfe.features.feature["targets"].bytes_list.value,
-                     [b"this is a target"])
+    self.assertEqual(
+        tfe.features.feature["inputs"].bytes_list.value, [b"this is an input"]
+    )
+    self.assertEqual(
+        tfe.features.feature["targets"].bytes_list.value, [b"this is a target"]
+    )
     self.assertEqual(tfe.features.feature["weight"].float_list.value, [5.0])
-    np.testing.assert_array_equal(tfe.features.feature["idx1"].int64_list.value,
-                                  np.array([1, 2], np.int64))
-    np.testing.assert_array_equal(tfe.features.feature["idx2"].int64_list.value,
-                                  np.array([3, 4], np.int64))
+    np.testing.assert_array_equal(
+        tfe.features.feature["idx1"].int64_list.value,
+        np.array([1, 2], np.int64),
+    )
+    np.testing.assert_array_equal(
+        tfe.features.feature["idx2"].int64_list.value,
+        np.array([3, 4], np.int64),
+    )
     np.testing.assert_array_equal(
         tfe.features.feature["is_correct"].int64_list.value,
-        np.array([0], np.int64))
+        np.array([0], np.int64),
+    )
     np.testing.assert_array_equal(
         tfe.features.feature["2d_shape"].int64_list.value,
-        np.arange(3).reshape((1, 3)).flatten())
+        np.arange(3).reshape((1, 3)).flatten(),
+    )
     np.testing.assert_array_equal(
         tfe.features.feature["3d_shape"].int64_list.value,
-        np.arange(6).reshape((1, 2, 3)).flatten())
+        np.arange(6).reshape((1, 2, 3)).flatten(),
+    )
 
   def test_flatten_dict(self):
     expected = {
@@ -569,17 +575,20 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     expected_output_1 = np.array([0, 3, 4, 2, 1, 5])
     expected_output_2 = np.array([3, 4, 0, 2, 5, 1])
     np.testing.assert_array_equal(
-        utils.stateless_shuffle(value, (0, 1)), expected_output_1)
+        utils.stateless_shuffle(value, (0, 1)), expected_output_1
+    )
     np.testing.assert_array_equal(
         utils.stateless_shuffle(value.reshape((2, 3)), (0, 1)),
-        expected_output_1.reshape((2, 3)))
+        expected_output_1.reshape((2, 3)),
+    )
     np.testing.assert_array_equal(
-        utils.stateless_shuffle(value, (2, 3)), expected_output_2)
+        utils.stateless_shuffle(value, (2, 3)), expected_output_2
+    )
 
-  @parameterized.parameters(utils.map_over_dataset,
-                            utils.map_over_dataset(num_parallel_calls=2))
+  @parameterized.parameters(
+      utils.map_over_dataset, utils.map_over_dataset(num_parallel_calls=2)
+  )
   def test_map_over_dataset_as_decorator(self, decorator):
-
     @decorator
     def square(x):
       return x**2
@@ -588,7 +597,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(list(ds.as_numpy_iterator()), [0, 1, 4, 9])
 
   def test_map_over_dataset_as_decorator_with_seeds(self):
-
     @utils.map_over_dataset(num_seeds=2)
     def square(x, seeds):
       del seeds
@@ -599,7 +607,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters({}, {"num_parallel_calls": 2})
   def test_map_over_dataset_as_function(self, **kwargs):
-
     def square(x):
       return x**2
 
@@ -608,7 +615,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(list(ds.as_numpy_iterator()), [0, 1, 4, 9])
 
   def test_map_over_dataset_as_function_with_seeds(self):
-
     def square(x, seeds):
       del seeds
       return x**2
@@ -618,7 +624,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(list(ds.as_numpy_iterator()), [0, 1, 4, 9])
 
   def test_map_over_dataset_as_partial_function(self):
-
     @functools.partial(utils.map_over_dataset, num_parallel_calls=2)
     def square(x):
       return x**2
@@ -627,7 +632,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(list(ds.as_numpy_iterator()), [0, 1, 4, 9])
 
   def test_map_over_dataset_as_partial_function_with_seeds(self):
-
     @functools.partial(utils.map_over_dataset, num_seeds=2)
     def square(x, seeds):
       del seeds
@@ -652,7 +656,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
     expected = [
         np.array([2985944072, 3810604164]),
-        np.array([4132877645, 4228622226])
+        np.array([4132877645, 4228622226]),
     ]
     for exp, act in zip(expected, test_fn(inputs).as_numpy_iterator()):
       np.testing.assert_array_equal(exp, act)
@@ -669,7 +673,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
     expected = [
         np.array([[2985944072, 3810604164], [64669036, 3548694723]]),
-        np.array([[4132877645, 4228622226], [2495033825, 798765318]])
+        np.array([[4132877645, 4228622226], [2495033825, 798765318]]),
     ]
     for exp, act in zip(expected, test_fn(inputs).as_numpy_iterator()):
       np.testing.assert_array_equal(exp, act)
@@ -690,93 +694,94 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertIsNone(utils._NEXT_MAP_SEED)
 
   def test_trim_and_pad_dataset(self):
-    x = [{
-        "inputs": [7, 8, 5, 6, 1],
-        "targets": [[3, 0.5], [9, 0], [1, 2]],
-        "idx": [0]
-    }, {
-        "inputs": [8, 4, 9, 3, 5, 7, 9, 5],
-        "targets": [[4, 1.2], [1, 1]],
-        "idx": [1, 2]
-    }]
+    x = [
+        {
+            "inputs": [7, 8, 5, 6, 1],
+            "targets": [[3, 0.5], [9, 0], [1, 2]],
+            "idx": [0],
+        },
+        {
+            "inputs": [8, 4, 9, 3, 5, 7, 9, 5],
+            "targets": [[4, 1.2], [1, 1]],
+            "idx": [1, 2],
+        },
+    ]
     ds = ds = tf.data.Dataset.from_generator(
         lambda: x,
         output_signature={
             "inputs": tf.TensorSpec([None], tf.int32),
             "targets": tf.TensorSpec([None, None], tf.float32),
-            "idx": tf.TensorSpec([None], tf.int32)
-        })
+            "idx": tf.TensorSpec([None], tf.int32),
+        },
+    )
     padded_ds = utils.trim_and_pad_dataset(
-        ds, feature_lengths={
-            "inputs": 7,
-            "targets": 3
-        })
-    expected = [{
-        "inputs": [7, 8, 5, 6, 1, 0, 0],
-        "targets": [[3, 0.5], [9, 0], [1, 2]],
-        "idx": [0],
-    }, {
-        "inputs": [8, 4, 9, 3, 5, 7, 9],
-        "targets": [[4, 1.2], [1, 1], [0, 0]],
-        "idx": [1, 2],
-    }]
-    assert_dataset(padded_ds, expected, {
-        "inputs": tf.int32,
-        "targets": tf.float32
-    })
+        ds, feature_lengths={"inputs": 7, "targets": 3}
+    )
+    expected = [
+        {
+            "inputs": [7, 8, 5, 6, 1, 0, 0],
+            "targets": [[3, 0.5], [9, 0], [1, 2]],
+            "idx": [0],
+        },
+        {
+            "inputs": [8, 4, 9, 3, 5, 7, 9],
+            "targets": [[4, 1.2], [1, 1], [0, 0]],
+            "idx": [1, 2],
+        },
+    ]
+    assert_dataset(
+        padded_ds, expected, {"inputs": tf.int32, "targets": tf.float32}
+    )
 
   def test_trim_and_pad_dataset_with_multirank_features(self):
-    x = [{
-        "inputs": [[[7, 8, 5, 6, 1]], [[1, 2, 3, 4, 5]]],
-        "targets": [[3, 0.5], [9, 0], [1, 2]],
-    }, {
-        "inputs": [[[8, 4, 9, 3, 5, 7, 9, 5]]],
-        "targets": [[4, 1.2], [1, 1]],
-    }]
+    x = [
+        {
+            "inputs": [[[7, 8, 5, 6, 1]], [[1, 2, 3, 4, 5]]],
+            "targets": [[3, 0.5], [9, 0], [1, 2]],
+        },
+        {
+            "inputs": [[[8, 4, 9, 3, 5, 7, 9, 5]]],
+            "targets": [[4, 1.2], [1, 1]],
+        },
+    ]
     ds = tf.data.Dataset.from_generator(
         lambda: x,
         output_signature={
             "inputs": tf.TensorSpec([None, None, None], tf.int32),
             "targets": tf.TensorSpec([None, None], tf.float32),
-        })
+        },
+    )
     padded_ds = utils.trim_and_pad_dataset(
-        ds, feature_lengths={
-            "inputs": [2, 1, 5],
-            "targets": [3, 3]
-        })
-    expected = [{
-        "inputs": [[[7, 8, 5, 6, 1]], [[1, 2, 3, 4, 5]]],
-        "targets": [[3, 0.5, 0], [9, 0, 0], [1, 2, 0]],
-    }, {
-        "inputs": [[[8, 4, 9, 3, 5]], [[0, 0, 0, 0, 0]]],
-        "targets": [[4, 1.2, 0], [1, 1, 0], [0, 0, 0]],
-    }]
-    assert_dataset(padded_ds, expected, {
-        "inputs": tf.int32,
-        "targets": tf.float32
-    })
+        ds, feature_lengths={"inputs": [2, 1, 5], "targets": [3, 3]}
+    )
+    expected = [
+        {
+            "inputs": [[[7, 8, 5, 6, 1]], [[1, 2, 3, 4, 5]]],
+            "targets": [[3, 0.5, 0], [9, 0, 0], [1, 2, 0]],
+        },
+        {
+            "inputs": [[[8, 4, 9, 3, 5]], [[0, 0, 0, 0, 0]]],
+            "targets": [[4, 1.2, 0], [1, 1, 0], [0, 0, 0]],
+        },
+    ]
+    assert_dataset(
+        padded_ds, expected, {"inputs": tf.int32, "targets": tf.float32}
+    )
 
   _PACK_PARAMETERS = ({"use_custom_ops": False},)
 
   @parameterized.parameters(*_PACK_PARAMETERS)
   def test_trim_and_pack_dataset(self, use_custom_ops):
-    x = [{
-        "inputs": [7, 8, 5, 1],
-        "targets": [3, 9, 1],
-        "idx": [0]
-    }, {
-        "inputs": [8, 4, 9, 3, 1],
-        "targets": [4, 1],
-        "idx": [1]
-    }]
+    x = [
+        {"inputs": [7, 8, 5, 1], "targets": [3, 9, 1], "idx": [0]},
+        {"inputs": [8, 4, 9, 3, 1], "targets": [4, 1], "idx": [1]},
+    ]
     ds = create_default_dataset(x, feature_names=("inputs", "targets", "idx"))
     packed_ds = utils.trim_and_pack_dataset(
         ds,
-        feature_lengths={
-            "inputs": 10,
-            "targets": 7
-        },
-        use_custom_ops=use_custom_ops)
+        feature_lengths={"inputs": 10, "targets": 7},
+        use_custom_ops=use_custom_ops,
+    )
 
     expected = {
         "inputs": [7, 8, 5, 1, 8, 4, 9, 3, 1, 0],
@@ -786,29 +791,23 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
         "targets_positions": [0, 1, 2, 0, 1, 0, 0],
         "targets_segment_ids": [1, 1, 1, 2, 2, 0, 0],
     }
-    assert_dataset(packed_ds, expected, {
-        "inputs": tf.int32,
-        "targets": tf.int32
-    })
+    assert_dataset(
+        packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32}
+    )
 
 
   @parameterized.parameters(*_PACK_PARAMETERS)
   def test_trim_and_pack_dataset_no_eos(self, use_custom_ops):
-    x = [{
-        "inputs": [7, 8, 5],
-        "targets": [3, 9]
-    }, {
-        "inputs": [8, 4, 9, 3],
-        "targets": [4]
-    }]
+    x = [
+        {"inputs": [7, 8, 5], "targets": [3, 9]},
+        {"inputs": [8, 4, 9, 3], "targets": [4]},
+    ]
     ds = create_default_dataset(x)
     packed_ds = utils.trim_and_pack_dataset(
         ds,
-        feature_lengths={
-            "inputs": 8,
-            "targets": 5
-        },
-        use_custom_ops=use_custom_ops)
+        feature_lengths={"inputs": 8, "targets": 5},
+        use_custom_ops=use_custom_ops,
+    )
 
     # Packing still works without the eos.
     expected = {
@@ -819,28 +818,22 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
         "targets_positions": [0, 1, 0, 0, 0],
         "targets_segment_ids": [1, 1, 2, 0, 0],
     }
-    assert_dataset(packed_ds, expected, {
-        "inputs": tf.int32,
-        "targets": tf.int32
-    })
+    assert_dataset(
+        packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32}
+    )
 
   @parameterized.parameters(*_PACK_PARAMETERS)
   def test_trim_and_pack_dataset_long_seq(self, use_custom_ops):
-    x = [{
-        "inputs": [7, 8, 5, 6, 9, 4, 1],
-        "targets": [3, 9, 1]
-    }, {
-        "inputs": [8, 4, 9, 3, 5, 7, 9, 1],
-        "targets": [4, 1]
-    }]
+    x = [
+        {"inputs": [7, 8, 5, 6, 9, 4, 1], "targets": [3, 9, 1]},
+        {"inputs": [8, 4, 9, 3, 5, 7, 9, 1], "targets": [4, 1]},
+    ]
     ds = create_default_dataset(x)
     packed_ds = utils.trim_and_pack_dataset(
         ds,
-        feature_lengths={
-            "inputs": 7,
-            "targets": 3
-        },
-        use_custom_ops=use_custom_ops)
+        feature_lengths={"inputs": 7, "targets": 3},
+        use_custom_ops=use_custom_ops,
+    )
     expected = [
         {
             "inputs": [7, 8, 5, 6, 9, 4, 1],
@@ -858,12 +851,11 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
             "targets": [4, 1, 0],
             "targets_positions": [0, 1, 0],
             "targets_segment_ids": [1, 1, 0],
-        }
+        },
     ]
-    assert_dataset(packed_ds, expected, {
-        "inputs": tf.int32,
-        "targets": tf.int32
-    })
+    assert_dataset(
+        packed_ds, expected, {"inputs": tf.int32, "targets": tf.int32}
+    )
 
   def test_autoregressive_inputs_unpacked(self):
     x = tf.constant([3, 8, 9, 5, 1, 0, 0])
@@ -885,7 +877,8 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     x = tf.constant([3, 8, 1, 9, 1, 5, 4, 1, 0, 0])
     sequence_id = tf.constant([1, 1, 1, 2, 2, 3, 3, 3, 0, 0])
     autoreg_inputs = utils.make_autoregressive_inputs(
-        x, sequence_id=sequence_id)
+        x, sequence_id=sequence_id
+    )
     actual = self.evaluate(autoreg_inputs)
     expected = [0, 3, 8, 0, 9, 0, 5, 4, 0, 0]
     self.assertAllEqual(actual, expected)
@@ -895,8 +888,12 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     x = tf.constant([[3, 8, 1, 0, 0], [9, 5, 2, 0, 6]])
     sequence_id = tf.constant([1, 2])
     with self.assertRaisesWithLiteralMatch(
-        ValueError, "Only 1-D sequences are supported with packing. "
-        "Got a packed 2-D sequence."):
+        ValueError,
+        (
+            "Only 1-D sequences are supported with packing. "
+            "Got a packed 2-D sequence."
+        ),
+    ):
       utils.make_autoregressive_inputs(x, sequence_id=sequence_id)
 
   def test_autoregressive_inputs_packed_non_eos(self):
@@ -905,7 +902,8 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     # sequence_id is correctly formatted.
     sequence_id = tf.constant([1, 1, 1, 2, 2, 3, 3, 3, 0, 0])
     autoreg_inputs = utils.make_autoregressive_inputs(
-        x, sequence_id=sequence_id)
+        x, sequence_id=sequence_id
+    )
     actual = self.evaluate(autoreg_inputs)
     # The incorrect x[4] should not affect the output as long as the sequence_id
     # is correct.
@@ -917,7 +915,8 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     x = tf.constant([3, 8, 1, 9.9, 1, 5, 4, 1, 0, 0])
     sequence_id = tf.constant([1, 1, 1, 2, 2, 3, 3, 3, 0, 0], tf.int32)
     autoreg_inputs = utils.make_autoregressive_inputs(
-        x, sequence_id=sequence_id, output_dtype=tf.float32)
+        x, sequence_id=sequence_id, output_dtype=tf.float32
+    )
     actual = self.evaluate(autoreg_inputs)
     # The incorrect x[4] should not affect the output as long as the sequence_id
     # is correct.
@@ -947,48 +946,60 @@ class MixtureRateTest(test_utils.FakeTaskTest):
   def test_mixing_rate_num_examples(self):
     self.assertEqual(3.0, utils.mixing_rate_num_examples(self.cached_task))
 
-    self.assertEqual(81.0,
-                     utils.mixing_rate_num_examples(self.cached_task, scale=27))
+    self.assertEqual(
+        81.0, utils.mixing_rate_num_examples(self.cached_task, scale=27)
+    )
 
     self.assertEqual(
         9.0,
         utils.mixing_rate_num_examples(
-            self.cached_task, scale=27, temperature=2))
+            self.cached_task, scale=27, temperature=2
+        ),
+    )
 
     self.assertEqual(
         2550.25,
         utils.mixing_rate_num_examples(
-            self.cached_task, scale=27, temperature=0.5, maximum=50.5))
+            self.cached_task, scale=27, temperature=0.5, maximum=50.5
+        ),
+    )
 
     # Test fallback.
     self.assertEqual(
         3.0,
         utils.mixing_rate_num_examples(
-            self.cached_task, fallback_to_num_input_examples=False))
+            self.cached_task, fallback_to_num_input_examples=False
+        ),
+    )
     with self.assertRaises(AssertionError):
       utils.mixing_rate_num_examples(
-          self.uncached_task, fallback_to_num_input_examples=False)
+          self.uncached_task, fallback_to_num_input_examples=False
+      )
     self.assertEqual(
         30.0,
         utils.mixing_rate_num_examples(
-            self.uncached_task, fallback_to_num_input_examples=True))
+            self.uncached_task, fallback_to_num_input_examples=True
+        ),
+    )
 
   def test_mixing_rate_num_characters(self):
     task = mock.Mock(
-        cache_dir="", get_cached_stats=lambda split: {"text_chars": 10})
+        cache_dir="", get_cached_stats=lambda split: {"text_chars": 10}
+    )
     rate = utils.mixing_rate_num_characters(task, temperature=0.7)
     self.assertAlmostEqual(rate, 26.8269579528)  # 10**(1 / 0.7)
 
 
 def create_default_dataset(
     x: Sequence[Mapping[str, int]],
-    feature_names: Sequence[str] = ("inputs", "targets")
+    feature_names: Sequence[str] = ("inputs", "targets"),
 ) -> tf.data.Dataset:
   output_types = {feature_name: tf.int32 for feature_name in feature_names}
   output_shapes = {feature_name: [None] for feature_name in feature_names}
 
   ds = tf.data.Dataset.from_generator(
-      lambda: x, output_types=output_types, output_shapes=output_shapes)
+      lambda: x, output_types=output_types, output_shapes=output_shapes
+  )
   return ds
 
 

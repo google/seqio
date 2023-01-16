@@ -51,10 +51,12 @@ def rekey(x, key_map=None):
   return x
 
 
-def tokenize(dataset: tf.data.Dataset,
-             output_features: OutputFeaturesType,
-             copy_pretokenized: bool = True,
-             with_eos: bool = False) -> tf.data.Dataset:
+def tokenize(
+    dataset: tf.data.Dataset,
+    output_features: OutputFeaturesType,
+    copy_pretokenized: bool = True,
+    with_eos: bool = False,
+) -> tf.data.Dataset:
   """Encode output features with specified vocabularies.
 
   Passes through other features unchanged. Optionally passes through copy
@@ -78,14 +80,17 @@ def tokenize(dataset: tf.data.Dataset,
       tokenize_impl,
       output_features=output_features,
       copy_pretokenized=copy_pretokenized,
-      with_eos=with_eos)
+      with_eos=with_eos,
+  )
   return utils.map_over_dataset(fn=tokenize_fn)(dataset)
 
 
-def tokenize_impl(features: Mapping[str, tf.Tensor],
-                  output_features: OutputFeaturesType,
-                  copy_pretokenized: bool = True,
-                  with_eos: bool = False) -> Mapping[str, tf.Tensor]:
+def tokenize_impl(
+    features: Mapping[str, tf.Tensor],
+    output_features: OutputFeaturesType,
+    copy_pretokenized: bool = True,
+    with_eos: bool = False,
+) -> Mapping[str, tf.Tensor]:
   """Encode output features with specified vocabularies.
 
   Passes through other features unchanged. Optionally passes through copy
@@ -188,7 +193,8 @@ def append_eos(
 
   return dataset.map(
       lambda ex: {k: _maybe_add_eos(k, v) for k, v in ex.items()},
-      num_parallel_calls=tf.data.experimental.AUTOTUNE)
+      num_parallel_calls=tf.data.experimental.AUTOTUNE,
+  )
 
 
 def append_eos_after_trim(
@@ -221,14 +227,15 @@ def append_eos_after_trim(
   trim_fn = functools.partial(
       append_eos_after_trim_impl,
       output_features=output_features,
-      sequence_length=sequence_length)
+      sequence_length=sequence_length,
+  )
   return utils.map_over_dataset(fn=trim_fn)(dataset)
 
 
 def append_eos_after_trim_impl(
     features: Dict[str, tf.Tensor],
     output_features: OutputFeaturesType,
-    sequence_length: Optional[SequenceLengthType] = None
+    sequence_length: Optional[SequenceLengthType] = None,
 ) -> Dict[str, tf.Tensor]:
   """Trims output feature token sequences and then appends EOS.
 
@@ -257,17 +264,20 @@ def append_eos_after_trim_impl(
       pass
     else:
       eos_id = output_features[key].vocabulary.eos_id
-      if (sequence_length is not None and
-          sequence_length.get(key, None) is not None):
+      if (
+          sequence_length is not None
+          and sequence_length.get(key, None) is not None
+      ):
         max_length = sequence_length[key]
-        value = value[..., :max_length - 1]
+        value = value[..., : max_length - 1]
 
       features[key] = _append_to_innermost_axis(value, eos_id)
   return features
 
 
-def _append_to_innermost_axis(tensor: tf.Tensor,
-                              scalar: tf.Tensor) -> tf.Tensor:
+def _append_to_innermost_axis(
+    tensor: tf.Tensor, scalar: tf.Tensor
+) -> tf.Tensor:
   """Appends `scalar` to each slice in the innermost axis of `tensor`.
 
   >>> _append_to_innermost_axis([1, 2, 3], -1)
@@ -288,15 +298,16 @@ def _append_to_innermost_axis(tensor: tf.Tensor,
   if isinstance(tensor, tf.RaggedTensor):
     if tensor.shape.rank > 2:
       return tensor.with_values(
-          _append_to_innermost_axis(tensor.values, scalar))
+          _append_to_innermost_axis(tensor.values, scalar)
+      )
     else:
       return tf.concat([tensor, tf.fill([tensor.nrows(), 1], scalar)], axis=1)
   else:
     ndims = tf.rank(tensor)
     paddings = tf.concat(
-        [tf.zeros((ndims - 1, 2), dtype=tf.int32),
-         tf.constant([[0, 1]])],
-        axis=0)
+        [tf.zeros((ndims - 1, 2), dtype=tf.int32), tf.constant([[0, 1]])],
+        axis=0,
+    )
     return tf.pad(tensor, paddings=paddings, constant_values=scalar)
 
 
@@ -322,14 +333,16 @@ def truncate_inputs_left(example, sequence_length):
   if sequence_length is None or 'inputs' not in sequence_length:
     return example
 
-  example['inputs'] = example['inputs'][-sequence_length['inputs']:]
+  example['inputs'] = example['inputs'][-sequence_length['inputs'] :]
 
   return example
 
 
 def apply_feature_converter(
-    dataset: tf.data.Dataset, sequence_length: Dict[str, int],
-    feature_converter: feature_converters.FeatureConverter) -> tf.data.Dataset:
+    dataset: tf.data.Dataset,
+    sequence_length: Dict[str, int],
+    feature_converter: feature_converters.FeatureConverter,
+) -> tf.data.Dataset:
   """Applies feature converter on the dataset.
 
   Example:

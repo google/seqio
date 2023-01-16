@@ -31,7 +31,8 @@ import tensorflow_datasets as tfds
 
 
 def skip_none_value_dict_factory(
-    data: Sequence[Tuple[str, Any]]) -> Dict[str, Any]:
+    data: Sequence[Tuple[str, Any]]
+) -> Dict[str, Any]:
   """Dictionnary factory which skip None value."""
   return {k: v for k, v in data if v is not None}
 
@@ -49,11 +50,15 @@ class Logger(abc.ABC):
     self.output_dir = output_dir
 
   @abc.abstractmethod
-  def __call__(self, task_name: str, step: Optional[int],
-               metrics: Mapping[str, metrics_lib.MetricValue],
-               dataset: Optional[tf.data.Dataset],
-               inferences: Optional[Mapping[str, Sequence[Any]]],
-               targets: Optional[Sequence[Any]]) -> None:
+  def __call__(
+      self,
+      task_name: str,
+      step: Optional[int],
+      metrics: Mapping[str, metrics_lib.MetricValue],
+      dataset: Optional[tf.data.Dataset],
+      inferences: Optional[Mapping[str, Sequence[Any]]],
+      targets: Optional[Sequence[Any]],
+  ) -> None:
     """Logs the metrics and inferences for each task.
 
     Args:
@@ -76,11 +81,15 @@ class PyLoggingLogger(Logger):
     self._level = level
     super().__init__(output_dir)
 
-  def __call__(self, task_name: str, step: Optional[int],
-               metrics: Mapping[str, metrics_lib.MetricValue],
-               dataset: Optional[tf.data.Dataset],
-               inferences: Optional[Mapping[str, Sequence[Any]]],
-               targets: Optional[Sequence[Any]]) -> None:
+  def __call__(
+      self,
+      task_name: str,
+      step: Optional[int],
+      metrics: Mapping[str, metrics_lib.MetricValue],
+      dataset: Optional[tf.data.Dataset],
+      inferences: Optional[Mapping[str, Sequence[Any]]],
+      targets: Optional[Sequence[Any]],
+  ) -> None:
     del dataset
     del inferences
     del targets
@@ -93,8 +102,9 @@ class PyLoggingLogger(Logger):
         strvalue = metric_value.textdata
       else:
         strvalue = f"unloggable type {type(metric_value)}"
-      logging.info("%s/%s at step %d: %s", task_name, metric_name, step,
-                   strvalue)
+      logging.info(
+          "%s/%s at step %d: %s", task_name, metric_name, step, strvalue
+      )
 
 
 class TensorBoardLogger(Logger):
@@ -120,11 +130,17 @@ class TensorBoardLogger(Logger):
     """
     if summary_dir not in self._summary_writers:
       self._summary_writers[summary_dir] = tf.summary.create_file_writer(
-          summary_dir, flush_millis=120)
+          summary_dir, flush_millis=120
+      )
     return self._summary_writers[summary_dir]
 
-  def _write_metric(self, tag: str, value: metrics_lib.MetricValue, step: int,
-                    writer: tf.summary.SummaryWriter):
+  def _write_metric(
+      self,
+      tag: str,
+      value: metrics_lib.MetricValue,
+      step: int,
+      writer: tf.summary.SummaryWriter,
+  ):
     """Log a metric value to tensorboard, dispatched on value type."""
     if isinstance(value, metrics_lib.Scalar):
       value: metrics_lib.Scalar = value
@@ -136,7 +152,8 @@ class TensorBoardLogger(Logger):
       image = tf.convert_to_tensor(value.image)
       with writer.as_default():
         tf.summary.image(
-            name=tag, data=image, step=step, max_outputs=value.max_outputs)
+            name=tag, data=image, step=step, max_outputs=value.max_outputs
+        )
     elif isinstance(value, metrics_lib.Audio):
       value: metrics_lib.Audio = value
       audio = tf.convert_to_tensor(value.audiodata, dtype=tf.float32)
@@ -147,13 +164,15 @@ class TensorBoardLogger(Logger):
             sample_rate=value.sample_rate,
             step=step,
             max_outputs=value.max_outputs,
-            encoding="wav")
+            encoding="wav",
+        )
     elif isinstance(value, metrics_lib.Histogram):
       value: metrics_lib.Histogram = value
       values = np.array(value.values)
       with writer.as_default():
         tf.summary.histogram(
-            name=tag, data=values, step=step, buckets=value.bins)
+            name=tag, data=values, step=step, buckets=value.bins
+        )
     elif isinstance(value, metrics_lib.Text):
       value: metrics_lib.Text = value
       if not isinstance(value.textdata, (str, bytes)):
@@ -163,16 +182,22 @@ class TensorBoardLogger(Logger):
     elif isinstance(value, metrics_lib.Generic):
       with writer.as_default():
         tf.summary.write(
-            tag=tag, tensor=value.tensor, metadata=value.metadata, step=step)
+            tag=tag, tensor=value.tensor, metadata=value.metadata, step=step
+        )
     else:
       raise TypeError(
-          f"Value type not understood, got '{type(value).__name__}'.")
+          f"Value type not understood, got '{type(value).__name__}'."
+      )
 
-  def __call__(self, task_name: str, step: Optional[int],
-               metrics: Mapping[str, metrics_lib.MetricValue],
-               dataset: Optional[tf.data.Dataset],
-               inferences: Optional[Mapping[str, Sequence[Any]]],
-               targets: Optional[Sequence[Any]]) -> None:
+  def __call__(
+      self,
+      task_name: str,
+      step: Optional[int],
+      metrics: Mapping[str, metrics_lib.MetricValue],
+      dataset: Optional[tf.data.Dataset],
+      inferences: Optional[Mapping[str, Sequence[Any]]],
+      targets: Optional[Sequence[Any]],
+  ) -> None:
     """Log metrics to tensorboard.
 
     Args:
@@ -188,8 +213,10 @@ class TensorBoardLogger(Logger):
     del inferences
     del targets
     if step is None:
-      logging.warning("Step number for the logging session is not provided. "
-                      "A dummy value of -1 will be used.")
+      logging.warning(
+          "Step number for the logging session is not provided. "
+          "A dummy value of -1 will be used."
+      )
       step = -1
 
     writer = self._get_summary_writer(os.path.join(self.output_dir, task_name))
@@ -200,7 +227,8 @@ class TensorBoardLogger(Logger):
           tag=f"eval/{metric_name}",
           value=metric_value,
           step=step,
-          writer=writer)
+          writer=writer,
+      )
     writer.flush()
 
 
@@ -221,15 +249,19 @@ class TensorBoardLoggerV1(Logger):
     if task_name not in self._summary_writers:
       with tf.compat.v1.Graph().as_default():
         self._summary_writers[task_name] = tf.compat.v1.summary.FileWriter(
-            os.path.join(self.output_dir, task_name))
+            os.path.join(self.output_dir, task_name)
+        )
     return self._summary_writers[task_name]
 
   def __call__(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
-      self, task_name: str, step: Optional[int],
-      metrics: Mapping[str,
-                       metrics_lib.Scalar], dataset: Optional[tf.data.Dataset],
+      self,
+      task_name: str,
+      step: Optional[int],
+      metrics: Mapping[str, metrics_lib.Scalar],
+      dataset: Optional[tf.data.Dataset],
       inferences: Optional[Mapping[str, Sequence[Any]]],
-      targets: Optional[Sequence[Any]]) -> None:
+      targets: Optional[Sequence[Any]],
+  ) -> None:
     """Log the eval results and optionally write summaries for TensorBoard.
 
     Note:
@@ -249,16 +281,20 @@ class TensorBoardLoggerV1(Logger):
     del inferences
     del targets
     if step is None:
-      logging.warning("Step number for the logging session is not provided. "
-                      "A dummy value of -1 will be used.")
+      logging.warning(
+          "Step number for the logging session is not provided. "
+          "A dummy value of -1 will be used."
+      )
       step = -1
 
     summary_writer = self._get_summary_writer(task_name)
 
     for metric_name, metric_value in metrics.items():
       if not isinstance(metric_value, metrics_lib.Scalar):
-        raise ValueError(f"Value for metric '{metric_name}' should be of "
-                         f"type 'Scalar, got '{type(metric_value).__name__}'.")
+        raise ValueError(
+            f"Value for metric '{metric_name}' should be of "
+            f"type 'Scalar, got '{type(metric_value).__name__}'."
+        )
       summary = tf.compat.v1.Summary()
 
       tag = f"eval/{metric_name}"
@@ -296,10 +332,13 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
         # instead of the entire array.
         first_five_str = str(obj.reshape([-1])[:5].tolist())[1:-1]
         last_five_str = str(obj.reshape([-1])[-5:].tolist())[1:-1]
-        return (f"{type(obj).__name__}(shape={obj.shape}, dtype={obj_dtype}); "
-                f"summary: {first_five_str} ... {last_five_str}")
-    elif (np.issubdtype(type(obj), np.number) or
-          np.issubdtype(type(obj), np.bool_)):
+        return (
+            f"{type(obj).__name__}(shape={obj.shape}, dtype={obj_dtype}); "
+            f"summary: {first_five_str} ... {last_five_str}"
+        )
+    elif np.issubdtype(type(obj), np.number) or np.issubdtype(
+        type(obj), np.bool_
+    ):
       return obj.item()  # Convert most primitive np types to py-native types.
     elif hasattr(obj, "dtype") and obj.dtype == tf.bfloat16.as_numpy_dtype:
       return float(obj)
@@ -317,8 +356,9 @@ class TensorAndNumpyEncoder(json.JSONEncoder):
     return json.JSONEncoder.default(self, obj)
 
 
-def _check_json_serializable(field_name: str, value: Any,
-                             json_encoder_cls: Type[json.JSONEncoder]) -> bool:
+def _check_json_serializable(
+    field_name: str, value: Any, json_encoder_cls: Type[json.JSONEncoder]
+) -> bool:
   try:
     json.dumps(value, cls=json_encoder_cls)
     return True
@@ -334,7 +374,8 @@ class JSONLogger(Logger):
       self,
       output_dir: str,
       write_n_results: Optional[int] = None,
-      json_encoder_cls: Type[json.JSONEncoder] = TensorAndNumpyEncoder):
+      json_encoder_cls: Type[json.JSONEncoder] = TensorAndNumpyEncoder,
+  ):
     """JSONLogger constructor.
 
     Args:
@@ -348,14 +389,20 @@ class JSONLogger(Logger):
     self._write_n_results = write_n_results
     self._json_encoder_cls = json_encoder_cls
 
-  def __call__(self, task_name: str, step: Optional[int],
-               metrics: Mapping[str, metrics_lib.MetricValue],
-               dataset: Optional[tf.data.Dataset],
-               inferences: Optional[Mapping[str, Sequence[Any]]],
-               targets: Optional[Sequence[Any]]) -> None:
+  def __call__(
+      self,
+      task_name: str,
+      step: Optional[int],
+      metrics: Mapping[str, metrics_lib.MetricValue],
+      dataset: Optional[tf.data.Dataset],
+      inferences: Optional[Mapping[str, Sequence[Any]]],
+      targets: Optional[Sequence[Any]],
+  ) -> None:
     if step is None:
-      logging.warning("Step number for the logging session is not provided. "
-                      "A dummy value of -1 will be used.")
+      logging.warning(
+          "Step number for the logging session is not provided. "
+          "A dummy value of -1 will be used."
+      )
       step = -1
 
     metrics_fname = os.path.join(self.output_dir, f"{task_name}-metrics.jsonl")
@@ -371,7 +418,9 @@ class JSONLogger(Logger):
       else:
         logging.warning(
             "Skipping JSON logging of non-serializable metric '%s' of type %s.",
-            metric_name, type(metric_value))
+            metric_name,
+            type(metric_value),
+        )
 
     if metrics:
       logging.info("Appending metrics to %s", metrics_fname)
@@ -384,11 +433,11 @@ class JSONLogger(Logger):
       with tf.io.gfile.GFile(metrics_fname + ".tmp", "w") as f:
         f.write(file_contents)
         f.write(
-            json.dumps({
-                "step": step,
-                **serializable_metrics
-            },
-                       cls=self._json_encoder_cls))
+            json.dumps(
+                {"step": step, **serializable_metrics},
+                cls=self._json_encoder_cls,
+            )
+        )
         f.write("\n")
       tf.io.gfile.rename(metrics_fname + ".tmp", metrics_fname, overwrite=True)
 
@@ -396,13 +445,16 @@ class JSONLogger(Logger):
       return
 
     if not inferences or not targets or not dataset:
-      logging.info("Skipping inference logging as one or more of inferences, "
-                   "targets or dataset is unset")
+      logging.info(
+          "Skipping inference logging as one or more of inferences, "
+          "targets or dataset is unset"
+      )
       return
 
     write_tick = time.time()
-    inferences_fname = os.path.join(self.output_dir,
-                                    f"{task_name}-{step:06}.jsonl")
+    inferences_fname = os.path.join(
+        self.output_dir, f"{task_name}-{step:06}.jsonl"
+    )
     logging.info("Writing inferences to %s", inferences_fname)
     with tf.io.gfile.GFile(inferences_fname, "w") as f:
       inference_types = list(inferences.keys())
@@ -413,12 +465,14 @@ class JSONLogger(Logger):
       if "aux_value" in inference_types:
         inference_types.remove("aux_value")
         all_aux_values = inferences["aux_value"]
-      to_zip = ([tfds.as_numpy(dataset), targets] +
-                [inferences.get(t) for t in inference_types])
+      to_zip = [tfds.as_numpy(dataset), targets] + [
+          inferences.get(t) for t in inference_types
+      ]
       examples_with_results = itertools.zip_longest(*to_zip)
       if self._write_n_results:
-        examples_with_results = itertools.islice(examples_with_results, 0,
-                                                 self._write_n_results)
+        examples_with_results = itertools.islice(
+            examples_with_results, 0, self._write_n_results
+        )
       field_names = ["target"] + inference_types
 
       for example_index, (inp, *results) in enumerate(examples_with_results):
@@ -435,13 +489,16 @@ class JSONLogger(Logger):
 
         for aux_value_name in all_aux_values:
           aux_value = inferences["aux_value"][aux_value_name][example_index]
-          if _check_json_serializable(aux_value_name, aux_value,
-                                      self._json_encoder_cls):
+          if _check_json_serializable(
+              aux_value_name, aux_value, self._json_encoder_cls
+          ):
             json_dict[f"aux_{aux_value_name}"] = aux_value
 
         json_str = json.dumps(json_dict, cls=self._json_encoder_cls)
         f.write(json_str + "\n")
     write_time = time.time() - write_tick
-    logging.info("Writing completed in %02f seconds (%02f examples/sec).",
-                 write_time,
-                 len(inferences) / write_time)
+    logging.info(
+        "Writing completed in %02f seconds (%02f examples/sec).",
+        write_time,
+        len(inferences) / write_time,
+    )

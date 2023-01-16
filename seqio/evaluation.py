@@ -48,8 +48,7 @@ class AllMetricsFuture(typing_extensions.Protocol):
     ...
 
 
-MetricsAndOutputsType = Tuple[AllMetricsFuture,  # metrics
-                              Any]  # outputs
+MetricsAndOutputsType = Tuple[AllMetricsFuture, Any]  # metrics  # outputs
 
 
 def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
@@ -59,8 +58,9 @@ def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
 
   for task in tasks:
     if split not in task.splits:
-      logging.info("Task %s has no '%s' split; skipping eval.", task.name,
-                   split)
+      logging.info(
+          "Task %s has no '%s' split; skipping eval.", task.name, split
+      )
       continue
     if not task.metric_fns and not task.metric_objs:
       logging.info("Task %s has no metrics defined; skipping eval.", task.name)
@@ -72,8 +72,11 @@ def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
       metric_types.append("predict_with_aux")
     if task.score_metric_fns:
       metric_types.append("score")
-    logging.info("Adding task '%s' with %s metric_fn(s).", task.name,
-                 " and ".join(metric_types))
+    logging.info(
+        "Adding task '%s' with %s metric_fn(s).",
+        task.name,
+        " and ".join(metric_types),
+    )
     valid_tasks.append(task)
 
   return valid_tasks
@@ -107,8 +110,9 @@ def _cache_and_measure_examples(
   max_sequence_length = {k: 0 for k in tasks[0].output_features.keys()}
 
   for task in tasks:
-    assert max_sequence_length.keys() == task.output_features.keys(), (
-        "all tasks must have the same features")
+    assert (
+        max_sequence_length.keys() == task.output_features.keys()
+    ), "all tasks must have the same features"
 
   for task in tasks:
     ds = dataset_fn(task)
@@ -126,7 +130,8 @@ def _cache_and_measure_examples(
       cnt += 1
 
     cached_task_datasets[task.name] = ds.apply(
-        tf.data.experimental.assert_cardinality(cnt))
+        tf.data.experimental.assert_cardinality(cnt)
+    )
 
   return cached_task_datasets, max_sequence_length
 
@@ -137,8 +142,9 @@ _AuxValues = Mapping[str, Sequence[Any]]
 
 _IndicesAndPredictions = Sequence[Tuple[_BatchId, _Tokens]]
 _IndicesAndPredictionsWithAuxValues = Tuple[_IndicesAndPredictions, _AuxValues]
-PredictFnReturnType = Union[_IndicesAndPredictions,
-                            _IndicesAndPredictionsWithAuxValues]
+PredictFnReturnType = Union[
+    _IndicesAndPredictions, _IndicesAndPredictionsWithAuxValues
+]
 
 _IndicesAndScores = Sequence[Tuple[_BatchId, float]]
 _IndicesAndScoresWithIntermediates = Tuple[_IndicesAndScores, Mapping[str, Any]]
@@ -147,30 +153,37 @@ ModelFnReturnType = Union[
     _IndicesAndPredictions,
     _IndicesAndPredictionsWithAuxValues,
     _IndicesAndScores,
-    _IndicesAndScoresWithIntermediates]
+    _IndicesAndScoresWithIntermediates,
+]
 
 
 class PredictFnCallable(typing_extensions.Protocol):
 
   def __call__(
-      self, dataset: tf.data.Dataset,
-      model_feature_shapes: Optional[Mapping[str, int]]) -> PredictFnReturnType:
+      self,
+      dataset: tf.data.Dataset,
+      model_feature_shapes: Optional[Mapping[str, int]],
+  ) -> PredictFnReturnType:
     ...
 
 
 class ScoreFnCallable(typing_extensions.Protocol):
 
   def __call__(
-      self, dataset: tf.data.Dataset,
-      model_feature_shapes: Optional[Mapping[str, int]]) -> ScoreFnReturnType:
+      self,
+      dataset: tf.data.Dataset,
+      model_feature_shapes: Optional[Mapping[str, int]],
+  ) -> ScoreFnReturnType:
     ...
 
 
 class ModelFnCallable(typing_extensions.Protocol):
 
   def __call__(
-      self, dataset: tf.data.Dataset,
-      model_feature_shapes: Optional[Mapping[str, int]]) -> ModelFnReturnType:
+      self,
+      dataset: tf.data.Dataset,
+      model_feature_shapes: Optional[Mapping[str, int]],
+  ) -> ModelFnReturnType:
     ...
 
 
@@ -193,7 +206,9 @@ def _extract_model_output(cached_model_dataset, model_fn):
     sorted_outputs = _permute(outputs, sorted_order)
     sorted_aux = jax.tree_map(
         functools.partial(_permute, sorted_order=sorted_order),
-        all_aux_values, is_leaf=lambda x: isinstance(x, list))
+        all_aux_values,
+        is_leaf=lambda x: isinstance(x, list),
+    )
     return sorted_outputs, sorted_aux
 
   else:
@@ -242,13 +257,14 @@ def _extract_scores(cached_model_dataset, score_fn):
 
     sorted_scores = _permute(scores)
     sorted_intermediates = jax.tree_map(
-        _permute, intermediates, is_leaf=lambda x: isinstance(x, list))
+        _permute, intermediates, is_leaf=lambda x: isinstance(x, list)
+    )
     return sorted_scores, sorted_intermediates
 
   if len(indices_and_scores[0]) != 2:
     raise ValueError(
-        "Expected a sequence of length-2 tuples with (index, score) "
-        "format.")
+        "Expected a sequence of length-2 tuples with (index, score) format."
+    )
   return [x[1] for x in sorted(indices_and_scores, key=lambda x: x[0])]
 
 
@@ -283,20 +299,22 @@ class Evaluator:
     loggers: a sequence of subclasses of `Logger`.
   """
 
-  def __init__(self,
-               mixture_or_task_name: str,
-               feature_converter: FeatureConverter,
-               eval_split: str = "validation",
-               use_cached: bool = False,
-               seed: Optional[int] = 42,
-               sequence_length: Optional[Mapping[str, int]] = None,
-               num_examples: Optional[int] = None,
-               shuffle: bool = False,
-               logger_cls: Sequence[Type[loggers_lib.Logger]] = (),
-               log_dir: Optional[str] = None,
-               use_memory_cache: bool = True,
-               async_compute_metrics: bool = True,
-               target_field_name: str = "targets"):
+  def __init__(
+      self,
+      mixture_or_task_name: str,
+      feature_converter: FeatureConverter,
+      eval_split: str = "validation",
+      use_cached: bool = False,
+      seed: Optional[int] = 42,
+      sequence_length: Optional[Mapping[str, int]] = None,
+      num_examples: Optional[int] = None,
+      shuffle: bool = False,
+      logger_cls: Sequence[Type[loggers_lib.Logger]] = (),
+      log_dir: Optional[str] = None,
+      use_memory_cache: bool = True,
+      async_compute_metrics: bool = True,
+      target_field_name: str = "targets",
+  ):
     """Evaluator constructor.
 
     Args:
@@ -341,17 +359,22 @@ class Evaluator:
     """
     logging.info("Initializing Evaluator for '%s'", mixture_or_task_name)
     eval_tasks = dataset_providers.get_subtasks(
-        dataset_providers.get_mixture_or_task(mixture_or_task_name))
+        dataset_providers.get_mixture_or_task(mixture_or_task_name)
+    )
     self._eval_tasks = get_valid_eval_tasks(eval_tasks, eval_split)
 
-    self._metrics_executor = concurrent.futures.ThreadPoolExecutor(
-        max_workers=1) if async_compute_metrics else None
+    self._metrics_executor = (
+        concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        if async_compute_metrics
+        else None
+    )
     self._metrics_future = None
     self._target_field_name = target_field_name
 
     if not self._eval_tasks:
       logging.warning(
-          "No eval task with valid split and metric fn found. Skipping eval.")
+          "No eval task with valid split and metric fn found. Skipping eval."
+      )
       return
 
     # Determine if sequence_length arg is required. This occurs when any of the
@@ -360,8 +383,11 @@ class Evaluator:
     for task in self._eval_tasks:
       for prep in task.preprocessors:
         prep_params = inspect.signature(prep).parameters
-        if ("sequence_length" in prep_params and
-            prep_params["sequence_length"].default == inspect.Parameter.empty):
+        if (
+            "sequence_length" in prep_params
+            and prep_params["sequence_length"].default
+            == inspect.Parameter.empty
+        ):
           if sequence_length is None:
             if isinstance(prep, functools.partial):
               prep_name = prep.func.__name__
@@ -371,7 +397,8 @@ class Evaluator:
                 f"Preprocessor '{prep_name}' in task '{task.name}' has a "
                 "`sequence_length` argument, making it incompatible with "
                 "automatic sequence length detection. Pass a valid "
-                "`sequence_length` to `Evaluator` and try again.")
+                "`sequence_length` to `Evaluator` and try again."
+            )
           sequence_length_required = True
           break
 
@@ -382,7 +409,8 @@ class Evaluator:
           shuffle=shuffle,
           num_epochs=1,
           seed=seed,
-          use_cached=use_cached)
+          use_cached=use_cached,
+      )
 
     # `task_datasets` have the output features from seqio.Task.get_dataset.
     # These features will be converted to "model features" by the feature
@@ -395,7 +423,8 @@ class Evaluator:
         dataset_fn=dataset_fn,
         sequence_dims=sequence_dims,
         num_examples=num_examples,
-        use_memory_cache=use_memory_cache)
+        use_memory_cache=use_memory_cache,
+    )
 
     if sequence_length is None:
       logging.info("Setting sequence lengths to %s", max_lengths)
@@ -408,19 +437,26 @@ class Evaluator:
           k: sequence_length.get(k, max_lengths[k]) for k in max_lengths
       }
 
-      assert set(sequence_length.keys()) == set(max_lengths.keys()), (
-          "sequence_length=%s limits must match the detected max_lengths=%s" %
-          (sequence_length.keys(), max_lengths.keys()))
+      assert set(sequence_length.keys()) == set(
+          max_lengths.keys()
+      ), "sequence_length=%s limits must match the detected max_lengths=%s" % (
+          sequence_length.keys(),
+          max_lengths.keys(),
+      )
 
       for k, l in sequence_length.items():
         if l is None:
           continue
         if isinstance(l, (tuple, list)):
           logging.warning(
-              "Automatic length checking is not supported when lengths are"
-              "specified with a tuple for feature %s = %s. Please make "
-              "sure your max lengths are not removing parts of your inputs.", k,
-              l)
+              (
+                  "Automatic length checking is not supported when lengths are"
+                  "specified with a tuple for feature %s = %s. Please make "
+                  "sure your max lengths are not removing parts of your inputs."
+              ),
+              k,
+              l,
+          )
         elif l > max_lengths[k]:
           log_long_warning = True
         elif not sequence_length_required and l == max_lengths[k]:
@@ -428,18 +464,28 @@ class Evaluator:
 
       if log_long_warning:
         logging.warning(
-            "Given sequence lengths are longer than necessary for some "
-            "evaluation inputs or targets, resulting in wasted computation. "
-            "Consider passing `None` for `sequence_length` to have them be "
-            "automatically computed.\n Got: %s,\n Max Lengths: %s",
-            sequence_length, max_lengths)
+            (
+                "Given sequence lengths are longer than necessary for some"
+                " evaluation inputs or targets, resulting in wasted"
+                " computation. Consider passing `None` for `sequence_length` to"
+                " have them be automatically computed.\n Got: %s,\n Max"
+                " Lengths: %s"
+            ),
+            sequence_length,
+            max_lengths,
+        )
       elif log_same_warning:
         logging.warning(
-            "Given sequence lengths *may be* insufficient for some evaluation "
-            "inputs or targets. Such sequences will be truncated to fit, "
-            "likely leading to sub-optimal results. Consider passing `None` "
-            "for `sequence_length` to have them be automatically computed.\n "
-            " Got: %s,\n Max Lengths: %s", sequence_length, max_lengths)
+            (
+                "Given sequence lengths *may be* insufficient for some"
+                " evaluation inputs or targets. Such sequences will be"
+                " truncated to fit, likely leading to sub-optimal results."
+                " Consider passing `None` for `sequence_length` to have them be"
+                " automatically computed.\n  Got: %s,\n Max Lengths: %s"
+            ),
+            sequence_length,
+            max_lengths,
+        )
 
     self._cached_model_datasets = {}
 
@@ -447,8 +493,9 @@ class Evaluator:
       raise ValueError("During evaluation, packing can't be used.")
     # Convert the task features to model features
     for task in self._eval_tasks:
-      eval_ds = feature_converter(cached_task_datasets[task.name],
-                                  sequence_length)
+      eval_ds = feature_converter(
+          cached_task_datasets[task.name], sequence_length
+      )
 
       # The eval dataset is enumerated to ensure that the order is preserved
       # throughout the entire evaluation process.
@@ -464,10 +511,12 @@ class Evaluator:
     if logger_cls and not log_dir:
       raise ValueError(
           "'log_dir' must be provided to `Evaluator` if `logger_cls` is "
-          "non-empty.")
+          "non-empty."
+      )
     if not logger_cls:
       logging.warn(
-          "'logger_cls' is empty so seqio.Evaluator will not log its results.")
+          "'logger_cls' is empty so seqio.Evaluator will not log its results."
+      )
     self._loggers = tuple(cls(output_dir=log_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
 
   def __del__(self):
@@ -488,8 +537,9 @@ class Evaluator:
       predict_fn: Optional[PredictFnCallable] = None,
       score_fn: Optional[ScoreFnCallable] = None,
       predict_with_aux_fn: Optional[PredictFnCallable] = None,
-      model_fns: Optional[Mapping[metrics_lib.ModelOutputType,
-                                  ModelFnCallable]] = None,
+      model_fns: Optional[
+          Mapping[metrics_lib.ModelOutputType, ModelFnCallable]
+      ] = None,
   ) -> MetricsAndOutputsType:
     """Predict and score self.eval_tasks.
 
@@ -565,8 +615,9 @@ class Evaluator:
     if score_fn:
       model_fns[metrics_lib.ModelOutputType.SCORE] = score_fn
     if predict_with_aux_fn:
-      model_fns[
-          metrics_lib.ModelOutputType.PREDICTION_WITH_AUX] = predict_with_aux_fn
+      model_fns[metrics_lib.ModelOutputType.PREDICTION_WITH_AUX] = (
+          predict_with_aux_fn
+      )
 
     # Computes all the model outputs needed by metrics, and organizes them in
     # a dictionary structure - model_outputs: Mapping[ModelOutputType, Any]
@@ -584,7 +635,8 @@ class Evaluator:
         if model_output_type not in all_output[task.name]:
           model_fn = model_fns[model_output_type]
           all_output[task.name][model_output_type] = _extract_model_output(
-              self._cached_model_datasets[task.name], model_fn)
+              self._cached_model_datasets[task.name], model_fn
+          )
 
     if compute_metrics:
       if self._metrics_future:
@@ -592,8 +644,10 @@ class Evaluator:
         # that may have occurred.
         tick = time.time()
         self._metrics_future.result()
-        logging.info("Time waiting for previous metrics run: %f secs.",
-                     time.time() - tick)
+        logging.info(
+            "Time waiting for previous metrics run: %f secs.",
+            time.time() - tick,
+        )
 
       def compute_metrics_fn():
         tick = time.time()
@@ -624,9 +678,9 @@ class Evaluator:
       all_metrics.set_result(None)
     return all_metrics, all_output
 
-  def _compute_clu_metrics(self,
-                           all_output,
-                           step: Optional[int] = None) -> AllMetricsType:
+  def _compute_clu_metrics(
+      self, all_output, step: Optional[int] = None
+  ) -> AllMetricsType:
     """Computes and logs metrics given the predicted tokens and scores.
 
     Args:
@@ -649,15 +703,20 @@ class Evaluator:
       for metric_obj in task.metric_objs:
         model_output = all_output[task.name][metric_obj.model_output_type]
         metric_instance = metric_obj.from_model_output(
-            tfds.as_numpy(task_dataset), model_output, task.output_features,
-            self._target_field_name)
+            tfds.as_numpy(task_dataset),
+            model_output,
+            task.output_features,
+            self._target_field_name,
+        )
         task_metrics.append(metric_instance.compute())
         # Records inferences for legacy logging compatibility.
-        inferences.update({
-            key: val
-            for key, val in metric_instance.targets_and_inferences.items()
-            if key != "targets"
-        })
+        inferences.update(
+            {
+                key: val
+                for key, val in metric_instance.targets_and_inferences.items()
+                if key != "targets"
+            }
+        )
       # Records targets for legacy logging compatibility.
       # Each metric_instance should have identical targets.
       # Chooses the last metric_instance for this recording purpose.
@@ -683,7 +742,8 @@ class Evaluator:
             metrics=metrics,
             dataset=task_dataset,
             targets=targets,
-            inferences=inferences)
+            inferences=inferences,
+        )
 
     return all_metrics
 

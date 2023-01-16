@@ -37,45 +37,53 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
 
     with TestPipeline() as p:
       pcoll = (
-          p | beam_utils.PreprocessTask(
+          p
+          | beam_utils.PreprocessTask(
               task=seqio.get_mixture_or_task("tfds_task"),
               split="train",
               preprocessors_seed=42,
-              add_provenance=True)
-          | beam.Map(_np_to_list))
+              add_provenance=True,
+          )
+          | beam.Map(_np_to_list)
+      )
       util.assert_that(
           pcoll,
-          util.equal_to([{
-              "inputs_pretokenized": b"complete: this",
-              "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6],
-              "targets_pretokenized": b"is a test",
-              "targets": [3, 8, 6, 3, 5, 10],
-              "provenance/task": "tfds_task",
-              "provenance/source_shard": "train.tfrecord-00000-of-00002",
-              "provenance/source_shard_index": 0,
-              "provenance/index_within_shard": 0,
-              "provenance/preprocessors_seed": 42,
-          }, {
-              "inputs_pretokenized": b"complete: those",
-              "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4],
-              "targets_pretokenized": b"were tests",
-              "targets": [17, 4, 23, 4, 10, 6],
-              "provenance/task": "tfds_task",
-              "provenance/source_shard": "train.tfrecord-00000-of-00002",
-              "provenance/source_shard_index": 0,
-              "provenance/index_within_shard": 1,
-              "provenance/preprocessors_seed": 42,
-          }, {
-              "inputs_pretokenized": b"complete: that",
-              "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18],
-              "targets_pretokenized": b"was a test",
-              "targets": [17, 5, 6, 3, 5, 10],
-              "provenance/task": "tfds_task",
-              "provenance/source_shard": "train.tfrecord-00001-of-00002",
-              "provenance/source_shard_index": 1,
-              "provenance/index_within_shard": 0,
-              "provenance/preprocessors_seed": 42,
-          }]))
+          util.equal_to([
+              {
+                  "inputs_pretokenized": b"complete: this",
+                  "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6],
+                  "targets_pretokenized": b"is a test",
+                  "targets": [3, 8, 6, 3, 5, 10],
+                  "provenance/task": "tfds_task",
+                  "provenance/source_shard": "train.tfrecord-00000-of-00002",
+                  "provenance/source_shard_index": 0,
+                  "provenance/index_within_shard": 0,
+                  "provenance/preprocessors_seed": 42,
+              },
+              {
+                  "inputs_pretokenized": b"complete: those",
+                  "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4],
+                  "targets_pretokenized": b"were tests",
+                  "targets": [17, 4, 23, 4, 10, 6],
+                  "provenance/task": "tfds_task",
+                  "provenance/source_shard": "train.tfrecord-00000-of-00002",
+                  "provenance/source_shard_index": 0,
+                  "provenance/index_within_shard": 1,
+                  "provenance/preprocessors_seed": 42,
+              },
+              {
+                  "inputs_pretokenized": b"complete: that",
+                  "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18],
+                  "targets_pretokenized": b"was a test",
+                  "targets": [17, 5, 6, 3, 5, 10],
+                  "provenance/task": "tfds_task",
+                  "provenance/source_shard": "train.tfrecord-00001-of-00002",
+                  "provenance/source_shard_index": 1,
+                  "provenance/index_within_shard": 0,
+                  "provenance/preprocessors_seed": 42,
+              },
+          ]),
+      )
 
   def test_write_example_tf_record(self):
     output_path = os.path.join(self.test_data_dir, "output.tfrecord")
@@ -88,7 +96,9 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           p
           | beam.Create([example])
           | beam_utils.WriteExampleTfRecord(
-              output_path=output_path, num_shards=1))
+              output_path=output_path, num_shards=1
+          )
+      )
     ds = tf.data.TFRecordDataset(output_path + "-00000-of-00001")
     parsed_example = tf.train.Example.FromString(next(iter(ds)).numpy())
     self.assertEqual(parsed_example, seqio.dict_to_tfexample(example))
@@ -103,7 +113,8 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
       _ = (
           p
           | beam.Create([data])
-          | beam_utils.WriteJson(output_path=output_path))
+          | beam_utils.WriteJson(output_path=output_path)
+      )
     with open(output_path) as f:
       actual_json = json.load(f)
     self.assertEqual(json.dumps(actual_json), json.dumps(data))
@@ -116,45 +127,34 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
         "3d_shape": np.ones((1, 2, 3), np.int32),
     }]
     with TestPipeline() as p:
-      pcoll = (p
-               | beam.Create(input_examples)
-               | beam_utils.GetInfo(num_shards=3))
+      pcoll = p | beam.Create(input_examples) | beam_utils.GetInfo(num_shards=3)
 
       util.assert_that(
           pcoll,
           util.equal_to([{
               "num_shards": 3,
               "features": {
-                  "targets": {
-                      "shape": [None],
-                      "dtype": "int32"
-                  },
-                  "inputs": {
-                      "shape": [],
-                      "dtype": "string"
-                  },
-                  "2d_shape": {
-                      "shape": [None, 3],
-                      "dtype": "int32"
-                  },
+                  "targets": {"shape": [None], "dtype": "int32"},
+                  "inputs": {"shape": [], "dtype": "string"},
+                  "2d_shape": {"shape": [None, 3], "dtype": "int32"},
                   "3d_shape": {
                       "shape": [None, 2, 3],
                       "dtype": "int32",
                   },
               },
-              "seqio_version": seqio.__version__
-          }]))
+              "seqio_version": seqio.__version__,
+          }]),
+      )
 
   def test_count_characters_str_dataset(self):
-    input_examples = [{
-        "text": b"this is a string of length 29"
-    }, {
-        "text": b"this is another string of length 35"
-    }]
+    input_examples = [
+        {"text": b"this is a string of length 29"},
+        {"text": b"this is another string of length 35"},
+    ]
     output_features = {
-        "text":
-            seqio.Feature(
-                seqio.PassThroughVocabulary(1), dtype=tf.string, rank=0)
+        "text": seqio.Feature(
+            seqio.PassThroughVocabulary(1), dtype=tf.string, rank=0
+        )
     }
 
     with TestPipeline() as p:
@@ -162,53 +162,61 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           p
           | beam.Create(input_examples)
           | beam.ParDo(
-              beam_utils._CountCharacters(output_features=output_features)))
+              beam_utils._CountCharacters(output_features=output_features)
+          )
+      )
 
       util.assert_that(
-          pcoll, util.equal_to([("text_chars", 29), ("text_chars", 35)]))
+          pcoll, util.equal_to([("text_chars", 29), ("text_chars", 35)])
+      )
 
   def test_count_characters_str_dataset_in_get_stats(self):
-    input_examples = [{
-        "text": b"this is a string of length 29"
-    }, {
-        "text": b"this is another string of length 35"
-    }]
+    input_examples = [
+        {"text": b"this is a string of length 29"},
+        {"text": b"this is another string of length 35"},
+    ]
     output_features = {
-        "text":
-            seqio.Feature(
-                seqio.PassThroughVocabulary(1), dtype=tf.string, rank=0)
+        "text": seqio.Feature(
+            seqio.PassThroughVocabulary(1), dtype=tf.string, rank=0
+        )
     }
 
     with TestPipeline() as p:
       pcoll = (
           p
           | beam.Create(input_examples)
-          | beam_utils.GetStats(output_features=output_features))
+          | beam_utils.GetStats(output_features=output_features)
+      )
 
       util.assert_that(
-          pcoll, util.equal_to([{"text_chars": 64, "examples": 2}]))
+          pcoll, util.equal_to([{"text_chars": 64, "examples": 2}])
+      )
 
   def test_get_stats_tokenized_dataset(self):
     # These examples are assumed to be decoded by
     # `seqio.test_utils.sentencepiece_vocab()`.
-    input_examples = [{
-        # Decoded as "ea", i.e., length 2 string
-        "inputs": np.array([4, 5]),
-        # Decoded as "ea test", i.e., length 7 string
-        "targets": np.array([4, 5, 10]),
-    }, {
-        # Decoded as "e", i.e., length 1 string
-        "inputs": np.array([4]),
-        # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
-        "targets": np.array([5, 6, 7, 8, 9, 1])
-    }]
+    input_examples = [
+        {
+            # Decoded as "ea", i.e., length 2 string
+            "inputs": np.array([4, 5]),
+            # Decoded as "ea test", i.e., length 7 string
+            "targets": np.array([4, 5, 10]),
+        },
+        {
+            # Decoded as "e", i.e., length 1 string
+            "inputs": np.array([4]),
+            # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
+            "targets": np.array([5, 6, 7, 8, 9, 1]),
+        },
+    ]
 
     output_features = seqio.test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES
     with TestPipeline() as p:
       pcoll = (
           p
           | beam.Create(input_examples)
-          | beam_utils.GetStats(output_features=output_features))
+          | beam_utils.GetStats(output_features=output_features)
+      )
 
       util.assert_that(
           pcoll,
@@ -220,22 +228,26 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "examples": 2,
               "inputs_chars": 3,
               "targets_chars": 12,
-          }]))
+          }]),
+      )
 
   def test_get_stats_task_ids(self):
     # These examples are assumed to be decoded by
     # `seqio.test_utils.sentencepiece_vocab()`.
-    input_examples = [{
-        # Decoded as "ea", i.e., length 2 string
-        "inputs": np.array([4, 5]),
-        # Decoded as "ea test", i.e., length 7 string
-        "targets": np.array([4, 5, 10]),
-    }, {
-        # Decoded as "e", i.e., length 1 string
-        "inputs": np.array([4]),
-        # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
-        "targets": np.array([5, 6, 7, 8, 9, 1])
-    }]
+    input_examples = [
+        {
+            # Decoded as "ea", i.e., length 2 string
+            "inputs": np.array([4, 5]),
+            # Decoded as "ea test", i.e., length 7 string
+            "targets": np.array([4, 5, 10]),
+        },
+        {
+            # Decoded as "e", i.e., length 1 string
+            "inputs": np.array([4]),
+            # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
+            "targets": np.array([5, 6, 7, 8, 9, 1]),
+        },
+    ]
 
     output_features = seqio.test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES
     with TestPipeline() as p:
@@ -244,10 +256,9 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           | beam.Create(input_examples)
           | beam_utils.GetStats(
               output_features=output_features,
-              task_ids={
-                  "task_name_1": 1,
-                  "task_name_2": 2
-              }))
+              task_ids={"task_name_1": 1, "task_name_2": 2},
+          )
+      )
 
       util.assert_that(
           pcoll,
@@ -259,26 +270,27 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "examples": 2,
               "inputs_chars": 3,
               "targets_chars": 12,
-              "task_ids": {
-                  "task_name_1": 1,
-                  "task_name_2": 2
-              }
-          }]))
+              "task_ids": {"task_name_1": 1, "task_name_2": 2},
+          }]),
+      )
 
   def test_count_characters_tokenized_dataset(self):
     # These examples are assumed to be decoded by
     # `seqio.test_utils.sentencepiece_vocab()`.
-    input_examples = [{
-        # Decoded as "ea", i.e., length 2 string
-        "inputs": np.array([4, 5]),
-        # Decoded as "ea test", i.e., length 7 string
-        "targets": np.array([4, 5, 10]),
-    }, {
-        # Decoded as "e", i.e., length 1 string
-        "inputs": np.array([4]),
-        # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
-        "targets": np.array([5, 6, 7, 8, 9, 1])
-    }]
+    input_examples = [
+        {
+            # Decoded as "ea", i.e., length 2 string
+            "inputs": np.array([4, 5]),
+            # Decoded as "ea test", i.e., length 7 string
+            "targets": np.array([4, 5, 10]),
+        },
+        {
+            # Decoded as "e", i.e., length 1 string
+            "inputs": np.array([4]),
+            # Decoded as "asoil", i.e., length 5 string. "1" is an EOS id.
+            "targets": np.array([5, 6, 7, 8, 9, 1]),
+        },
+    ]
 
     output_features = seqio.test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES
     with TestPipeline() as p:
@@ -286,21 +298,30 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           p
           | beam.Create(input_examples)
           | beam.ParDo(
-              beam_utils._CountCharacters(output_features=output_features)))
+              beam_utils._CountCharacters(output_features=output_features)
+          )
+      )
 
       util.assert_that(
           pcoll,
-          util.equal_to([("inputs_chars", 2), ("targets_chars", 7),
-                         ("inputs_chars", 1), ("targets_chars", 5)]))
+          util.equal_to([
+              ("inputs_chars", 2),
+              ("targets_chars", 7),
+              ("inputs_chars", 1),
+              ("targets_chars", 5),
+          ]),
+      )
 
   def test_count_characters_tokenized_dataset_with_non_spm_vocab(self):
-    input_examples = [{
-        "feature": np.array([4, 5]),
-    }]
+    input_examples = [
+        {
+            "feature": np.array([4, 5]),
+        }
+    ]
     output_features = {
-        "feature":
-            seqio.Feature(
-                seqio.PassThroughVocabulary(1), dtype=tf.int32, rank=1)
+        "feature": seqio.Feature(
+            seqio.PassThroughVocabulary(1), dtype=tf.int32, rank=1
+        )
     }
 
     with TestPipeline() as p:
@@ -308,10 +329,11 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           p
           | beam.Create(input_examples)
           | beam.ParDo(
-              beam_utils._CountCharacters(output_features=output_features)))
+              beam_utils._CountCharacters(output_features=output_features)
+          )
+      )
 
-      util.assert_that(
-          pcoll, util.equal_to([]))
+      util.assert_that(pcoll, util.equal_to([]))
 
 
 if __name__ == "__main__":

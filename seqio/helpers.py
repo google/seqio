@@ -32,7 +32,8 @@ def mixture_or_task_with_new_vocab(
     new_vocab: Optional[vc.Vocabulary] = None,
     new_output_features: Optional[Mapping[str, dp.Feature]] = None,
     add_to_seqio_registry: bool = True,
-    add_cache_placeholder: bool = False) -> Union[dp.Task, dp.Mixture]:
+    add_cache_placeholder: bool = False,
+) -> Union[dp.Task, dp.Mixture]:
   """Creates a new Task/Mixture from a given Task/Mixture with a new vocabulary.
 
   Args:
@@ -57,20 +58,24 @@ def mixture_or_task_with_new_vocab(
     add_to_seqio_registry: If True, adds the new Task/Mixture to the SeqIO
       Registry. For Mixtures, sub-Tasks/Mixtures are always registered so that
       the new Mixture can refer to these.
-    add_cache_placeholder: If True, adds CacheDatasetPlaceholder in new tasks
-      if their old tasks do not have it.
+    add_cache_placeholder: If True, adds CacheDatasetPlaceholder in new tasks if
+      their old tasks do not have it.
 
   Returns:
     The new `Task` or `Mixture` object.
   """
   if (new_vocab, new_output_features).count(None) != 1:
-    raise ValueError("exactly one of `new_vocab` and `new_output_features` "
-                     "must be specified.")
+    raise ValueError(
+        "exactly one of `new_vocab` and `new_output_features` "
+        "must be specified."
+    )
 
   def _validate_output_features(og_output_features, new_output_features):
     if set(og_output_features) != set(new_output_features):
-      raise ValueError(f"new_output_features: {new_output_features} doesn't "
-                       f"match original output_features: {og_output_features}")
+      raise ValueError(
+          f"new_output_features: {new_output_features} doesn't "
+          f"match original output_features: {og_output_features}"
+      )
     # Only `vocabulary`, `add_eos` and `required` fields may differ.
     all_fields = [f.name for f in dataclasses.fields(dp.Feature)]
     ignored_fields = ["vocabulary", "add_eos", "required"]
@@ -82,7 +87,8 @@ def mixture_or_task_with_new_vocab(
         if getattr(og_feature, field) != getattr(new_feature, field):
           raise ValueError(
               f"new_output_features: {new_output_features} incompatible with "
-              f"original output_features: {og_output_features}")
+              f"original output_features: {og_output_features}"
+          )
 
   if mixture_or_task_name in dp.TaskRegistry.names():
     # This is a Task. Create a new Task with the provided vocab/output_features.
@@ -121,7 +127,8 @@ def mixture_or_task_with_new_vocab(
         preprocessors=preprocessors,
         postprocess_fn=og_task.postprocessor,
         metric_fns=og_task.metric_fns,
-        shuffle_buffer_size=og_task._shuffle_buffer_size)
+        shuffle_buffer_size=og_task._shuffle_buffer_size,
+    )
     if add_to_seqio_registry:
       dp.TaskRegistry.add_provider(new_mixture_or_task_name, new_task)
     return new_task
@@ -138,14 +145,16 @@ def mixture_or_task_with_new_vocab(
         new_task_name,
         new_vocab=new_vocab,
         new_output_features=new_output_features,
-        add_to_seqio_registry=True)
+        add_to_seqio_registry=True,
+    )
     new_tasks_and_rates.append((new_task_name, rate))
 
   new_mix = dp.Mixture(
       new_mixture_or_task_name,
       new_tasks_and_rates,
       default_rate=None,
-      sample_fn=og_mix._sample_fn)
+      sample_fn=og_mix._sample_fn,
+  )
   if add_to_seqio_registry:
     dp.MixtureRegistry.add_provider(new_mixture_or_task_name, new_mix)
   return new_mix
@@ -154,14 +163,17 @@ def mixture_or_task_with_new_vocab(
 class TruncatedDatasetProvider(dp.DataSource):
   """Wraps a dataset provider, truncating its data using `ds.take(N)`."""
 
-  def __init__(self,
-               child: dp.DataSource,
-               split_sizes: Mapping[str, int],
-               shuffle_buffer_size: Optional[int] = None):
+  def __init__(
+      self,
+      child: dp.DataSource,
+      split_sizes: Mapping[str, int],
+      shuffle_buffer_size: Optional[int] = None,
+  ):
     self.child = child
     self.split_sizes = split_sizes
     self.shuffle_buffer_size = (
-        shuffle_buffer_size if shuffle_buffer_size else dp.SHUFFLE_BUFFER_SIZE)
+        shuffle_buffer_size if shuffle_buffer_size else dp.SHUFFLE_BUFFER_SIZE
+    )
 
   @property
   def caching_permitted(self) -> bool:
@@ -187,15 +199,18 @@ class TruncatedDatasetProvider(dp.DataSource):
     """See base class for documentation."""
     return self.child.list_shards(split)
 
-  def get_dataset(self,
-                  split: str,
-                  shuffle: bool = True,
-                  seed: Optional[int] = None,
-                  shard_info: Optional[dp.ShardInfo] = None) -> tf.data.Dataset:
+  def get_dataset(
+      self,
+      split: str,
+      shuffle: bool = True,
+      seed: Optional[int] = None,
+      shard_info: Optional[dp.ShardInfo] = None,
+  ) -> tf.data.Dataset:
     """See base class for documentation."""
     if split not in self.split_sizes:
       return self.child.get_dataset(
-          split=split, shuffle=shuffle, seed=seed, shard_info=shard_info)
+          split=split, shuffle=shuffle, seed=seed, shard_info=shard_info
+      )
 
     max_items: int = self.split_sizes[split]
     ds = self.child.get_dataset(
@@ -204,7 +219,8 @@ class TruncatedDatasetProvider(dp.DataSource):
         # (unless we further require deterministic seqio).
         shuffle=False,
         seed=seed,
-        shard_info=shard_info)
+        shard_info=shard_info,
+    )
     ds = ds.take(max_items)
     if shuffle:
       ds = ds.shuffle(self.shuffle_buffer_size)
@@ -227,7 +243,8 @@ def mixture_or_task_with_truncated_data(
     new_mixture_or_task_name: str,
     *,
     split_sizes: Mapping[str, int],
-    add_to_seqio_registry: bool = True) -> Union[dp.Task, dp.Mixture]:
+    add_to_seqio_registry: bool = True,
+) -> Union[dp.Task, dp.Mixture]:
   """Creates a new Task/Mixture from a given Task/Mixture with less data.
 
   This can be used for creating smaller subsets of datasets for quick evaluation
@@ -258,12 +275,14 @@ def mixture_or_task_with_truncated_data(
         source=TruncatedDatasetProvider(
             og_task.source,
             split_sizes=split_sizes,
-            shuffle_buffer_size=og_task._shuffle_buffer_size),
+            shuffle_buffer_size=og_task._shuffle_buffer_size,
+        ),
         output_features=og_task.output_features,
         preprocessors=og_task.preprocessors,
         postprocess_fn=og_task.postprocessor,
         metric_fns=og_task.metric_fns,
-        shuffle_buffer_size=og_task._shuffle_buffer_size)
+        shuffle_buffer_size=og_task._shuffle_buffer_size,
+    )
     if add_to_seqio_registry:
       dp.TaskRegistry.add_provider(new_mixture_or_task_name, new_task)
     return new_task
@@ -279,14 +298,16 @@ def mixture_or_task_with_truncated_data(
           task_name,
           new_task_name,
           split_sizes=split_sizes,
-          add_to_seqio_registry=True)
+          add_to_seqio_registry=True,
+      )
       new_tasks_and_rates.append((new_task_name, rate))
 
     new_mix = dp.Mixture(
         new_mixture_or_task_name,
         new_tasks_and_rates,
         default_rate=None,
-        sample_fn=og_mix._sample_fn)
+        sample_fn=og_mix._sample_fn,
+    )
     if add_to_seqio_registry:
       dp.MixtureRegistry.add_provider(new_mixture_or_task_name, new_mix)
     return new_mix
@@ -297,7 +318,8 @@ def mixture_with_missing_task_splits_removed(
     split: str,
     new_mixture_name: str,
     *,
-    add_to_seqio_registry: bool = True) -> dp.Mixture:
+    add_to_seqio_registry: bool = True,
+) -> dp.Mixture:
   """Creates a new mixture removing all subtasks missing the given split.
 
   In Mixture.get_dataset(...), if a subtask is missing the desired split, it is
@@ -312,8 +334,7 @@ def mixture_with_missing_task_splits_removed(
     mixture_name: The name of the original Mixture.
     split: The split for which to check valid sub-tasks.
     new_mixture_name: The name of the new Mixture.
-    add_to_seqio_registry: If True, adds the new Mixture to the SeqIO
-      Registry.
+    add_to_seqio_registry: If True, adds the new Mixture to the SeqIO Registry.
 
   Returns:
     The new `Mixture` object.
@@ -328,7 +349,8 @@ def mixture_with_missing_task_splits_removed(
       new_mixture_name,
       new_tasks_and_rates,
       default_rate=None,
-      sample_fn=og_mix._sample_fn)
+      sample_fn=og_mix._sample_fn,
+  )
   if add_to_seqio_registry:
     dp.MixtureRegistry.add_provider(new_mixture_name, new_mix)
   return new_mix

@@ -35,9 +35,11 @@ SOURCE_SHARD_ID_PROVENANCE_KEY = PROVENANCE_PREFIX + "source_shard_index"
 ID_WITHIN_SHARD_PROVENANCE_KEY = PROVENANCE_PREFIX + "index_within_shard"
 PREPROCESSORS_SEED_PROVENANCE_KEY = PROVENANCE_PREFIX + "preprocessors_seed"
 PROVENANCE_KEYS = [
-    TASK_PROVENANCE_KEY, SOURCE_SHARD_PROVENANCE_KEY,
-    SOURCE_SHARD_ID_PROVENANCE_KEY, ID_WITHIN_SHARD_PROVENANCE_KEY,
-    PREPROCESSORS_SEED_PROVENANCE_KEY
+    TASK_PROVENANCE_KEY,
+    SOURCE_SHARD_PROVENANCE_KEY,
+    SOURCE_SHARD_ID_PROVENANCE_KEY,
+    ID_WITHIN_SHARD_PROVENANCE_KEY,
+    PREPROCESSORS_SEED_PROVENANCE_KEY,
 ]
 
 
@@ -53,14 +55,16 @@ class PreprocessTask(beam.PTransform):
   Returns a PCollection of example dicts containing Tensors.
   """
 
-  def __init__(self,
-               task: seqio.Task,
-               split: str,
-               *,
-               preprocessors_seed: Optional[int] = None,
-               modules_to_import: Sequence[str] = (),
-               add_provenance: bool = False,
-               tfds_data_dir: Optional[str] = None):
+  def __init__(
+      self,
+      task: seqio.Task,
+      split: str,
+      *,
+      preprocessors_seed: Optional[int] = None,
+      modules_to_import: Sequence[str] = (),
+      add_provenance: bool = False,
+      tfds_data_dir: Optional[str] = None,
+  ):
     """PreprocessTask constructor.
 
     Args:
@@ -79,14 +83,19 @@ class PreprocessTask(beam.PTransform):
     self._modules_to_import = modules_to_import
     self._add_provenance = add_provenance
     self._tfds_data_dir = tfds_data_dir
-    self._int64_max = 2 ** 63 - 1
+    self._int64_max = 2**63 - 1
     self.shards = list(enumerate(task.source.list_shards(split)))
-    logging.info("%s %s shards: %s", task.name, split,
-                 ", ".join(["%s" % f[1] for f in self.shards]))
+    logging.info(
+        "%s %s shards: %s",
+        task.name,
+        split,
+        ", ".join(["%s" % f[1] for f in self.shards]),
+    )
 
   def _increment_counter(self, name):
     metrics.Metrics.counter(
-        str("%s_%s" % (self._task.name, self._split)), name).inc()
+        str("%s_%s" % (self._task.name, self._split)), name
+    ).inc()
 
   def _emit_examples(self, shard: Tuple[int, str]):
     """Emits examples keyed by shard number and index for a single shard."""
@@ -101,9 +110,11 @@ class PreprocessTask(beam.PTransform):
 
     # Create a unique, deterministic preprocessors seed for each task and shard.
     md5_digest = hashlib.md5(
-        (self._task.name + f"shard{shard_index}").encode()).digest()
-    shard_preprocessors_seed = int.from_bytes(
-        md5_digest, "little") + (self._preprocessors_seed or 0)
+        (self._task.name + f"shard{shard_index}").encode()
+    ).digest()
+    shard_preprocessors_seed = int.from_bytes(md5_digest, "little") + (
+        self._preprocessors_seed or 0
+    )
     if shard_preprocessors_seed > self._int64_max:
       # The user provided seed is very likely to be much smaller than 2**62,
       # therefore it's safe to just truncated the rest of the bytes and add up.
@@ -115,9 +126,11 @@ class PreprocessTask(beam.PTransform):
     ds = self._task.source.get_dataset(
         split=self._split,
         shard_info=seqio.ShardInfo(
-            index=shard_index, num_shards=len(self.shards)),
+            index=shard_index, num_shards=len(self.shards)
+        ),
         shuffle=False,
-        seed=shard_preprocessors_seed)
+        seed=shard_preprocessors_seed,
+    )
 
     ds = ds.prefetch(tf.data.AUTOTUNE)
     ds = self._task.preprocess_precache(ds, seed=shard_preprocessors_seed)
@@ -127,7 +140,7 @@ class PreprocessTask(beam.PTransform):
           TASK_PROVENANCE_KEY: self._task.name,
           SOURCE_SHARD_PROVENANCE_KEY: shard_name,
           SOURCE_SHARD_ID_PROVENANCE_KEY: shard_index,
-          ID_WITHIN_SHARD_PROVENANCE_KEY: index_within_shard
+          ID_WITHIN_SHARD_PROVENANCE_KEY: index_within_shard,
       })
       if self._preprocessors_seed:
         ex.update({PREPROCESSORS_SEED_PROVENANCE_KEY: self._preprocessors_seed})
@@ -143,9 +156,11 @@ class PreprocessTask(beam.PTransform):
       yield ex
 
   def expand(self, pipeline):
-    return (pipeline
-            | "create_shards" >> beam.Create(self.shards)
-            | "emit_examples" >> beam.FlatMap(self._emit_examples))
+    return (
+        pipeline
+        | "create_shards" >> beam.Create(self.shards)
+        | "emit_examples" >> beam.FlatMap(self._emit_examples)
+    )
 
 
 class WriteExampleTfRecord(beam.PTransform):
@@ -163,13 +178,16 @@ class WriteExampleTfRecord(beam.PTransform):
     self._num_shards = num_shards
 
   def expand(self, pcoll):
-    return (pcoll
-            | beam.Map(seqio.dict_to_tfexample)
-            | beam.Reshuffle()
-            | beam.io.tfrecordio.WriteToTFRecord(
-                self._output_path,
-                num_shards=self._num_shards,
-                coder=beam.coders.ProtoCoder(tf.train.Example)))
+    return (
+        pcoll
+        | beam.Map(seqio.dict_to_tfexample)
+        | beam.Reshuffle()
+        | beam.io.tfrecordio.WriteToTFRecord(
+            self._output_path,
+            num_shards=self._num_shards,
+            coder=beam.coders.ProtoCoder(tf.train.Example),
+        )
+    )
 
 
 class WriteJson(beam.PTransform):
@@ -194,10 +212,14 @@ class WriteJson(beam.PTransform):
       return json.dumps(el)
 
   def expand(self, pcoll):
-    return (pcoll
-            | beam.Map(self._jsonify)
-            | "write_info" >> beam.io.WriteToText(
-                self._output_path, num_shards=1, shard_name_template=""))
+    return (
+        pcoll
+        | beam.Map(self._jsonify)
+        | "write_info"
+        >> beam.io.WriteToText(
+            self._output_path, num_shards=1, shard_name_template=""
+        )
+    )
 
 
 class GetInfo(beam.PTransform):
@@ -236,9 +258,11 @@ class GetInfo(beam.PTransform):
     return info
 
   def expand(self, pcoll):
-    return (pcoll
-            | beam.combiners.Sample.FixedSizeGlobally(1)
-            | beam.Map(self._info_dict))
+    return (
+        pcoll
+        | beam.combiners.Sample.FixedSizeGlobally(1)
+        | beam.Map(self._info_dict)
+    )
 
 
 class _CountTokens(beam.DoFn):
@@ -258,8 +282,11 @@ class _CountTokens(beam.DoFn):
 
   def process(self, ex: Mapping[str, Any]) -> Iterable[Tuple[str, int]]:
     for name, feat in self._output_features.items():
-      if (name in ex and isinstance(ex[name], np.ndarray) and
-          ex[name].dtype in (np.int32, np.int64)):
+      if (
+          name in ex
+          and isinstance(ex[name], np.ndarray)
+          and ex[name].dtype in (np.int32, np.int64)
+      ):
         values = ex[name]
         conditions = []
         if feat.vocabulary.eos_id is not None:
@@ -338,9 +365,13 @@ class _CountCharacters(beam.DoFn):
     for name, feat in self._output_features.items():
       # We only compute the character length for the rank-1 integer array for
       # the feature using `seqio.SentencePieceVocabulary`.
-      if (name in ex and isinstance(ex[name], np.ndarray) and
-          ex[name].dtype in (np.int32, np.int64) and feat.rank == 1 and
-          isinstance(feat.vocabulary, seqio.SentencePieceVocabulary)):
+      if (
+          name in ex
+          and isinstance(ex[name], np.ndarray)
+          and ex[name].dtype in (np.int32, np.int64)
+          and feat.rank == 1
+          and isinstance(feat.vocabulary, seqio.SentencePieceVocabulary)
+      ):
         value = ex[name]
         value = np.abs(value.astype(np.int32))
         decoded = feat.vocabulary.decode_tf(value).numpy().decode("utf-8")
@@ -367,9 +398,11 @@ class GetStats(beam.PTransform):
   prefixed by the identifiers.
   """
 
-  def __init__(self,
-               output_features: Mapping[str, seqio.Feature],
-               task_ids: Optional[Mapping[str, Any]] = None):
+  def __init__(
+      self,
+      output_features: Mapping[str, seqio.Feature],
+      task_ids: Optional[Mapping[str, Any]] = None,
+  ):
     self._output_features = output_features
     self._task_ids = task_ids or {}
 
@@ -378,27 +411,32 @@ class GetStats(beam.PTransform):
         pcoll
         | "count_examples" >> beam.combiners.Count.Globally()
         | "key_example_counts" >> beam.Map(lambda x: ("examples", x))
-        | "example_count_dict" >> beam.combiners.ToDict())
+        | "example_count_dict" >> beam.combiners.ToDict()
+    )
 
     token_counts = pcoll | "count_tokens" >> beam.ParDo(
-        _CountTokens(self._output_features))
+        _CountTokens(self._output_features)
+    )
     total_tokens = (
         token_counts
         | "sum_tokens" >> beam.CombinePerKey(sum)
-        | "token_count_dict" >> beam.combiners.ToDict())
+        | "token_count_dict" >> beam.combiners.ToDict()
+    )
     max_tokens = (
         token_counts
         | "max_tokens" >> beam.CombinePerKey(max)
-        | "rename_max_stat" >>
-        beam.Map(lambda x: (x[0].replace("tokens", "max_tokens"), x[1]))
-        | "token_max_dict" >> beam.combiners.ToDict())
+        | "rename_max_stat"
+        >> beam.Map(lambda x: (x[0].replace("tokens", "max_tokens"), x[1]))
+        | "token_max_dict" >> beam.combiners.ToDict()
+    )
 
     # Compute the character length
     char_length = (
         pcoll
         | beam.ParDo(_CountCharacters(self._output_features))
         | "sum_characters" >> beam.CombinePerKey(sum)
-        | "character_length_dict" >> beam.combiners.ToDict())
+        | "character_length_dict" >> beam.combiners.ToDict()
+    )
 
     def _merge_dicts(dicts):
       merged_dict = {}
@@ -415,9 +453,12 @@ class GetStats(beam.PTransform):
       task_ids = (
           pcoll
           | "sample_for_task_ids" >> beam.combiners.Sample.FixedSizeGlobally(1)
-          | "create_task_ids" >> beam.Map(lambda _: task_ids_dict))
+          | "create_task_ids" >> beam.Map(lambda _: task_ids_dict)
+      )
       stats.append(task_ids)
 
-    return (stats
-            | "flatten_counts" >> beam.Flatten()
-            | "merge_stats" >> beam.CombineGlobally(_merge_dicts))
+    return (
+        stats
+        | "flatten_counts" >> beam.Flatten()
+        | "merge_stats" >> beam.CombineGlobally(_merge_dicts)
+    )

@@ -38,12 +38,14 @@ class MetricValue:
 @dataclasses.dataclass
 class Scalar(MetricValue):
   """The default tensorflow value, used for creating time series graphs."""
+
   value: Union[int, float]
 
 
 @dataclasses.dataclass
 class Text(MetricValue):
   """Text to output to tensorboard, markdown is rendered by tensorboard."""
+
   textdata: Union[str, bytes]
 
 
@@ -55,6 +57,7 @@ class Image(MetricValue):
   parameter described
   [here](https://www.tensorflow.org/api_docs/python/tf/summary/image).
   """
+
   image: np.ndarray
   max_outputs: int = 3
 
@@ -67,6 +70,7 @@ class Audio(MetricValue):
   parameter described
   [here](https://www.tensorflow.org/api_docs/python/tf/summary/audio).
   """
+
   audiodata: np.ndarray
   sample_rate: int = 44100
   max_outputs: int = 3
@@ -75,6 +79,7 @@ class Audio(MetricValue):
 @dataclasses.dataclass
 class Histogram(MetricValue):
   """A histogram to output to tensorboard."""
+
   values: np.ndarray
   bins: Optional[int] = None
 
@@ -82,12 +87,14 @@ class Histogram(MetricValue):
 @dataclasses.dataclass
 class Generic(MetricValue):
   """A raw tensor to output to tensorboard."""
+
   tensor: np.ndarray
   metadata: tf.compat.v1.SummaryMetadata
 
 
 class ModelOutputType(enum.Enum):
   """Model output types."""
+
   PREDICTION = 1
   SCORE = 2
   PREDICTION_WITH_AUX = 3
@@ -101,6 +108,7 @@ class ModelOutputType(enum.Enum):
         cls.PREDICTION_WITH_AUX: "prediction_with_aux",
         cls.SCORE_WITH_INTERMEDIATES: "score_with_intermediates",
     }[enm]
+
 
 MetricFnCallable = Callable[..., Mapping[str, Union[MetricValue, float]]]
 
@@ -116,7 +124,8 @@ class Metric(clu.metrics.Metric):
       inputs: Sequence[Mapping[str, Any]],
       model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
       features: Mapping[str, utils.Feature],
-      target_field_name: str = "targets") -> "Metric":
+      target_field_name: str = "targets",
+  ) -> "Metric":
     """Creates a `seqio.Metric` from model outputs.
 
     Args:
@@ -163,17 +172,20 @@ class LegacyMetric(Metric):
           "Metric functions must have positional arguments matching either "
           "('targets', 'scores'), ('targets', 'predictions') or "
           "('targets', 'predictions', 'aux_values'). "
-          f"Got: {pos_args}")
+          f"Got: {pos_args}"
+      )
 
     return cls(
         _metric_fn=metric_fn,
         _postprocess_fn=postprocess_fn,
         model_output_type=model_output_type,
         metric_fn_kwargs={},
-        targets_and_inferences={})
+        targets_and_inferences={},
+    )
 
-  def postprocess_fn(self, targets_or_predictions: Any,
-                     **postprocess_kwargs) -> Any:
+  def postprocess_fn(
+      self, targets_or_predictions: Any, **postprocess_kwargs
+  ) -> Any:
     """Applies the postprocessing to targets or predictions."""
     if self._postprocess_fn:
       return self._postprocess_fn(targets_or_predictions, **postprocess_kwargs)
@@ -184,8 +196,8 @@ class LegacyMetric(Metric):
       inputs: Sequence[Mapping[str, Any]],
       model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
       features: Mapping[str, utils.Feature],
-      target_field_name: str = "targets") -> "LegacyMetric":
-
+      target_field_name: str = "targets",
+  ) -> "LegacyMetric":
     if not self.metric_fn_kwargs.get("targets"):
       # Postprocesses the targets here.
       postprocessed_targets = []
@@ -195,12 +207,14 @@ class LegacyMetric(Metric):
           target = ex[pretokenized_target_field_name]
         else:
           target = features[target_field_name].vocabulary.decode(
-              list(ex[target_field_name]))
+              list(ex[target_field_name])
+          )
         if isinstance(target, bytes):
           target = target.decode("utf-8")
 
         postprocessed_targets.append(
-            self.postprocess_fn(target, example=ex, is_target=True))
+            self.postprocess_fn(target, example=ex, is_target=True)
+        )
       self.metric_fn_kwargs["targets"] = postprocessed_targets
       self.targets_and_inferences["targets"] = postprocessed_targets
 
