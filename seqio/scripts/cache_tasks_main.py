@@ -25,7 +25,6 @@ seqio_cache_tasks \
 
 """
 
-import hashlib
 import importlib
 import os
 import re
@@ -174,9 +173,25 @@ def run_pipeline(
       )
       continue
 
+    if not task.splits:
+      logging.warning("Skipping task '%s' with no splits.", task.name)
+      continue
+
     task_cache_dir = task.cache_dir
     output_dir = os.path.join(
         cache_dir, seqio.get_task_dir_from_name(task.name)
+    )
+
+    cacher = beam_utils.Cacher(
+        task=task,
+        output_dir=output_dir,
+        pipeline=pipeline,
+        modules_to_import=modules_to_import,
+        add_provenance=False,
+        base_seed=FLAGS.base_seed,
+        tfds_data_dir=FLAGS.tfds_data_dir,
+        min_shards=FLAGS.min_shards,
+        completed_file_contents=completed_file_contents,
     )
 
     if ignore_other_caches:
@@ -204,14 +219,7 @@ def run_pipeline(
 
       if task_cache_dir and overwrite:
         if task_cache_dir == output_dir:
-          # We were asked to overwrite the data, and the given directory that we
-          # should generate the data in already has the data, then delete it.
-          logging.warning(
-              "Overwriting already cached data for task '%s' in cache_dir %s",
-              task.name,
-              output_dir,
-          )
-          tf.io.gfile.rmtree(output_dir)
+          cacher.clean_cache()
         else:
           # Cannot overwrite, since cache_dir isn't same as task.cache_dir.
           logging.warning(
@@ -224,15 +232,8 @@ def run_pipeline(
           )
           continue
 
-    if not task.splits:
-      logging.warning("Skipping task '%s' with no splits.", task.name)
-      continue
-
     # Log this task to the terminal.
     logging.info("Caching task '%s' with splits: %s", task.name, task.splits)
-
-    output_dirs.append(output_dir)
-    completion_values = []
 
     if isinstance(task.source, seqio.FunctionDataSource):
       logging.warning(
@@ -244,79 +245,8 @@ def run_pipeline(
           ),
           task.name,
       )
-
-    for split in task.splits:
-      label = "%s_%s" % (task.name, split)
-      if FLAGS.base_seed and FLAGS.base_seed != -1:
-        # Create a unique, deterministic preprocessors seed for the task.
-        task_uid = hashlib.md5(task.name.encode()).digest()
-        task_preprocessor_seed = (
-            int.from_bytes(task_uid, "little") + FLAGS.base_seed
-        )
-      else:
-        task_preprocessor_seed = None
-      pat = beam_utils.PreprocessTask(
-          task,
-          split,
-          modules_to_import=modules_to_import,
-          preprocessors_seed=task_preprocessor_seed,
-          tfds_data_dir=FLAGS.tfds_data_dir,
-      )
-      if FLAGS.min_shards > 0:
-        num_shards = max(len(pat.shards), FLAGS.min_shards)
-      else:
-        num_shards = len(pat.shards)
-
-      if FLAGS.max_shards > 0:
-        num_shards = min(num_shards, FLAGS.max_shards)
-
-      examples = (
-          pipeline
-          | "%s_pat" % label >> pat
-          # this reshuffle globally shuffles examples as a side-effect,
-          # and should not be removed.
-          | "%s_global_example_shuffle" % label >> beam.Reshuffle()
-      )
-
-      completion_values.append(
-          examples
-          | "%s_write_tfrecord" % label
-          >> beam_utils.WriteExampleTfRecord(
-              seqio.get_cached_tfrecord_prefix(output_dir, split),
-              num_shards=num_shards,
-          )
-      )
-      completion_values.append(
-          examples
-          | "%s_info" % label >> beam_utils.GetInfo(num_shards)
-          | "%s_write_info" % label
-          >> beam_utils.WriteJson(seqio.get_cached_info_path(output_dir, split))
-      )
-      completion_values.append(
-          examples
-          | "%s_stats" % label >> beam_utils.GetStats(task.output_features)
-          | "%s_write_stats" % label
-          >> beam_utils.WriteJson(
-              seqio.get_cached_stats_path(output_dir, split)
-          )
-      )
-
-    # After all splits for this task have completed, write COMPLETED files to
-    # the task's output directory.
-    _ = (
-        completion_values
-        | "%s_flatten_completion_values" % task.name >> beam.Flatten()
-        | "%s_discard_completion_values" % task.name
-        >> beam.Filter(lambda _: False)
-        | "%s_write_completed_file" % task.name
-        >> beam.io.textio.WriteToText(
-            os.path.join(output_dir, "COMPLETED"),
-            append_trailing_newlines=False,
-            num_shards=1,
-            shard_name_template="",
-            header=completed_file_contents,
-        )
-    )
+    cacher.store(task.splits)
+    output_dirs.append(output_dir)
 
   return output_dirs
 
