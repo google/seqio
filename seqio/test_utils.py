@@ -502,7 +502,8 @@ def assert_dataset(
       ):
         actual_value = actual_value.to_list()
         np.testing.assert_array_equal(
-            actual_value, _maybe_as_bytes(expected_dict[key]), key
+            np.array(actual_value, dtype=object),
+            np.array(_maybe_as_bytes(expected_dict[key]), dtype=object), key
         )
       elif (
           isinstance(actual_value, np.floating)
