@@ -335,7 +335,7 @@ As an example, [Multilingual T5](goo.gle/mt5) uses a `Mixture` of per-language
 
 There are 3 ways to specify the tasks and their rates:
 
-  1. Provide a rate along with each task's name (rates are normalized before sampling):
+  1. Provide a rate along with each task's name (rates are normalized before sampling). In this example, the rates provided are units of the final mixture that come from the component tasks. Here, 1/(1+7) of the final mixture will come from "task1".
 
   ```py
   seqio.MixtureRegistry.add(
@@ -375,6 +375,8 @@ seqio.MixtureRegistry.add(
   default_rate=1
 )
 ```
+
+If sampling without replacement is important for your task, you can achieve that by using either deterministic tasks or using dataset checkpointing (and not running more than an epoch) for a non-deterministic task. Otherwise, the mixture may sample with replacement.
 
 ### Getting a Preprocessed Dataset
 
