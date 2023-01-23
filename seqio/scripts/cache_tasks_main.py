@@ -47,49 +47,80 @@ tf.compat.v1.enable_eager_execution()
 FLAGS = flags.FLAGS
 
 flags.DEFINE_list(
-    "tasks", None,
-    "Regexes matching task(s) to build a preprocessed dataset for. Will build "
-    "all registered if not specified.")
-flags.DEFINE_list(
-    "excluded_tasks", None,
-    "Regexes matching task(s) to skip.")
+    "tasks",
+    None,
+    (
+        "Regexes matching task(s) to build a preprocessed dataset for. Will"
+        " build all registered if not specified."
+    ),
+)
+flags.DEFINE_list("excluded_tasks", None, "Regexes matching task(s) to skip.")
 flags.DEFINE_string(
-    "output_cache_dir", None,
-    "The directory to output cached tasks to.")
+    "output_cache_dir", None, "The directory to output cached tasks to."
+)
 flags.DEFINE_list(
-    "tasks_additional_cache_dirs", [],
-    "Additional directories to search for cached Tasks after checking the "
-    "global caches and `output_cache_dir`.")
+    "tasks_additional_cache_dirs",
+    [],
+    (
+        "Additional directories to search for cached Tasks after checking the "
+        "global caches and `output_cache_dir`."
+    ),
+)
 flags.DEFINE_multi_string(
-    "module_import", [],
-    "Modules to import. Use this, for example, to add new `Task`s to the "
-    "global `TaskRegistry`.")
+    "module_import",
+    [],
+    (
+        "Modules to import. Use this, for example, to add new `Task`s to the "
+        "global `TaskRegistry`."
+    ),
+)
 flags.DEFINE_list(
-    "pipeline_options", ["--runner=DirectRunner"],
-    "A comma-separated list of command line arguments to be used as options "
-    "for the Beam Pipeline.")
-flags.DEFINE_boolean(
-    "ignore_other_caches", False,
-    "If true, cache the task to output_cache_dir, ignoring cached data in "
-    "other directories regardless of the value of `overwrite`."
+    "pipeline_options",
+    ["--runner=DirectRunner"],
+    (
+        "A comma-separated list of command line arguments to be used as options"
+        " for the Beam Pipeline."
+    ),
 )
 flags.DEFINE_boolean(
-    "overwrite", False,
-    "If true, overwrite the cached task even if it exists in the cached "
-    "directories.")
+    "ignore_other_caches",
+    False,
+    (
+        "If true, cache the task to output_cache_dir, ignoring cached data in "
+        "other directories regardless of the value of `overwrite`."
+    ),
+)
+flags.DEFINE_boolean(
+    "overwrite",
+    False,
+    (
+        "If true, overwrite the cached task even if it exists in the cached "
+        "directories."
+    ),
+)
 flags.DEFINE_integer(
-    "min_shards", 64,
-    "The minimum number of output shards to produce. Higher is better for "
-    "improved online data shuffling during training.")
+    "min_shards",
+    64,
+    (
+        "The minimum number of output shards to produce. Higher is better for "
+        "improved online data shuffling during training."
+    ),
+)
 flags.DEFINE_string(
-    "tfds_data_dir", None,
-    "If set, this directory will be used to store datasets prepared by "
-    "TensorFlow Datasets that are not available in the public TFDS GCS "
-    "bucket. Note that this flag overrides the `tfds_data_dir` attribute of "
-    "all `Task`s.")
+    "tfds_data_dir",
+    None,
+    (
+        "If set, this directory will be used to store datasets prepared by"
+        " TensorFlow Datasets that are not available in the public TFDS GCS"
+        " bucket. Note that this flag overrides the `tfds_data_dir` attribute"
+        " of all `Task`s."
+    ),
+)
 flags.DEFINE_integer(
-    "base_seed", None,
-    "The base seed used to reproducibly generate seeds for preprocessing.")
+    "base_seed",
+    None,
+    "The base seed used to reproducibly generate seeds for preprocessing.",
+)
 
 
 def _import_modules(modules):
@@ -98,14 +129,16 @@ def _import_modules(modules):
       importlib.import_module(module)
 
 
-def run_pipeline(pipeline,
-                 task_names,
-                 cache_dir,
-                 excluded_tasks=None,
-                 modules_to_import=(),
-                 overwrite=False,
-                 ignore_other_caches=False,
-                 completed_file_contents=""):
+def run_pipeline(
+    pipeline,
+    task_names,
+    cache_dir,
+    excluded_tasks=None,
+    modules_to_import=(),
+    overwrite=False,
+    ignore_other_caches=False,
+    completed_file_contents="",
+):
   """Run preprocess pipeline."""
   output_dirs = []
   # Includes all names by default.
@@ -113,36 +146,51 @@ def run_pipeline(pipeline,
   # Excludes only empty names by default.
   excluded_regex = re.compile(r"(%s\Z)" % r"\Z|".join(excluded_tasks or []))
   task_names = [
-      t for t in seqio.TaskRegistry.names()
-      if included_regex.match(t) and not excluded_regex.match(t)]
+      t
+      for t in seqio.TaskRegistry.names()
+      if included_regex.match(t) and not excluded_regex.match(t)
+  ]
   if not task_names:
-    logging.warning("No tasks have been selected from the task registry. "
-                    "Please make sure that the tasks you want cached exist in "
-                    "the task registry and haven't been excluded by the "
-                    "--excluded_tasks flag.")
+    logging.warning(
+        "No tasks have been selected from the task registry. "
+        "Please make sure that the tasks you want cached exist in "
+        "the task registry and haven't been excluded by the "
+        "--excluded_tasks flag."
+    )
   for task_name in task_names:
     task = seqio.TaskRegistry.get(task_name)
     if not task.supports_caching:
       logging.info(
-          "Skipping task that does not support caching: '%s'", task.name)
+          "Skipping task that does not support caching: '%s'", task.name
+      )
       continue
 
     task_cache_dir = task.cache_dir
     output_dir = os.path.join(
-        cache_dir, seqio.get_task_dir_from_name(task.name))
+        cache_dir, seqio.get_task_dir_from_name(task.name)
+    )
 
     if ignore_other_caches:
       if task_cache_dir != output_dir:
         logging.warning(
-            "Task '%s' is already cached at %s but writing cached data to %s "
-            "anyway because the --ignore_other_caches flag is set. Please note"
-            "that the task and cached data may change and must be kept "
-            "track of and re-cached manually by the user as needed.",
-            task.name, task_cache_dir, output_dir)
+            (
+                "Task '%s' is already cached at %s but writing cached data to"
+                " %s anyway because the --ignore_other_caches flag is set."
+                " Please notethat the task and cached data may change and must"
+                " be kept track of and re-cached manually by the user as"
+                " needed."
+            ),
+            task.name,
+            task_cache_dir,
+            output_dir,
+        )
     else:
       if task_cache_dir and not overwrite:
-        logging.info("Skipping task '%s', which exists in cache dir: %s",
-                     task.name, task_cache_dir)
+        logging.info(
+            "Skipping task '%s', which exists in cache dir: %s",
+            task.name,
+            task_cache_dir,
+        )
         continue
 
       if task_cache_dir and overwrite:
@@ -151,13 +199,20 @@ def run_pipeline(pipeline,
           # should generate the data in already has the data, then delete it.
           logging.warning(
               "Overwriting already cached data for task '%s' in cache_dir %s",
-              task.name, output_dir)
+              task.name,
+              output_dir,
+          )
           tf.io.gfile.rmtree(output_dir)
         else:
           # Cannot overwrite, since cache_dir isn't same as task.cache_dir.
-          logging.warning("Not overwriting data in task.cache_dir since it is "
-                          "different from cache_dir - %s vs %s", task.cache_dir,
-                          output_dir)
+          logging.warning(
+              (
+                  "Not overwriting data in task.cache_dir since it is "
+                  "different from cache_dir - %s vs %s"
+              ),
+              task.cache_dir,
+              output_dir,
+          )
           continue
 
     if not task.splits:
@@ -172,18 +227,23 @@ def run_pipeline(pipeline,
 
     if isinstance(task.source, seqio.FunctionDataSource):
       logging.warning(
-          "Task '%s' using FunctionDataSource cannot be distributed. If your "
-          "dataset is large, you may be able to speed up preprocessing by "
-          "sharding it and using a TfdsSource, TFExampleSource, or "
-          "TextLineSource instead.", task.name)
+          (
+              "Task '%s' using FunctionDataSource cannot be distributed. If"
+              " your dataset is large, you may be able to speed up"
+              " preprocessing by sharding it and using a TfdsSource,"
+              " TFExampleSource, or TextLineSource instead."
+          ),
+          task.name,
+      )
 
     for split in task.splits:
       label = "%s_%s" % (task.name, split)
       if FLAGS.base_seed and FLAGS.base_seed != -1:
         # Create a unique, deterministic preprocessors seed for the task.
         task_uid = hashlib.md5(task.name.encode()).digest()
-        task_preprocessor_seed = int.from_bytes(task_uid,
-                                                "little") + FLAGS.base_seed
+        task_preprocessor_seed = (
+            int.from_bytes(task_uid, "little") + FLAGS.base_seed
+        )
       else:
         task_preprocessor_seed = None
       pat = beam_utils.PreprocessTask(
@@ -191,40 +251,56 @@ def run_pipeline(pipeline,
           split,
           modules_to_import=modules_to_import,
           preprocessors_seed=task_preprocessor_seed,
-          tfds_data_dir=FLAGS.tfds_data_dir)
+          tfds_data_dir=FLAGS.tfds_data_dir,
+      )
       num_shards = max(len(pat.shards), FLAGS.min_shards)
       examples = (
-          pipeline | "%s_pat" % label >> pat
+          pipeline
+          | "%s_pat" % label >> pat
           # this reshuffle globally shuffles examples as a side-effect,
           # and should not be removed.
-          | "%s_global_example_shuffle" % label >> beam.Reshuffle())
+          | "%s_global_example_shuffle" % label >> beam.Reshuffle()
+      )
 
       completion_values.append(
           examples
-          | "%s_write_tfrecord" % label >> beam_utils.WriteExampleTfRecord(
+          | "%s_write_tfrecord" % label
+          >> beam_utils.WriteExampleTfRecord(
               seqio.get_cached_tfrecord_prefix(output_dir, split),
-              num_shards=num_shards))
+              num_shards=num_shards,
+          )
+      )
       completion_values.append(
           examples
           | "%s_info" % label >> beam_utils.GetInfo(num_shards)
-          | "%s_write_info" % label >> beam_utils.WriteJson(
-              seqio.get_cached_info_path(output_dir, split)))
+          | "%s_write_info" % label
+          >> beam_utils.WriteJson(seqio.get_cached_info_path(output_dir, split))
+      )
       completion_values.append(
           examples
           | "%s_stats" % label >> beam_utils.GetStats(task.output_features)
-          | "%s_write_stats" % label >> beam_utils.WriteJson(
-              seqio.get_cached_stats_path(output_dir, split)))
+          | "%s_write_stats" % label
+          >> beam_utils.WriteJson(
+              seqio.get_cached_stats_path(output_dir, split)
+          )
+      )
 
     # After all splits for this task have completed, write COMPLETED files to
     # the task's output directory.
-    _ = (completion_values
-         | "%s_flatten_completion_values" % task.name >> beam.Flatten()
-         | "%s_discard_completion_values" % task.name >> beam.Filter(
-             lambda _: False)
-         | "%s_write_completed_file" % task.name >> beam.io.textio.WriteToText(
-             os.path.join(output_dir, "COMPLETED"),
-             append_trailing_newlines=False, num_shards=1,
-             shard_name_template="", header=completed_file_contents))
+    _ = (
+        completion_values
+        | "%s_flatten_completion_values" % task.name >> beam.Flatten()
+        | "%s_discard_completion_values" % task.name
+        >> beam.Filter(lambda _: False)
+        | "%s_write_completed_file" % task.name
+        >> beam.io.textio.WriteToText(
+            os.path.join(output_dir, "COMPLETED"),
+            append_trailing_newlines=False,
+            num_shards=1,
+            shard_name_template="",
+            header=completed_file_contents,
+        )
+    )
 
   return output_dirs
 
@@ -235,13 +311,15 @@ def main(_):
   _import_modules(FLAGS.module_import)
 
   seqio.add_global_cache_dirs(
-      [FLAGS.output_cache_dir] + FLAGS.tasks_additional_cache_dirs)
+      [FLAGS.output_cache_dir] + FLAGS.tasks_additional_cache_dirs
+  )
 
   if FLAGS.tfds_data_dir:
     seqio.set_tfds_data_dir_override(FLAGS.tfds_data_dir)
 
   pipeline_options = beam.options.pipeline_options.PipelineOptions(
-      FLAGS.pipeline_options)
+      FLAGS.pipeline_options
+  )
   with beam.Pipeline(options=pipeline_options) as pipeline:
     tf.io.gfile.makedirs(FLAGS.output_cache_dir)
     unused_output_dirs = run_pipeline(
@@ -257,6 +335,7 @@ def main(_):
 
 def console_entry_point():
   app.run(main)
+
 
 if __name__ == "__main__":
   console_entry_point()
