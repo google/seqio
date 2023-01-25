@@ -282,9 +282,9 @@ class TasksTest(test_utils.FakeTaskTest):
         "tf_example_task", use_cached=False, splits=["train"]
     )
 
-  @mock.patch.object(tf.io.gfile, "glob")
-  def test_file_data_source_shuffle_buffer_low(self, mock_glob):
-    mock_glob.return_value = [f"{i}" for i in range(20)]
+  @mock.patch.object(dataset_providers, "_list_files")
+  def test_file_data_source_shuffle_buffer_low(self, mock_list_files):
+    mock_list_files.return_value = [f"{i}" for i in range(20)]
     fds = dataset_providers.FileDataSource(
         read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
         split_to_filepattern={"train": "filepattern"},
@@ -323,9 +323,9 @@ class TasksTest(test_utils.FakeTaskTest):
           ],
       )
 
-  @mock.patch.object(tf.io.gfile, "glob")
-  def test_file_data_source_shuffle_buffer_full(self, mock_glob):
-    mock_glob.return_value = [f"{i}" for i in range(20)]
+  @mock.patch.object(dataset_providers, "_list_files")
+  def test_file_data_source_shuffle_buffer_full(self, mock_list_files):
+    mock_list_files.return_value = [f"{i}" for i in range(20)]
     fds = dataset_providers.FileDataSource(
         read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
         split_to_filepattern={"train": "filepattern"},
@@ -373,16 +373,16 @@ class TasksTest(test_utils.FakeTaskTest):
         )
     return preps
 
-  def _mock_and_assert_cached_source(self, task_name, buffer_size):
+  def _mock_and_assert_cached_source(self, task_name):
     cached_task = dataset_providers.get_mixture_or_task(task_name)
     cached_task._get_cached_source = mock.MagicMock(
         side_effect=cached_task._get_cached_source
     )
     _ = cached_task.get_dataset(None, "train", use_cached=True)
-    cached_task._get_cached_source.assert_called_once_with("train", buffer_size)
+    cached_task._get_cached_source.assert_called_once_with("train")
 
   def test_cached_data_source_shuffle_buffer_default(self):
-    self._mock_and_assert_cached_source("cached_task", None)
+    self._mock_and_assert_cached_source("cached_task")
 
   def test_cached_data_source_shuffle_buffer_set(self):
     self.add_task(
@@ -394,19 +394,7 @@ class TasksTest(test_utils.FakeTaskTest):
         self.cached_task_dir,
         os.path.join(self.test_data_dir, "cached_task_buf_2"),
     )
-    self._mock_and_assert_cached_source("cached_task_buf_2", 2)
-
-  def test_cached_data_source_shuffle_buffer_None(self):
-    self.add_task(
-        "cached_task_buf_None",
-        self.tfds_source,
-        self._get_preps_with_cache_placeholder_buffer_size(None),
-    )
-    shutil.copytree(
-        self.cached_task_dir,
-        os.path.join(self.test_data_dir, "cached_task_buf_None"),
-    )
-    self._mock_and_assert_cached_source("cached_task_buf_None", None)
+    self._mock_and_assert_cached_source("cached_task_buf_2")
 
   def test_proto_task(self):
     self.verify_task_matches_fake_datasets(
@@ -774,8 +762,9 @@ class TasksTest(test_utils.FakeTaskTest):
     with self.assertRaisesWithLiteralMatch(
         ValueError,
         (
-            "`CacheDatasetPlaceholder` can appear at most once in the "
-            "preprocessing pipeline. Found 2 in 'multiple_cache_placeholders'."
+            "`CacheDatasetPlaceholder` can appear at most once in the"
+            " preprocessing pipeline. Found multiple in"
+            " 'multiple_cache_placeholders'."
         ),
     ):
       dataset_providers.Task(

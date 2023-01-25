@@ -33,7 +33,7 @@ from absl import logging
 import clu.metrics
 import editdistance
 import numpy as np
-from packaging import version
+from packaging import version as version_lib
 import pyglove as pg
 from seqio import metrics as metrics_lib
 from seqio import preprocessors as seqio_preprocessors
@@ -492,6 +492,10 @@ class TfdsDataSource(DataSource):
     return [_get_filename(info) for info in self.tfds_dataset.files(split)]
 
 
+def _list_files(pattern: str) -> Sequence[str]:
+  return tf.io.gfile.glob(pattern)
+
+
 class FileDataSource(DataSource):
   """A `DataSource` that reads a file to provide the input dataset."""
 
@@ -580,7 +584,7 @@ class FileDataSource(DataSource):
     )
 
   def list_shards(self, split: str) -> Sequence[str]:
-    return tf.io.gfile.glob(self._split_to_filepattern[split])
+    return _list_files(pattern=self._split_to_filepattern[split])
 
 
 class TextLineDataSource(FileDataSource):
@@ -761,10 +765,10 @@ class _CachedDataSource(FileDataSource):
     with tf.io.gfile.GFile(utils.get_cached_stats_path(cache_dir, split)) as f:
       stats = json.load(f)
 
-    version_when_cached = version.Version(
+    version_when_cached = version_lib.Version(
         split_info.get("seqio_version", "0.pre")
     )
-    version_with_true_dtypes = version.Version("0.0.0")
+    version_with_true_dtypes = version_lib.Version("0.0.0")
     if version_when_cached < version_with_true_dtypes:
       # Assume that all int64 features are really int32.
       for name, feat in features.items():
@@ -824,7 +828,9 @@ class CacheDatasetPlaceholder(object):
   """A placeholder to signal when in the pipeline offline caching will occur."""
 
   def __init__(
-      self, required=False, file_shuffle_buffer_size: Optional[int] = None
+      self,
+      required: bool = False,
+      file_shuffle_buffer_size: Optional[int] = None,
   ):
     """CacheDatasetPlaceholder constructor.
 
@@ -943,25 +949,25 @@ class Task(DatasetProviderBase):
 
     # Find optional CacheDatasetPlaceholder.
     preprocessors = tuple(preprocessors or [])
-    cache_step_idxs = [
-        i
-        for i, p in enumerate(preprocessors)
-        if isinstance(p, CacheDatasetPlaceholder)
-    ]
-    if len(cache_step_idxs) > 1:
-      raise ValueError(
-          "`CacheDatasetPlaceholder` can appear at most once in the "
-          f"preprocessing pipeline. Found {len(cache_step_idxs)} in '{name}'."
-      )
-    cache_step_idx = cache_step_idxs[0] if cache_step_idxs else None
-    if cache_step_idx is not None:
+    self._cache_step_idx: Optional[int] = None
+    self._cache_dataset_placerholder: Optional[CacheDatasetPlaceholder] = None
+    for i, p in enumerate(preprocessors):
+      if isinstance(p, CacheDatasetPlaceholder):
+        if self._cache_step_idx is not None:
+          raise ValueError(
+              "`CacheDatasetPlaceholder` can appear at most once in the "
+              f"preprocessing pipeline. Found multiple in '{name}'."
+          )
+        self._cache_step_idx = i
+        self._cache_dataset_placerholder = p
+    if self._cache_step_idx is not None:
       if not source.caching_permitted:
         raise ValueError(
             f"Caching was requested for '{name}', but the underlying data "
             "source prohibits caching. Please remove `CacheDatasetPlaceholder` "
             "and try again."
         )
-      for prep in preprocessors[:cache_step_idx]:
+      for prep in preprocessors[: self._cache_step_idx]:
         prep_args = inspect.signature(prep).parameters.keys()
         if "sequence_length" in prep_args:
           raise ValueError(
@@ -980,7 +986,6 @@ class Task(DatasetProviderBase):
               _get_name(prep),
               name,
           )
-    self._cache_step_idx = cache_step_idx
     self._preprocessors = preprocessors
 
     self._metric_fns = tuple(metric_fns)
@@ -1228,8 +1233,8 @@ class Task(DatasetProviderBase):
   def requires_caching(self) -> bool:
     """Whether or not this task requires offline caching."""
     return (
-        self._cache_step_idx is not None
-        and self.preprocessors[self._cache_step_idx].required  # pytype: disable=attribute-error  # bind-properties
+        self._cache_dataset_placerholder is not None
+        and self._cache_dataset_placerholder.required
     )
 
   def assert_cached(self) -> None:
@@ -1288,8 +1293,8 @@ class Task(DatasetProviderBase):
         after offline caching, but before applying potentially stochastic
         post-cache preprocessors and is therefore typically preferred to calling
         `repeat()` on the returned dataset. Defaults to `1`.
-        trim_output_features: If True, it trims output features to be less than
-          the length given by `sequence_length`.
+      trim_output_features: If True, it trims output features to be less than
+        the length given by `sequence_length`.
 
     Returns:
       A tf.data.Dataset.
@@ -1310,10 +1315,7 @@ class Task(DatasetProviderBase):
       )
 
     if use_cached:
-      file_shuffle_buffer_size = self.preprocessors[
-          self._cache_step_idx
-      ].file_shuffle_buffer_size  # pytype: disable=attribute-error
-      source = self._get_cached_source(split, file_shuffle_buffer_size)
+      source = self._get_cached_source(split)
     else:
       source = self.source
 
@@ -1387,12 +1389,18 @@ class Task(DatasetProviderBase):
     return ds.prefetch(tf.data.experimental.AUTOTUNE)
 
   def _get_cached_source(
-      self, split, file_shuffle_buffer_size: Optional[int] = None
+      self, split: str, file_shuffle_buffer_size: Optional[int] = None
   ) -> _CachedDataSource:
     """Returns a DataSource to read cached files for split."""
     self.assert_cached()
+    file_shuffle_buffer_size = (
+        file_shuffle_buffer_size
+        or self._cache_dataset_placerholder.file_shuffle_buffer_size
+    )
     return _CachedDataSource(
-        self.cache_dir, split, file_shuffle_buffer_size=file_shuffle_buffer_size
+        cache_dir=self.cache_dir,
+        split=split,
+        file_shuffle_buffer_size=file_shuffle_buffer_size,
     )
 
   def postprocess_fn(
@@ -1929,7 +1937,7 @@ def _get_closest_names(
   return [k for (k, v) in sorted_d]
 
 
-def get_mixture_or_task(task_or_mixture_name):
+def get_mixture_or_task(task_or_mixture_name: str):
   """Return the Task or Mixture from the appropriate registry."""
   mixtures = MixtureRegistry.names()
   tasks = TaskRegistry.names()

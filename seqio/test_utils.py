@@ -1100,11 +1100,7 @@ class FakeTaskTest(absltest.TestCase):
       output_features=None,
       **kwargs,
   ):
-    if output_features is None:
-      output_features = {
-          "inputs": dataset_providers.Feature(sentencepiece_vocab()),
-          "targets": dataset_providers.Feature(sentencepiece_vocab()),
-      }
+    output_features = output_features or self.DEFAULT_OUTPUT_FEATURES
 
     return TaskRegistry.add(
         name,
