@@ -35,7 +35,9 @@ def rekey(x, key_map=None):
   examples with the format
   {'boo': 'something', 'spar': 'something else'}
 
-  If a mapping is to an empty key or None, set the new key to an empty string.
+  If a mapping is to an empty key name or None, the new value is set to an empty
+  string.
+
   Args:
     x: an example to process.
     key_map: dictionary mapping new keys to original keys
