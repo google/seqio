@@ -193,7 +193,7 @@ def _extract_model_output(cached_model_dataset, model_fn):
   def _permute(x, sorted_order):
     return [x[sorted_order[i]] for i in range(len(sorted_order))]
 
-  model_fn_result = model_fn(cached_model_dataset)
+  model_fn_result = model_fn(cached_model_dataset)  # pytype: disable=missing-parameter  # always-use-return-annotations
 
   if isinstance(model_fn_result, tuple):
     # Some of model functions return a tuple of two outputs per example.
