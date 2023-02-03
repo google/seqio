@@ -309,6 +309,11 @@ def _validate_args(fn, expected_pos_args):
   argspec = inspect.getfullargspec(fn)
   expected_pos_args = tuple(expected_pos_args)
   actual_args = tuple(argspec.args)
+  logging.info(
+      "gaoi: expected_pos_args: %s, actual_args: %s",
+      expected_pos_args,
+      actual_args,
+  )
   if actual_args[: len(expected_pos_args)] != expected_pos_args:
     raise ValueError(
         "'%s' must have positional args %s, got: %s"
@@ -395,7 +400,6 @@ class FunctionDataSource(DataSource):
           "this task before training with it or use a data source that "
           "supports lower-level shuffling (e.g., FileDataSource)."
       )
-
     if seed is None:
       ds = self._dataset_fn(split=split, shuffle_files=shuffle)
     else:
