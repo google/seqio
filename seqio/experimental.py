@@ -22,7 +22,7 @@ from seqio import dataset_providers
 from seqio import preprocessors as seqio_preprocessors
 from seqio import utils
 import tensorflow as tf
-
+import tensorflow_datasets as tfds
 
 CacheDatasetPlaceholder = dataset_providers.CacheDatasetPlaceholder
 Mixture = dataset_providers.Mixture
@@ -232,10 +232,14 @@ class FewshotDataSource(dataset_providers.DataSource):
 
   def get_dataset(
       self,
-      split: str,
+      split: str = tfds.Split.TRAIN,
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
+      *,  # remaining args are out of order from parent
+      sequence_length: Optional[Mapping[str, int]] = None,  # Unused
+      use_cached: bool = False,  # Unused
+      num_epochs: Optional[int] = 1  # Unused
   ) -> tf.data.Dataset:
     shard_info: ShardInfo = shard_info or ShardInfo(0, 1)
     if self._train_split not in self._original_source.splits:
