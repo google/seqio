@@ -106,6 +106,15 @@ flags.DEFINE_integer(
         "improved online data shuffling during training."
     ),
 )
+flags.DEFINE_integer(
+    "max_shards",
+    0,
+    (
+        "The maximum number of output shards to produce. If the numbers of "
+        "shards for the proprcossed tasks are larger than this value, they "
+        "will be reduced to be max_shards."
+    ),
+)
 flags.DEFINE_string(
     "tfds_data_dir",
     None,
@@ -253,7 +262,14 @@ def run_pipeline(
           preprocessors_seed=task_preprocessor_seed,
           tfds_data_dir=FLAGS.tfds_data_dir,
       )
-      num_shards = max(len(pat.shards), FLAGS.min_shards)
+      if FLAGS.min_shards > 0:
+        num_shards = max(len(pat.shards), FLAGS.min_shards)
+      else:
+        num_shards = len(pat.shards)
+
+      if FLAGS.max_shards > 0:
+        num_shards = min(num_shards, FLAGS.max_shards)
+
       examples = (
           pipeline
           | "%s_pat" % label >> pat
