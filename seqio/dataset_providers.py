@@ -86,19 +86,19 @@ class DatasetProviderBase(metaclass=abc.ABCMeta):
   @abc.abstractmethod
   def get_dataset(
       self,
-      sequence_length: int,
-      split: str,
+      sequence_length: Optional[Mapping[str, int]] = None,
+      split: str = tfds.Split.TRAIN,
       use_cached: bool = False,
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
-      num_epochs: int = 1,
+      num_epochs: Optional[int] = 1,
   ) -> tf.data.Dataset:
     """Returns the requested tf.data.Dataset."""
     raise NotImplementedError
 
   @abc.abstractmethod
-  def num_input_examples(self, split: str) -> int:
+  def num_input_examples(self, split: str) -> Optional[int]:
     raise NotImplementedError
 
 
@@ -275,10 +275,14 @@ class DataSource(DatasetProviderBase):
   @abc.abstractmethod
   def get_dataset(
       self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
-      split: str,
+      split: str = tfds.Split.TRAIN,
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
+      *,  # remaining args are out of order from parent
+      sequence_length: Optional[Mapping[str, int]] = None,  # Unused
+      use_cached: bool = False,  # Unused
+      num_epochs: Optional[int] = 1,  # Unused
   ) -> tf.data.Dataset:
     """Overrides base class to add shard identifier and remove use_cached.
 
@@ -287,6 +291,9 @@ class DataSource(DatasetProviderBase):
       shuffle: bool, whether to shuffle the input source.
       seed: tf.int64 scalar tf.Tensor (or None) for shuffling input source.
       shard_info: optional specification for loading a shard of the split.
+      sequence_length: Unused
+      use_cached: Unused
+      num_epochs: Unused
     """
     raise NotImplementedError
 
@@ -376,10 +383,14 @@ class FunctionDataSource(DataSource):
 
   def get_dataset(
       self,
-      split: str,
+      split: str = tfds.Split.TRAIN,
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
+      *,  # remaining args are out of order from parent
+      sequence_length: Optional[Mapping[str, int]] = None,  # Unused
+      use_cached: bool = False,  # Unused
+      num_epochs: Optional[int] = 1,  # Unused
   ) -> tf.data.Dataset:
     if shard_info and shard_info.num_shards > 1:
       raise ValueError(
@@ -470,10 +481,14 @@ class TfdsDataSource(DataSource):
 
   def get_dataset(
       self,
-      split: str,
+      split: str = tfds.Split.TRAIN,
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
+      *,  # remaining args are out of order from parent
+      sequence_length: Optional[Mapping[str, int]] = None,  # Unused
+      use_cached: bool = False,  # Unused
+      num_epochs: Optional[int] = 1,  # Unused
   ) -> tf.data.Dataset:
     return self.tfds_dataset.load(
         split, shuffle_files=shuffle, seed=seed, shard_info=shard_info
@@ -539,10 +554,14 @@ class FileDataSource(DataSource):
 
   def get_dataset(
       self,
-      split: str,
+      split: str = tfds.Split.TRAIN,
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
+      *,  # remaining args are out of order from parent
+      sequence_length: Optional[Mapping[str, int]] = None,  # Unused
+      use_cached: bool = False,  # Unused
+      num_epochs: Optional[int] = 1,  # Unused
   ) -> tf.data.Dataset:
     files = self.list_shards(split)
 
@@ -1260,15 +1279,15 @@ class Task(DatasetProviderBase):
 
   def get_dataset(
       self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
-      sequence_length: Optional[Mapping[str, int]],
+      sequence_length: Optional[Mapping[str, int]] = None,
       split: str = tfds.Split.TRAIN,
       use_cached: bool = False,
       shuffle: bool = True,
-      shuffle_buffer_size: Optional[int] = None,
+      shuffle_buffer_size: Optional[int] = None,  # Unique to Task
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
       num_epochs: Optional[int] = 1,
-      trim_output_features: bool = True,
+      trim_output_features: bool = True,  # Unique to Task
   ) -> tf.data.Dataset:
     """Returns a tf.data.Dataset from cache or generated on the fly.
 
@@ -1607,14 +1626,14 @@ class Mixture(DatasetProviderBase):
 
   def get_dataset(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
       self,
-      sequence_length: Optional[Mapping[str, int]],
+      sequence_length: Optional[Mapping[str, int]] = None,
       split: str = tfds.Split.TRAIN,
       use_cached: bool = False,
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
-      num_epochs: Optional[int] = None,
-      copy_pretokenized: bool = False,
+      num_epochs: Optional[int] = None,  # Unique default for Mixture
+      copy_pretokenized: bool = False,  # Unique (and all below) to Mixture
       compute_stats_empirically: bool = False,
       log_mixing_proportions: bool = True,
       passthrough_features: Optional[Sequence[str]] = None,
