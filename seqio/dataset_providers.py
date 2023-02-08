@@ -675,6 +675,7 @@ class TFExampleDataSource(FileDataSource):
 
     self.reader_cls = reader_cls
     self.parse_fn = parse_fn
+    self.feature_description = feature_description
     super().__init__(
         read_file_fn=read_file_fn,
         split_to_filepattern=split_to_filepattern,
