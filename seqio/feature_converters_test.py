@@ -1181,5 +1181,47 @@ class PrePackedLMFeatureConverterTest(tf.test.TestCase):
     assert_dataset(converted_ds, expected)
 
 
+class PrePackedPrefixLMFeatureConverterTest(tf.test.TestCase):
+
+  def test_decoder_packed(self):
+    x = [{
+        "decoder_input_tokens": [0, 1, 2, 3, 0, 4, 5],
+        "decoder_target_tokens": [1, 2, 3, 0, 4, 5, 6],
+        "decoder_loss_weights": [1, 1, 1, 1, 1, 1, 1],
+        "decoder_positions": [0, 1, 2, 3, 0, 1, 2],
+        "decoder_segment_ids": [1, 1, 1, 1, 2, 2, 2],
+        "decoder_causal_attention": [0, 0, 1, 1, 0, 1, 1],
+        "extra_key": [13],
+    }]
+
+    feature_names = (
+        "decoder_input_tokens",
+        "decoder_target_tokens",
+        "decoder_loss_weights",
+        "decoder_positions",
+        "decoder_segment_ids",
+        "decoder_causal_attention",
+        "extra_key",
+    )
+
+    ds = test_utils.create_default_dataset(x, feature_names=feature_names)
+
+    task_feature_lengths = {
+        "inputs": 4,
+        "targets": 3,
+    }
+    converter = feature_converters.PrePackedPrefixLMFeatureConverter(pack=False)
+    converted_ds = converter(ds, task_feature_lengths)
+    expected = {
+        "decoder_input_tokens": [0, 1, 2, 3, 0, 4, 5],
+        "decoder_target_tokens": [1, 2, 3, 0, 4, 5, 6],
+        "decoder_loss_weights": [1, 1, 1, 1, 1, 1, 1],
+        "decoder_positions": [0, 1, 2, 3, 0, 1, 2],
+        "decoder_segment_ids": [1, 1, 1, 1, 2, 2, 2],
+        "decoder_causal_attention": [0, 0, 1, 1, 0, 1, 1],
+    }
+    assert_dataset(converted_ds, expected)
+
+
 if __name__ == "__main__":
   tf.test.main()

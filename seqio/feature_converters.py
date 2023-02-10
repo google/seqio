@@ -1392,6 +1392,28 @@ class PrePackedLMFeatureConverter(PassThroughFeatureConverter):
     )
 
 
+class PrePackedPrefixLMFeatureConverter(PrePackedLMFeatureConverter):
+  """Prefix LM variant of PrePackedLMFeatureConverter.
+
+  The pass through feature converter fixes feature lengths and filters batch
+  features. For Prefix LM, the inputs and targets are combined into each
+  feature.
+  """
+
+  BATCH_FEATURES = PrePackedLMFeatureConverter.BATCH_FEATURES + (
+      "decoder_causal_attention",
+  )
+
+  def _set_shape_and_filter(self, ex, task_feature_lengths):
+    shaped_filtered_ex = {}
+    for feature in self.BATCH_FEATURES:
+      ex[feature].set_shape(
+          shape=task_feature_lengths["inputs"] + task_feature_lengths["targets"]
+      )
+      shaped_filtered_ex[feature] = ex[feature]
+    return shaped_filtered_ex
+
+
 class GrainFeatureConverter(FeatureConverter):
   """Feature converter for Grain data pipeline."""
 
