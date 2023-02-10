@@ -1262,10 +1262,13 @@ class DecoderFeatureConverter(FeatureConverter):
   """
 
   TASK_FEATURES = {
-      "inputs": FeatureConverter.FeatureSpec(dtype=tf.int32),  # Optional field
       "targets": FeatureConverter.FeatureSpec(dtype=tf.int32),
-      # Optional field
-      "suffixes": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      # Optional fields:
+      #   "inputs": FeatureConverter.FeatureSpec(dtype=tf.int32) - Runs
+      #     PrefixLMFeatureConverter if present
+      #   "suffixes": FeatureConverter.FeatureSpec(dtype=tf.int32) - Runs
+      #     PrefixSuffixLMFeatureConverter is present. Runs LMFeatureConverter
+      #     if neither are present.
   }
   MODEL_FEATURES = {
       "decoder_target_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
