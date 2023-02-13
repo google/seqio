@@ -476,6 +476,8 @@ class JSONLogger(Logger):
       field_names = ["target"] + inference_types
 
       for example_index, (inp, *results) in enumerate(examples_with_results):
+        if inp is None:
+          continue
         # tfds.as_numpy does not convert ragged tensors
         for k in inp:
           if isinstance(inp[k], tf.RaggedTensor):
@@ -484,7 +486,9 @@ class JSONLogger(Logger):
         json_dict = {"input": inp}
 
         for field_name, res in zip(field_names, results):
-          if _check_json_serializable(field_name, res, self._json_encoder_cls):
+          if _check_json_serializable(
+              field_name, res, self._json_encoder_cls
+          ):
             json_dict[field_name] = res
 
         for aux_value_name in all_aux_values:
