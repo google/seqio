@@ -1310,6 +1310,26 @@ class FakeTaskTest(absltest.TestCase):
     )
     self.cached_task = self.add_task("cached_task", source=self.tfds_source)
 
+    # Prepare cached task for div-mod-sharding.
+    self.cached_task_dir_div_mod = os.path.join(
+        self.test_data_dir, "cached_task_div_mod"
+    )
+    _dump_fake_dataset(
+        os.path.join(self.cached_task_dir_div_mod, "train.tfrecord"),
+        _FAKE_TOKENIZED_DATASET["train"],
+        [2, 1],
+        _dump_examples_to_tfrecord,
+    )
+    _dump_fake_dataset(
+        os.path.join(self.cached_task_dir_div_mod, "validation.tfrecord"),
+        _FAKE_TOKENIZED_DATASET["validation"],
+        [2],
+        _dump_examples_to_tfrecord,
+    )
+    self.cached_task_div_mod = self.add_task(
+        "cached_task_div_mod", source=self.tfds_source
+    )
+
     # Prepare cached plaintext task.
     _dump_fake_dataset(
         os.path.join(
