@@ -1219,6 +1219,11 @@ def map_seed_manager(initial_seed=None):  # pylint:disable=g-doc-args
   )
 
 
+def set_preprocessor_seed(preprocessor_fn, seed=None):
+  """Sets the internal map seed for the provided preprocessor."""
+  return add_kwargs_to_transform(preprocessor_fn, seqio_internal_map_seed=seed)
+
+
 _SPECIAL_KWARGS = ("sequence_length", "output_features")
 
 
