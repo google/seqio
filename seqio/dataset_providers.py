@@ -1087,26 +1087,13 @@ class Task(DatasetProviderBase):
       dataset: tf.data.Dataset,
       preprocessors: Sequence[Callable[..., tf.data.Dataset]],
       sequence_length: Optional[Mapping[str, int]] = None,
-      seed: Optional[int] = None,
   ) -> tf.data.Dataset:
     """Sequentially applies preprocessors."""
-
-    next_map_seed = seed or None
-    cur_map_seed = None
     for prep_fn in preprocessors:
-      # Reset seed if we encounter `CacheDatasetPlaceholder`.
-      if isinstance(prep_fn, CacheDatasetPlaceholder):
-        next_map_seed = seed or None
-        continue
-
-      cur_map_seed, next_map_seed = utils.maybe_update_internal_seeds(
-          prep_fn, cur_map_seed, next_map_seed
-      )
       prep_fn = utils.add_kwargs_to_transform(
           prep_fn,
           sequence_length=sequence_length,
           output_features=self.output_features,
-          seqio_internal_map_seed=cur_map_seed,
       )
       dataset = prep_fn(dataset)
     return dataset
@@ -1163,9 +1150,12 @@ class Task(DatasetProviderBase):
     """Runs preprocessing steps before the optional CacheDatasetPlaceholder."""
     if not self.supports_caching:
       return dataset
-    return self._preprocess_dataset(
-        dataset, self._preprocessors[: self._cache_step_idx], seed=seed
-    )
+
+    with utils.map_seed_manager(seed):
+      return self._preprocess_dataset(
+          dataset,
+          self._preprocessors[: self._cache_step_idx],
+      )
 
   def preprocess_postcache(
       self,
@@ -1190,12 +1180,12 @@ class Task(DatasetProviderBase):
       # pre-cache preprocessing.
       seed = None if seed is None else seed + 42 * self._cache_step_idx
       start_idx = self._cache_step_idx + 1
-    dataset = self._preprocess_dataset(
-        dataset,
-        self._preprocessors[start_idx:],
-        sequence_length=sequence_length,
-        seed=seed,
-    )
+    with utils.map_seed_manager(seed):
+      dataset = self._preprocess_dataset(
+          dataset,
+          self._preprocessors[start_idx:],
+          sequence_length=sequence_length,
+      )
     return dataset
 
   @property

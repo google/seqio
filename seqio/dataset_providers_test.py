@@ -1010,23 +1010,6 @@ class TasksTest(test_utils.FakeTaskTest):
     )
     test_utils.assert_datasets_neq(dataset1, dataset2)
 
-  def test_different_seeds_and_no_seed_mismatch(self):
-    dataset1 = self.random_task.get_dataset(
-        self._sequence_length,
-        split="train",
-        use_cached=False,
-        shuffle=True,
-        seed=None,
-    )
-    dataset2 = self.random_task.get_dataset(
-        self._sequence_length,
-        split="train",
-        use_cached=False,
-        shuffle=True,
-        seed=42,
-    )
-    test_utils.assert_datasets_neq(dataset1, dataset2)
-
   def test_no_shuffle_with_seed_cached_match(self):
     dataset1 = self.cached_task.get_dataset(
         self._sequence_length,

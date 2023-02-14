@@ -551,47 +551,16 @@ def add_kwargs_to_transform(transform, **kwargs):
   is_dataclass = dataclasses.is_dataclass(transform)
   # Filter kwargs by attributes of the dataclass/arguments of the function.
   if is_dataclass:
-    available_arg_names = [f.name for f in dataclasses.fields(transform)]
+    avaialabe_arg_names = [f.name for f in dataclasses.fields(transform)]
   else:
-    available_arg_names = set(inspect.signature(transform).parameters.keys())
-  # We have to check a unique property of the transform to determine if the
-  # "seqio_internal_map_seed" should be added as an argument.
-  if "seqio_internal_map_seed" in kwargs.keys() and hasattr(
-      transform, "seqio_internal_num_seeds"
-  ):
-    available_arg_names = list(available_arg_names)
-    available_arg_names.append("seqio_internal_map_seed")
-  kwargs = {k: v for k, v in kwargs.items() if k in available_arg_names}
+    avaialabe_arg_names = set(inspect.signature(transform).parameters.keys())
+  kwargs = {k: v for k, v in kwargs.items() if k in avaialabe_arg_names}
   if not kwargs:
     return transform
   # Add attributes/arguments.
   if is_dataclass:
     return dataclasses.replace(transform, **kwargs)
   return functools.partial(transform, **kwargs)
-
-
-def maybe_update_internal_seeds(preprocessor_fn, cur_map_seed, next_map_seed):
-  """Update the internal seeds to avoid repeating seeds.
-
-  If the provided preprocessor requires an internal seed, then update the
-  cur_map_seed and next_map_seed values to ensure we don't repeat seeds.
-
-  Args:
-    preprocessor_fn: the function that we'll inspect to determine if it needs a
-      seed.
-    cur_map_seed: the current value of the seed, which we will update to be
-      equivalent to next_map_seed.
-    next_map_seed: the next value of the seed, which should be updated to make
-      sure we don't repeat seeds.
-
-  Returns:
-    Updated values of cur_map_seed and next_map_seed.
-  """
-  if hasattr(preprocessor_fn, "seqio_internal_num_seeds"):
-    cur_map_seed = next_map_seed
-    if next_map_seed:
-      next_map_seed += 2 * preprocessor_fn.seqio_internal_num_seeds
-  return cur_map_seed, next_map_seed
 
 
 def get_cached_info_path(data_dir, split):
@@ -1201,22 +1170,13 @@ _NEXT_MAP_SEED = None
 
 
 @contextlib.contextmanager
-def map_seed_manager(initial_seed=None):  # pylint:disable=g-doc-args
+def map_seed_manager(initial_seed=None):
   """Contextmanager to control the initial seed used by `map_over_dataset`."""
   global _NEXT_MAP_SEED
   old_map_seed = _NEXT_MAP_SEED
   _NEXT_MAP_SEED = initial_seed
   yield
   _NEXT_MAP_SEED = old_map_seed
-  # TODO(kkenealy): raise an error here and fix any subsequent breakages.
-  logging.warning(
-      "`map_seed_manager` has been deprecated, as it uses a global seed "
-      "variable to manage seeds, which can lead to race conditions (e.g. when "
-      "caching multiple Tasks). Instead, please pass a"
-      " `seqio_internal_map_seed` as a property of your preprocessor. If you "
-      "are using a standard SeqIO (deterministic) Task/Mixture, this logic has"
-      " already been implemented for you."
-  )
 
 
 def set_preprocessor_seed(preprocessor_fn, seed=None):
@@ -1260,23 +1220,16 @@ class _GrainRandomMapFn(_RandomMapTransform):
 
   # Path for SeqIO; preserves legacy logic to manage seeds and differs in
   # seed-management behavior in Grain.
-  def __call__(
-      self,
-      dataset: tf.data.Dataset,
-      *args,
-      seqio_internal_map_seed: tf.Tensor = None,
-      **kwargs
-  ):
-    global _NEXT_MAP_SEED  # pylint:disable=global-variable-not-assigned
-    if _NEXT_MAP_SEED:
-      seqio_internal_map_seed = _NEXT_MAP_SEED
-    if seqio_internal_map_seed is None:
+  def __call__(self, dataset: tf.data.Dataset, *args, **kwargs):
+    global _NEXT_MAP_SEED
+    if _NEXT_MAP_SEED is None:
       random_ds_seeds = ((None, None),) * self.num_seeds
     else:
       random_ds_seeds = np.arange(
-          seqio_internal_map_seed, seqio_internal_map_seed + 2 * self.num_seeds
+          _NEXT_MAP_SEED, _NEXT_MAP_SEED + 2 * self.num_seeds
       ).reshape(-1, 2)
       random_ds_seeds = tuple(tuple(s) for s in random_ds_seeds)
+      _NEXT_MAP_SEED += 2 * self.num_seeds
     seed_datasets = tf.nest.map_structure(
         tf.data.experimental.RandomDataset, random_ds_seeds
     )
@@ -1372,7 +1325,6 @@ def map_over_dataset(
           ds, *args, **kwargs
       )
 
-    wrapped_fn.seqio_internal_num_seeds = num_seeds
     return wrapped_fn
 
   wrapper = map_without_seeds if num_seeds is None else map_with_seeds
