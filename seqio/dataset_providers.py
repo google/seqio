@@ -1215,11 +1215,17 @@ class Task(DatasetProviderBase):
             break
         except tf.errors.PermissionDeniedError:
           logging.warning(
-              "Permission denied for global cache folder: %s", cache_dir
+              "Task %s: Permission denied for global cache folder: %s",
+              self.name,
+              cache_dir,
           )
         except tf.errors.FailedPreconditionError as e:
           logging.warning(
-              "Failed precondition for global cache folder: %s with %r",
+              (
+                  "Task %s: Failed precondition for global cache folder: "
+                  "%s with %r"
+              ),
+              self.name,
               cache_dir,
               e,
           )
