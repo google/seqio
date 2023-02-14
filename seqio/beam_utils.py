@@ -86,9 +86,11 @@ class PreprocessTask(beam.PTransform):
     self._int64_max = 2**63 - 1
     self.shards = list(enumerate(task.source.list_shards(split)))
     logging.info(
-        "%s %s shards: %s",
+        "%s %s %s shards: %d %s",
         task.name,
         split,
+        tfds_data_dir,
+        len(self.shards),
         ", ".join(["%s" % f[1] for f in self.shards]),
     )
 
