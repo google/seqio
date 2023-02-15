@@ -23,6 +23,7 @@ from typing import Mapping, Optional, Sequence, Union
 from seqio import dataset_providers as dp
 from seqio import vocabularies as vc
 import tensorflow.compat.v2 as tf
+import tensorflow_datasets as tfds
 
 
 def mixture_or_task_with_new_vocab(
@@ -201,10 +202,14 @@ class TruncatedDatasetProvider(dp.DataSource):
 
   def get_dataset(
       self,
-      split: str,
+      split: str = tfds.Split.TRAIN,
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[dp.ShardInfo] = None,
+      *,  # remaining args are out of order from parent
+      sequence_length: Optional[Mapping[str, int]] = None,  # Unused
+      use_cached: bool = False,  # Unused
+      num_epochs: Optional[int] = 1,  # Unused
   ) -> tf.data.Dataset:
     """See base class for documentation."""
     if split not in self.split_sizes:
