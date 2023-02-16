@@ -141,8 +141,8 @@ def add_fully_cached_mixture(
   return MixtureRegistry.add(
       new_name,
       [
-          (new_t.name, mixture._task_to_rate[old_t.name])  # pylint:disable=protected-access
-          for old_t, new_t in zip(mixture.tasks, new_tasks)
+          (new_t.name, old_ratio)  # pylint:disable=protected-access
+          for old_ratio, new_t in zip(mixture.task_ratios, new_tasks)
       ],
   )
 
@@ -504,7 +504,7 @@ def add_task_with_sentinels(task_name: str, num_sentinels: Optional[int] = 1):
 
     Args:
       vocabulary: a t5.data.vocabularies.Vocabulary
-      sentinel_num: an optional interger, what sentinel should be returned. By
+      sentinel_num: an optional integer, what sentinel should be returned. By
         default it returns the first sentinel.
 
     Returns:
