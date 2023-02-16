@@ -1132,6 +1132,7 @@ class TasksTest(test_utils.FakeTaskTest):
 
 
 
+
 class MixturesTest(test_utils.FakeTaskTest):
 
   def setUp(self):
@@ -1470,6 +1471,7 @@ class MixturesTest(test_utils.FakeTaskTest):
       MixtureRegistry.add(
           "mixture_with_different_features", ["task3_a", "task3_b"]
       )
+
 
 
 class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
