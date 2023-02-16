@@ -228,8 +228,23 @@ class LegacyMetric(Metric):
         self.targets_and_inferences["aux_value"] = model_output[1]
         predictions = [vocab.decode(tokens) for tokens in model_output[0]]
       elif self.model_output_type == ModelOutputType.PREDICTION:
-        predictions = [vocab.decode(tokens) for tokens in model_output]
-      self.targets_and_inferences["output"] = predictions
+        if (
+            not model_output
+            or not model_output[0]
+            or not isinstance(model_output[0][0], list)
+        ):
+          predictions = [vocab.decode(tokens) for tokens in model_output]
+        else:
+          # In case of top-k decoding, model_output will be a list of list of
+          # lists. For instance, a top-2 output looks like: [[t11, t12, t13],
+          # [t21, t22]], with tij the token of the j-th token of the i-th output
+          predictions = []
+          for sequences in model_output:
+            predictions_for_one_example = []
+            for sequence in sequences:
+              predictions_for_one_example.append(vocab.decode(sequence))
+            predictions.append(predictions_for_one_example)
+        self.targets_and_inferences["output"] = predictions
 
       # Postprocesses the predictions here.
       postprocessed_predictions = [
