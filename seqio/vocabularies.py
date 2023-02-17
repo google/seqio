@@ -135,6 +135,7 @@ class Vocabulary(metaclass=abc.ABCMeta):
     return self._decode_tf(clean_ids)
 
 
+
 class PassThroughVocabulary(Vocabulary):
   """Vocabulary that passes through inputs unchanged."""
 
@@ -454,6 +455,7 @@ class SentencePieceVocabulary(Vocabulary):
         f"extra_ids={self.extra_ids}, "
         f"spm_md5={hashlib.md5(self.sp_model).hexdigest()})"
     )
+
 
 
 class ByteVocabulary(Vocabulary):

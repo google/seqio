@@ -65,74 +65,6 @@ class TasksTest(test_utils.FakeTaskTest):
     ):
       self.add_task("text_line_task", self.text_line_source)
 
-  def test_function_source_signature(self):
-    # Good signatures.
-    def good_fn(split, shuffle_files):
-      del split
-      del shuffle_files
-
-    dataset_providers.FunctionDataSource(good_fn, splits=("train",))
-
-    def default_good_fn(split, shuffle_files=False):
-      del split
-      del shuffle_files
-
-    dataset_providers.FunctionDataSource(default_good_fn, splits=("train",))
-
-    def seed_fn(split, shuffle_files=True, seed=0):
-      del split
-      del shuffle_files
-      del seed
-
-    dataset_providers.FunctionDataSource(seed_fn, splits=("train",))
-
-    def extra_kwarg_good_fn(split, shuffle_files, unused_kwarg=True):
-      del split
-      del shuffle_files
-
-    dataset_providers.FunctionDataSource(extra_kwarg_good_fn, splits=("train",))
-
-    # Bad signatures.
-    with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        (
-            "'missing_shuff' must have positional args ('split',"
-            " 'shuffle_files'), got: ('split',)"
-        ),
-    ):
-
-      def missing_shuff(split):
-        del split
-
-      dataset_providers.FunctionDataSource(missing_shuff, splits=("train",))
-
-    with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        (
-            "'missing_split' must have positional args ('split',"
-            " 'shuffle_files'), got: ('shuffle_files',)"
-        ),
-    ):
-
-      def missing_split(shuffle_files):
-        del shuffle_files
-
-      dataset_providers.FunctionDataSource(missing_split, splits=("train",))
-
-    with self.assertRaisesWithLiteralMatch(
-        ValueError,
-        (
-            "'extra_pos_arg' may only have positional args ('split', "
-            "'shuffle_files'), got: ('split', 'shuffle_files', 'unused_arg')"
-        ),
-    ):
-
-      def extra_pos_arg(split, shuffle_files, unused_arg):
-        del split
-        del shuffle_files
-
-      dataset_providers.FunctionDataSource(extra_pos_arg, splits=("train",))
-
   def test_metric_fn_signature(self):
     # pylint:disable=unused-argument
 
@@ -242,30 +174,6 @@ class TasksTest(test_utils.FakeTaskTest):
 
     # pylint:enable=unused-argument
 
-  def test_no_tfds_version(self):
-    with self.assertRaisesWithLiteralMatch(
-        ValueError, "TFDS name must contain a version number, got: fake"
-    ):
-      dataset_providers.TfdsDataSource(tfds_name="fake")
-
-  def test_tfds_splits(self):
-    self.assertSameElements(
-        ["train", "validation"],
-        dataset_providers.TfdsDataSource(tfds_name="fake:0.0.0").splits,
-    )
-    self.assertSameElements(
-        ["validation"],
-        dataset_providers.TfdsDataSource(
-            tfds_name="fake:0.0.0", splits=["validation"]
-        ).splits,
-    )
-    self.assertSameElements(
-        ["validation"],
-        dataset_providers.TfdsDataSource(
-            tfds_name="fake:0.0.0", splits={"validation": "train"}
-        ).splits,
-    )
-
   def test_tfds_task(self):
     self.verify_task_matches_fake_datasets("tfds_task", use_cached=False)
 
@@ -281,88 +189,6 @@ class TasksTest(test_utils.FakeTaskTest):
     self.verify_task_matches_fake_datasets(
         "tf_example_task", use_cached=False, splits=["train"]
     )
-
-  @mock.patch.object(dataset_providers, "_list_files")
-  def test_file_data_source_shuffle_buffer_low(self, mock_list_files):
-    mock_list_files.return_value = [f"{i}" for i in range(20)]
-    fds = dataset_providers.FileDataSource(
-        read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
-        split_to_filepattern={"train": "filepattern"},
-        file_shuffle_buffer_size=2,
-    )
-    for _ in range(10):
-      ds = [
-          d.decode()
-          for d in tfds.as_numpy(
-              fds.get_dataset("train", shuffle=True, seed=23)
-          )
-      ]
-      self.assertListEqual(
-          ds,
-          [  # Not a great shuffle.
-              "0",
-              "2",
-              "1",
-              "4",
-              "5",
-              "3",
-              "7",
-              "6",
-              "9",
-              "10",
-              "11",
-              "8",
-              "13",
-              "14",
-              "12",
-              "16",
-              "15",
-              "18",
-              "17",
-              "19",
-          ],
-      )
-
-  @mock.patch.object(dataset_providers, "_list_files")
-  def test_file_data_source_shuffle_buffer_full(self, mock_list_files):
-    mock_list_files.return_value = [f"{i}" for i in range(20)]
-    fds = dataset_providers.FileDataSource(
-        read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
-        split_to_filepattern={"train": "filepattern"},
-        file_shuffle_buffer_size=None,
-    )
-    for _ in range(10):
-      ds = [
-          d.decode()
-          for d in tfds.as_numpy(
-              fds.get_dataset("train", shuffle=True, seed=23)
-          )
-      ]
-      self.assertListEqual(
-          ds,
-          [  # Good shuffle.
-              "2",
-              "13",
-              "12",
-              "19",
-              "15",
-              "5",
-              "9",
-              "1",
-              "6",
-              "8",
-              "3",
-              "0",
-              "10",
-              "4",
-              "14",
-              "7",
-              "16",
-              "17",
-              "18",
-              "11",
-          ],
-      )
 
   def _get_preps_with_cache_placeholder_buffer_size(self, buffer_size):
     preps = list(self.DEFAULT_PREPROCESSORS)
@@ -807,20 +633,6 @@ class TasksTest(test_utils.FakeTaskTest):
           output_features=output_features,
           metric_fns=[],
       )
-
-  def test_tfds_source_splits(self):
-    default_splits_src = dataset_providers.TfdsDataSource("fake:0.0.0")
-    self.assertSameElements(["train", "validation"], default_splits_src.splits)
-
-    validation_split_src = dataset_providers.TfdsDataSource(
-        "fake:0.0.0", splits=["validation"]
-    )
-    self.assertSameElements(["validation"], validation_split_src.splits)
-
-    sliced_split_src = dataset_providers.TfdsDataSource(
-        "fake:0.0.0", splits={"validation": "train[0:1%]"}
-    )
-    self.assertSameElements(["validation"], sliced_split_src.splits)
 
   def test_no_eos(self):
     default_vocab = test_utils.sentencepiece_vocab()
@@ -1877,6 +1689,208 @@ def register_dummy_task(
       },
       metric_fns=[],
   )
+
+
+class TfdsDataSourceTest(test_utils.FakeTaskTest):
+
+  def test_no_tfds_version(self):
+    with self.assertRaisesWithLiteralMatch(
+        ValueError, "TFDS name must contain a version number, got: fake"
+    ):
+      dataset_providers.TfdsDataSource(tfds_name="fake")
+
+  def test_tfds_splits(self):
+    self.assertSameElements(
+        ["train", "validation"],
+        dataset_providers.TfdsDataSource(tfds_name="fake:0.0.0").splits,
+    )
+    self.assertSameElements(
+        ["validation"],
+        dataset_providers.TfdsDataSource(
+            tfds_name="fake:0.0.0", splits=["validation"]
+        ).splits,
+    )
+    self.assertSameElements(
+        ["validation"],
+        dataset_providers.TfdsDataSource(
+            tfds_name="fake:0.0.0", splits={"validation": "train"}
+        ).splits,
+    )
+
+  def test_tfds_source_splits(self):
+    default_splits_src = dataset_providers.TfdsDataSource("fake:0.0.0")
+    self.assertSameElements(["train", "validation"], default_splits_src.splits)
+
+    validation_split_src = dataset_providers.TfdsDataSource(
+        "fake:0.0.0", splits=["validation"]
+    )
+    self.assertSameElements(["validation"], validation_split_src.splits)
+
+    sliced_split_src = dataset_providers.TfdsDataSource(
+        "fake:0.0.0", splits={"validation": "train[0:1%]"}
+    )
+    self.assertSameElements(["validation"], sliced_split_src.splits)
+
+
+
+class FunctionDataSourceTest(test_utils.FakeTaskTest):
+
+  def test_function_source_signature(self):
+    # Good signatures.
+    def good_fn(split, shuffle_files):
+      del split
+      del shuffle_files
+
+    dataset_providers.FunctionDataSource(good_fn, splits=("train",))
+
+    def default_good_fn(split, shuffle_files=False):
+      del split
+      del shuffle_files
+
+    dataset_providers.FunctionDataSource(default_good_fn, splits=("train",))
+
+    def seed_fn(split, shuffle_files=True, seed=0):
+      del split
+      del shuffle_files
+      del seed
+
+    dataset_providers.FunctionDataSource(seed_fn, splits=("train",))
+
+    def extra_kwarg_good_fn(split, shuffle_files, unused_kwarg=True):
+      del split
+      del shuffle_files
+
+    dataset_providers.FunctionDataSource(extra_kwarg_good_fn, splits=("train",))
+
+    # Bad signatures.
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        (
+            "'missing_shuff' must have positional args ('split',"
+            " 'shuffle_files'), got: ('split',)"
+        ),
+    ):
+
+      def missing_shuff(split):
+        del split
+
+      dataset_providers.FunctionDataSource(missing_shuff, splits=("train",))
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        (
+            "'missing_split' must have positional args ('split',"
+            " 'shuffle_files'), got: ('shuffle_files',)"
+        ),
+    ):
+
+      def missing_split(shuffle_files):
+        del shuffle_files
+
+      dataset_providers.FunctionDataSource(missing_split, splits=("train",))
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        (
+            "'extra_pos_arg' may only have positional args ('split', "
+            "'shuffle_files'), got: ('split', 'shuffle_files', 'unused_arg')"
+        ),
+    ):
+
+      def extra_pos_arg(split, shuffle_files, unused_arg):
+        del split
+        del shuffle_files
+
+      dataset_providers.FunctionDataSource(extra_pos_arg, splits=("train",))
+
+
+
+class FileDataSourceTest(test_utils.FakeTaskTest):
+
+  @mock.patch.object(dataset_providers, "_list_files")
+  def test_file_data_source_shuffle_buffer_low(self, mock_list_files):
+    mock_list_files.return_value = [f"{i}" for i in range(20)]
+    fds = dataset_providers.FileDataSource(
+        read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
+        split_to_filepattern={"train": "filepattern"},
+        file_shuffle_buffer_size=2,
+    )
+    for _ in range(10):
+      ds = [
+          d.decode()
+          for d in tfds.as_numpy(
+              fds.get_dataset("train", shuffle=True, seed=23)
+          )
+      ]
+      self.assertListEqual(
+          ds,
+          [  # Not a great shuffle.
+              "0",
+              "2",
+              "1",
+              "4",
+              "5",
+              "3",
+              "7",
+              "6",
+              "9",
+              "10",
+              "11",
+              "8",
+              "13",
+              "14",
+              "12",
+              "16",
+              "15",
+              "18",
+              "17",
+              "19",
+          ],
+      )
+
+  @mock.patch.object(dataset_providers, "_list_files")
+  def test_file_data_source_shuffle_buffer_full(self, mock_list_files):
+    mock_list_files.return_value = [f"{i}" for i in range(20)]
+    fds = dataset_providers.FileDataSource(
+        read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
+        split_to_filepattern={"train": "filepattern"},
+        file_shuffle_buffer_size=None,
+    )
+    for _ in range(10):
+      ds = [
+          d.decode()
+          for d in tfds.as_numpy(
+              fds.get_dataset("train", shuffle=True, seed=23)
+          )
+      ]
+      self.assertListEqual(
+          ds,
+          [  # Good shuffle.
+              "2",
+              "13",
+              "12",
+              "19",
+              "15",
+              "5",
+              "9",
+              "1",
+              "6",
+              "8",
+              "3",
+              "0",
+              "10",
+              "4",
+              "14",
+              "7",
+              "16",
+              "17",
+              "18",
+              "11",
+          ],
+      )
+
+
+
 
 
 if __name__ == "__main__":

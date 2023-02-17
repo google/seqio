@@ -23,6 +23,7 @@ from seqio import vocabularies
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
+
 assert_dataset = test_utils.assert_dataset
 Feature = dataset_providers.Feature
 CacheDatasetPlaceholder = dataset_providers.CacheDatasetPlaceholder
@@ -811,6 +812,7 @@ class FewshotTest(absltest.TestCase):
             },
         ],
     )
+
 
 
 class SentinelTaskTest(FullyCachedTaskTest):

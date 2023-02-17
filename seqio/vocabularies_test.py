@@ -155,6 +155,7 @@ class VocabularyTest(absltest.TestCase):
     self.assertSequenceEqual(decoded, test_str)
 
 
+
 class PassThroughVocabularyTest(absltest.TestCase):
 
   def test_no_eos(self):
@@ -196,6 +197,7 @@ class PassThroughVocabularyTest(absltest.TestCase):
     vocab3 = vocabularies.PassThroughVocabulary(size=128, eos_id=1)
     self.assertNotEqual(vocab1, vocab2)
     self.assertNotEqual(vocab1, vocab3)
+
 
 
 class UnigramVocabularyTest(absltest.TestCase):
@@ -245,6 +247,7 @@ class UnigramVocabularyTest(absltest.TestCase):
       self.assertEqual(
           vocabulary.decode_tf(tf.constant([vocabulary.unk_id])).numpy(), b"UNK"
       )
+
 
 
 class SentencepieceVocabularyTest(absltest.TestCase):
@@ -334,6 +337,7 @@ class SentencepieceVocabularyTest(absltest.TestCase):
     )
 
     self.assertNotEqual(vocab, reversed_vocab)
+
 
 
 class ByteVocabularyTest(absltest.TestCase):
@@ -437,6 +441,7 @@ class ByteVocabularyTest(absltest.TestCase):
     self.assertNotEqual(vocab1, vocab2)
 
 
+
 class FullCodepointVocabularyTest(absltest.TestCase):
   TEST_STRING = "this is a test"
   TEST_CODEPOINT_IDS = (
@@ -523,6 +528,7 @@ class FullCodepointVocabularyTest(absltest.TestCase):
     vocab1 = vocabularies.FullCodepointVocabulary()
     vocab2 = vocabularies.FullCodepointVocabulary()
     self.assertEqual(vocab1, vocab2)
+
 
 
 class PartialCodepointVocabularyTest(absltest.TestCase):
@@ -629,6 +635,7 @@ class PartialCodepointVocabularyTest(absltest.TestCase):
     self.assertNotEqual(vocab1, vocab2)
 
 
+
 class BertWordpieceVocabularyTest(absltest.TestCase):
   TEST_STRING = "this is a test"
   TEST_TOKENS = (106, 105, 104, 107)
@@ -665,6 +672,7 @@ class BertWordpieceVocabularyTest(absltest.TestCase):
     vocab1 = test_utils.bertwordpiece_vocab()
     vocab2 = test_utils.bertwordpiece_vocab(start_of_sequence_id=100)
     self.assertNotEqual(vocab1, vocab2)
+
 
 
 if __name__ == "__main__":

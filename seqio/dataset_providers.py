@@ -303,6 +303,7 @@ class DataSource(DatasetProviderBase):
     return self._num_input_examples[split]
 
 
+
 def _get_name(function):
   """Returns the name of a (possibly partially applied) function."""
   if isinstance(function, functools.partial):
@@ -418,6 +419,7 @@ class FunctionDataSource(DataSource):
     return [split]
 
 
+
 class TfdsDataSource(DataSource):
   """A `DataSource` that uses TensorFlow Datasets to provide the input data."""
 
@@ -505,6 +507,7 @@ class TfdsDataSource(DataSource):
       return info.filename  # TFDS FileInstruction
 
     return [_get_filename(info) for info in self.tfds_dataset.files(split)]
+
 
 
 def _list_files(pattern: str) -> Sequence[str]:
@@ -606,6 +609,7 @@ class FileDataSource(DataSource):
     return _list_files(pattern=self._split_to_filepattern[split])
 
 
+
 class TextLineDataSource(FileDataSource):
   """A `FileDataSource` that reads lines of text from a file as input."""
 
@@ -704,6 +708,7 @@ class TFExampleDataSource(FileDataSource):
     )
 
 
+
 class ProtoDataSource(FileDataSource):
   """A `FileDataSource` that reads files of arbitrary protos as input."""
 
@@ -748,6 +753,7 @@ class ProtoDataSource(FileDataSource):
         caching_permitted=caching_permitted,
         file_shuffle_buffer_size=file_shuffle_buffer_size,
     )
+
 
 
 # ========================== Offline Caching Helpers ===========================
@@ -1440,6 +1446,7 @@ class Task(DatasetProviderBase):
 
 
 
+
 class TaskRegistry(DatasetProviderRegistry):
   """Registry of Tasks."""
 
@@ -1745,6 +1752,7 @@ class Mixture(DatasetProviderBase):
           compute_stats_empirically,
       )
     return dataset
+
 
 
 class PyGloveTunableMixture(Mixture):

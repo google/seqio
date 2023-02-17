@@ -1071,9 +1071,21 @@ def clear_mixtures():
 
 # pylint:disable=invalid-name
 FakeLazyTfds = collections.namedtuple(
-    "FakeLazyTfds", ["name", "load", "load_shard", "info", "files", "size"]
+    "FakeLazyTfds",
+    ["name", "data_dir", "load", "load_shard", "info", "files", "size"],
 )
-FakeTfdsInfo = collections.namedtuple("FakeTfdsInfo", ["splits"])
+FakeTfdsInfo = collections.namedtuple(
+    "FakeTfdsInfo",
+    [
+        "splits",
+        "features",
+        "description",
+        "version",
+        "homepage",
+        "file_format",
+        "config_name",
+    ],
+)
 # pylint:enable=invalid-name
 
 
@@ -1133,6 +1145,7 @@ class FakeTaskTest(absltest.TestCase):
     self._prepare_sources_and_tasks()
 
   def _prepare_sources_and_tasks(self):
+    """Prepares data sources and tasks."""
     clear_tasks()
     clear_mixtures()
     # Prepare TfdsSource
@@ -1168,9 +1181,18 @@ class FakeTaskTest(absltest.TestCase):
 
     fake_tfds = FakeLazyTfds(
         name="fake:0.0.0",
+        data_dir="/tfds",
         load=get_fake_dataset,
         load_shard=_load_shard,
-        info=FakeTfdsInfo(splits={"train": None, "validation": None}),
+        info=FakeTfdsInfo(
+            splits={"train": None, "validation": None},
+            description="This is a fake TFDS dataset.",
+            version="0.0.0",
+            config_name=None,
+            homepage="http://data.org/fake",
+            file_format=tfds.core.file_adapters.FileFormat.TFRECORD,
+            features={},
+        ),
         files=fake_tfds_paths.get,
         size=lambda x: 30 if x == "train" else 10,
     )
