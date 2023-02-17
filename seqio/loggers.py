@@ -476,6 +476,8 @@ class JSONLogger(Logger):
       field_names = ["target"] + inference_types
 
       for example_index, (inp, *results) in enumerate(examples_with_results):
+        if inp is None:
+          continue
         # tfds.as_numpy does not convert ragged tensors
         for k in inp:
           if isinstance(inp[k], tf.RaggedTensor):
