@@ -1222,9 +1222,11 @@ class MixturesTest(test_utils.FakeTaskTest):
         split, shuffle_files=False, seed=None, val: str = ""
     ) -> tf.data.Dataset:
       del split, shuffle_files, seed  # Need this to pass arg validation.
-      return tf.data.Dataset.from_tensor_slices({
-          "inputs": [[val]] * 3,
-      })
+      return tf.data.Dataset.from_tensor_slices(
+          {
+              "inputs": [[val]] * 3,
+          }
+      )
 
     # Register two very simple tasks, each with 3 repeated string values.
     vocab = vocabularies.PassThroughVocabulary(0)
