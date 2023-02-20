@@ -479,12 +479,13 @@ class ByteVocabulary(Vocabulary):
       extra_ids: an optional integer
     """
     self._byte_size = 256
-    self._byte_strings = tf.constant(
-        [bytes([i]) for i in range(self._byte_size)]
-    )
     # The special tokens: 0=PAD, 1=EOS,and 2=UNK
     self._num_special_tokens = 3
     super().__init__(extra_ids=extra_ids)
+
+  @property
+  def _byte_strings(self):
+    return tf.constant([bytes([i]) for i in range(self._byte_size)])
 
   @property
   def eos_id(self) -> Optional[int]:
