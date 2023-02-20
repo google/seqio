@@ -37,6 +37,9 @@ Evaluator = evaluation.Evaluator
 tf.compat.v1.enable_eager_execution()
 
 
+_VOCABULARY = vocabularies.PassThroughVocabulary(size=42, eos_id=True)
+
+
 def _string_label_to_class_id_postprocessor(
     string_label, label_classes, default=-1, **unused_kwargs
 ):
@@ -97,8 +100,7 @@ def register_dummy_task(
       preprocessors=[preprocessor],
       postprocess_fn=postprocess_fn,
       output_features={
-          # Mock the sentencepiece vocabulary.
-          feat: dataset_providers.Feature(mock.Mock(eos_id=True))
+          feat: dataset_providers.Feature(vocabulary=_VOCABULARY)
           for feat in output_feature_names
       },
       metric_fns=metrics_fn,
@@ -129,7 +131,7 @@ def get_mocked_task(
       for mf in task.metric_fns
   ]
 
-  mock_vocab = mock.Mock()
+  mock_vocab = mock.create_autospec(vocabularies.Vocabulary)
   task.output_features = {
       target_field_name: dataset_providers.Feature(mock_vocab)
   }
@@ -158,8 +160,8 @@ def _task_from_tensor_slices(name, tensor_slices, label_classes):
           _string_label_to_class_id_postprocessor, label_classes=label_classes
       ),
       output_features={
-          "inputs": dataset_providers.Feature(mock.Mock()),
-          "targets": dataset_providers.Feature(mock.Mock()),
+          "inputs": dataset_providers.Feature(vocabulary=_VOCABULARY),
+          "targets": dataset_providers.Feature(vocabulary=_VOCABULARY),
       },
   )
 
@@ -265,8 +267,8 @@ class EvaluationTest(tf.test.TestCase):
     )
     cached_task_datasets, max_sequence_length = (
         evaluation._cache_and_measure_examples(
-            [task1, task2],
-            lambda t: t.get_dataset(
+            tasks=[task1, task2],
+            dataset_fn=lambda t: t.get_dataset(
                 split="validation", sequence_length=None, shuffle=False
             ),
             sequence_dims={},
@@ -353,8 +355,10 @@ class EvaluationTest(tf.test.TestCase):
               label_classes=label_classes,
           ),
           output_features={
-              "inputs": dataset_providers.Feature(mock.Mock(), rank=2),
-              "targets": dataset_providers.Feature(mock.Mock()),
+              "inputs": dataset_providers.Feature(
+                  vocabulary=_VOCABULARY, rank=2
+              ),
+              "targets": dataset_providers.Feature(vocabulary=_VOCABULARY),
           },
       )
 
@@ -463,13 +467,13 @@ class EvaluationTest(tf.test.TestCase):
 
         indices_and_predictions = (
             [(0, [5, 6]), (1, [7]), (2, [7])]
-            if task.predict_metric_with_aux_fns
+            if task.predict_with_aux_metric_fns
             else self.uncalled_fn
         )
 
         aux_values = (
             {"scores": [0.1, 0.2, 0.2]}
-            if task.predict_metric_with_aux_fns
+            if task.predict_with_aux_metric_fns
             else self.uncalled_fn
         )
 
