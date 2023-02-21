@@ -228,11 +228,12 @@ class LegacyMetric(Metric):
         self.targets_and_inferences["aux_value"] = model_output[1]
         predictions = [vocab.decode(tokens) for tokens in model_output[0]]
       elif self.model_output_type == ModelOutputType.PREDICTION:
-        # check if model_output is: 1. empty, 2. an empty list,
-        # 3. not a k-best list
+        # Default behavior for top-1 decoding, model_output is a list of lists.
+        # Also check empty outputs so that we don't attempt to access
+        # non-existent elements.
         if (
             not model_output
-            or isinstance(model_output[0], list)
+            or not model_output[0]
             or not isinstance(model_output[0][0], list)
         ):
           predictions = [vocab.decode(tokens) for tokens in model_output]
