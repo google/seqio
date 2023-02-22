@@ -233,6 +233,7 @@ class LegacyMetric(Metric):
         # non-existent elements.
         if (
             not model_output
+            or not isinstance(model_output[0], list)
             or not model_output[0]
             or not isinstance(model_output[0][0], list)
         ):
