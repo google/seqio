@@ -1354,16 +1354,17 @@ class FakeTaskTest(absltest.TestCase):
 
   def verify_task_matches_fake_datasets(  # pylint:disable=dangerous-default-value
       self,
-      task_name,
-      use_cached,
+      task_name="",
+      use_cached=False,
       token_preprocessed=False,
       ndfeatures=False,
       splits=("train", "validation"),
       sequence_length=_DEFAULT_SEQUENCE_LENGTH,
       num_shards=None,
+      task=None,
   ):
     """Assert all splits for both tokenized datasets are correct."""
-    task = TaskRegistry.get(task_name)
+    task = TaskRegistry.get(task_name) if not task else task
     for split in splits:
       get_dataset = functools.partial(
           task.get_dataset,

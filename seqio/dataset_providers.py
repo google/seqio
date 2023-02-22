@@ -1496,6 +1496,7 @@ SampleFn = Callable[
 
 
 MixtureRate = Union[int, float, Callable[[Union[Task, "Mixture"]], float]]
+SubtaskOrName = Union[Task, "Mixture", str]
 
 
 class Mixture(DatasetProviderBase):
@@ -1504,7 +1505,9 @@ class Mixture(DatasetProviderBase):
   def __init__(
       self,
       name: str,
-      tasks: Union[Sequence[str], Sequence[Tuple[str, MixtureRate]]],
+      tasks: Union[
+          Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
+      ],
       default_rate: Optional[MixtureRate] = None,
       sample_fn: SampleFn = tf.data.experimental.sample_from_datasets,
   ):
@@ -1525,34 +1528,48 @@ class Mixture(DatasetProviderBase):
 
     Args:
       name: string, a unique name for the Mixture.
-      tasks: a list where each element is either a string (task name) or a pair
-        whose first element is the task name and whose second element is either
-        a float (rate) or a function from Task to float.
+      tasks: a list where each element is either a Task/Mixture or string
+        (task/mixture name) or a pair whose first element is the Task/Mixture or
+        name and whose second element is either a float (rate) or a function
+        from Task to float.
       default_rate: a float or a function from Task to float. This specifies the
         default rate if rates are not provided in the `tasks` argument.
       sample_fn: SampleFn callable that implements sampling logic to interleave
         multiple datasets into a single dataset.
     """
     self._task_to_rate = {}
+    self._task_map = {}
     self._tasks = []
     self._sub_mixtures = []
     self._name = name
     self._sample_fn = sample_fn
     for t in tasks:
-      if isinstance(t, str):
-        task_name = t
+      if not isinstance(t, tuple):
+        task_or_name = t
         rate = default_rate
         if default_rate is None:
           raise ValueError("need a rate for each task")
       else:
-        task_name, rate = t
+        task_or_name, rate = t
 
-      if task_name in TaskRegistry.names():
-        self._tasks.append(TaskRegistry.get(task_name))
-        self._task_to_rate[task_name] = rate
+      if isinstance(task_or_name, str):
+        task_name: str = task_or_name
+        is_task = task_name in TaskRegistry.names()
+        subtask = (
+            TaskRegistry.get(task_name)
+            if is_task
+            else MixtureRegistry.get(task_name)
+        )
       else:
-        self._sub_mixtures.append(MixtureRegistry.get(task_name))  # pytype:disable=name-error
-        self._task_to_rate[task_name] = rate
+        subtask = task_or_name
+        task_name = subtask.name
+        is_task = isinstance(subtask, Task)
+      if is_task:
+        self._tasks.append(subtask)
+      else:
+        self._sub_mixtures.append(subtask)
+      self._task_to_rate[task_name] = rate
+      self._task_map[task_name] = subtask
 
     if not self.tasks:
       raise ValueError(f"Mixture, {self.name}, does not contain any Tasks.")
@@ -1578,7 +1595,7 @@ class Mixture(DatasetProviderBase):
   @property
   def total_rate(self) -> float:
     return sum(
-        float(rate(TaskRegistry.get(name)) if callable(rate) else rate)
+        float(rate(self._task_map[name]) if callable(rate) else rate)
         for name, rate in self._task_to_rate.items()
     )
 
@@ -1761,7 +1778,9 @@ class PyGloveTunableMixture(Mixture):
   def __init__(
       self,
       name: str,
-      tasks: Union[Sequence[str], Sequence[Tuple[str, MixtureRate]]],
+      tasks: Union[
+          Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
+      ],
       default_rate: Optional[MixtureRate] = None,
       sample_fn: SampleFn = tf.data.experimental.sample_from_datasets,
   ):
