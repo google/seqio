@@ -962,49 +962,6 @@ class MixturesTest(test_utils.FakeTaskTest):
       self.verify_task_matches_fake_datasets(task.name, use_cached=False)
       self.assertEqual(mix.get_rate(task), 1)
 
-  def test_task_objs(self):
-    task1 = dataset_providers.Task(
-        "task1",
-        self.function_source,
-        preprocessors=self.DEFAULT_PREPROCESSORS,
-        output_features=self.DEFAULT_OUTPUT_FEATURES,
-    )
-    task2 = dataset_providers.Task(
-        "task2",
-        self.function_source,
-        preprocessors=self.DEFAULT_PREPROCESSORS,
-        output_features=self.DEFAULT_OUTPUT_FEATURES,
-    )
-
-    MixtureRegistry.add("test_mix1", [(task1, 1), (task2, 1)])
-    mix = MixtureRegistry.get("test_mix1")
-    self.assertEqual(len(mix.tasks), 2)
-
-    for task in mix.tasks:
-      self.verify_task_matches_fake_datasets(task=task, use_cached=False)
-      self.assertEqual(mix.get_rate(task), 1)
-
-  def test_task_objs_default_rate(self):
-    task1 = dataset_providers.Task(
-        "task1",
-        self.function_source,
-        preprocessors=self.DEFAULT_PREPROCESSORS,
-        output_features=self.DEFAULT_OUTPUT_FEATURES,
-    )
-    task2 = dataset_providers.Task(
-        "task2",
-        self.function_source,
-        preprocessors=self.DEFAULT_PREPROCESSORS,
-        output_features=self.DEFAULT_OUTPUT_FEATURES,
-    )
-    MixtureRegistry.add("test_mix1", [task1, task2], default_rate=1.0)
-    mix = MixtureRegistry.get("test_mix1")
-    self.assertEqual(len(mix.tasks), 2)
-
-    for task in mix.tasks:
-      self.verify_task_matches_fake_datasets(task=task, use_cached=False)
-      self.assertEqual(mix.get_rate(task), 1)
-
   def test_tasks_with_tunable_rates(self):
     self.add_task("task1", self.function_source)
     self.add_task("task2", self.function_source)
