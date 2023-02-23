@@ -304,7 +304,7 @@ class DataSource(DatasetProviderBase):
 
 
 
-def _get_name(function):
+def _get_name(function) -> str:
   """Returns the name of a (possibly partially applied) function."""
   if isinstance(function, functools.partial):
     return function.func.__name__

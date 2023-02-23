@@ -1330,3 +1330,8 @@ def map_over_dataset(
 
   wrapper = map_without_seeds if num_seeds is None else map_with_seeds
   return wrapper if fn is None else wrapper(fn)
+
+
+def fully_qualified_class_name(instance: Any) -> str:
+  """Returns the fully qualified class name of the given instance."""
+  return f"{type(instance).__module__}.{type(instance).__name__}"
