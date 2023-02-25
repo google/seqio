@@ -32,6 +32,69 @@ Task = dataset_providers.Task
 TaskRegistry = dataset_providers.TaskRegistry
 
 
+def _enfore_empty_registries():
+  """Enforces that the seqio TaskRegistry and MixtureRegistry are empty."""
+  non_empty_registries = []
+  if TaskRegistry.names():
+    logging.error('TaskRegistry has %s tasks', len(TaskRegistry.names()))
+    for task_name in TaskRegistry.names():
+      logging.error('Registered Task: %s', task_name)
+    non_empty_registries.append('TaskRegistry')
+  if MixtureRegistry.names():
+    logging.error(
+        'MixtureRegistry has %s mixtures', len(MixtureRegistry.names())
+    )
+    for mixture_name in MixtureRegistry.names():
+      logging.error('Registered Mixture: %s', mixture_name)
+    non_empty_registries.append('MixtureRegistry')
+  if non_empty_registries:
+    non_empty_registries = ', '.join(non_empty_registries)
+    raise ValueError(
+        f'The {non_empty_registries} is non-empty. Please invoke'
+        ' `disable_registry()` before any Task/Mixtures are registered.'
+    )
+
+
+def _get_argument(name, position, args, kwargs, default_val=''):
+  if name in kwargs:
+    return kwargs.get(name)
+  if len(args) > position:
+    return args[position]
+  return default_val
+
+
+def _no_op_task_registry_add(*args, **kwargs):
+  logging.info(
+      'No-op Task register call: %s', _get_argument('name', 0, args, kwargs)
+  )
+
+
+def _no_op_mixture_registry_add(*args, **kwargs):
+  logging.info(
+      'No-op Mixture register call: %s', _get_argument('name', 0, args, kwargs)
+  )
+
+
+def _no_op_task_registry_get(*args, **kwargs):
+  name = _get_argument('name', 0, args, kwargs)
+  raise ValueError(f'Disabled TaskRegistry.get call: {name}')
+
+
+def _no_op_mixture_registry_get(*args, **kwargs):
+  name = _get_argument('name', 0, args, kwargs)
+  raise ValueError(f'Disabled MixtureRegistry.get call: {name}')
+
+
+def disable_registry():
+  _enfore_empty_registries()
+  dataset_providers.TaskRegistry.add = _no_op_task_registry_add
+  dataset_providers.TaskRegistry.add_provider = _no_op_task_registry_add
+  dataset_providers.TaskRegistry.get = _no_op_task_registry_get
+  dataset_providers.MixtureRegistry.add = _no_op_mixture_registry_add
+  dataset_providers.MixtureRegistry.add_provider = _no_op_mixture_registry_add
+  dataset_providers.MixtureRegistry.get = _no_op_mixture_registry_get
+
+
 def _get_fully_cached_name(
     original_name: str, sequence_length: Mapping[str, int]
 ) -> str:

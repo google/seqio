@@ -14,6 +14,7 @@
 
 """Tests for seqio.preprocessors."""
 
+import contextlib
 from absl.testing import absltest
 from seqio import dataset_providers
 from seqio import experimental
@@ -867,6 +868,120 @@ class SentinelTaskTest(FullyCachedTaskTest):
           ],
       )
 
+
+class DisableRegistryTest(absltest.TestCase):
+
+  @contextlib.contextmanager
+  def _restore_registry_after_test(self):
+    og_tr_add = TaskRegistry.add
+    og_tr_add_p = TaskRegistry.add_provider
+    og_tr_get = TaskRegistry.get
+    og_mr_add = MixtureRegistry.add
+    og_mr_add_p = MixtureRegistry.add_provider
+    og_mr_get = MixtureRegistry.get
+    try:
+      yield
+    finally:
+      TaskRegistry.add = og_tr_add
+      TaskRegistry.add_provider = og_tr_add_p
+      TaskRegistry.get = og_tr_get
+      MixtureRegistry.add = og_mr_add
+      MixtureRegistry.add_provider = og_mr_add_p
+      MixtureRegistry.get = og_mr_get
+
+  def test_enforce_task_registry_empty(self):
+    TaskRegistry.reset()
+    MixtureRegistry.reset()
+    function_source = dataset_providers.FunctionDataSource(
+        dataset_fn=test_utils.get_fake_dataset, splits=['train', 'validation']
+    )
+    TaskRegistry.add(
+        'dummy_task',
+        source=function_source,
+        output_features=test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES,
+    )
+    with self.assertRaisesRegex(ValueError, 'The TaskRegistry is non-empty.*'):
+      with self._restore_registry_after_test():
+        experimental.disable_registry()
+
+  def test_enforce_both_registries_empty(self):
+    TaskRegistry.reset()
+    MixtureRegistry.reset()
+    function_source = dataset_providers.FunctionDataSource(
+        dataset_fn=test_utils.get_fake_dataset, splits=['train', 'validation']
+    )
+    TaskRegistry.add(
+        'dummy_task',
+        source=function_source,
+        output_features=test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES,
+    )
+    MixtureRegistry.add('dummy_mixture', ['dummy_task'], default_rate=1.0)
+    with self.assertRaisesRegex(
+        ValueError, 'The TaskRegistry, MixtureRegistry is non-empty.*'
+    ):
+      with self._restore_registry_after_test():
+        experimental.disable_registry()
+
+  def test_task_registry_add_no_op(self):
+    TaskRegistry.reset()
+    MixtureRegistry.reset()
+    with self._restore_registry_after_test():
+      experimental.disable_registry()
+      function_source = dataset_providers.FunctionDataSource(
+          dataset_fn=test_utils.get_fake_dataset, splits=['train', 'validation']
+      )
+      TaskRegistry.add(
+          'dummy_task',
+          source=function_source,
+          output_features=test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES,
+      )
+      task = dataset_providers.Task(
+          'dummy_task2',
+          source=function_source,
+          output_features=test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES,
+      )
+      TaskRegistry.add_provider('dummy_task2', task)
+      self.assertEmpty(TaskRegistry.names())
+
+  def test_task_registry_get_error(self):
+    TaskRegistry.reset()
+    MixtureRegistry.reset()
+    with self._restore_registry_after_test():
+      experimental.disable_registry()
+      with self.assertRaisesRegex(
+          ValueError, 'Disabled TaskRegistry.get call.*'
+      ):
+        TaskRegistry.get('dummy_task')
+
+  def test_mixture_registry_add_no_op(self):
+    TaskRegistry.reset()
+    MixtureRegistry.reset()
+    with self._restore_registry_after_test():
+      experimental.disable_registry()
+      function_source = dataset_providers.FunctionDataSource(
+          dataset_fn=test_utils.get_fake_dataset, splits=['train', 'validation']
+      )
+      task = dataset_providers.Task(
+          'dummy_task',
+          source=function_source,
+          output_features=test_utils.FakeTaskTest.DEFAULT_OUTPUT_FEATURES,
+      )
+      TaskRegistry.add_provider('dummy_task2', task)
+      MixtureRegistry.add('dummy_mixture', [task], default_rate=1.0)
+      mixture = dataset_providers.Mixture('dummy_mixture2', [[task, 1.0]])
+      MixtureRegistry.add_provider('dummy_mixture2', mixture)
+      self.assertEmpty(TaskRegistry.names())
+      self.assertEmpty(MixtureRegistry.names())
+
+  def test_mixture_registry_get_error(self):
+    TaskRegistry.reset()
+    MixtureRegistry.reset()
+    with self.assertRaisesRegex(
+        ValueError, 'Disabled MixtureRegistry.get call.*'
+    ):
+      with self._restore_registry_after_test():
+        experimental.disable_registry()
+        MixtureRegistry.get('dummy_mixture')
 
 if __name__ == '__main__':
   absltest.main()
