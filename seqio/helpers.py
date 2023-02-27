@@ -34,6 +34,7 @@ def mixture_or_task_with_new_vocab(
     new_output_features: Optional[Mapping[str, dp.Feature]] = None,
     add_to_seqio_registry: bool = True,
     add_cache_placeholder: bool = False,
+    validate_features=True,
 ) -> Union[dp.Task, dp.Mixture]:
   """Creates a new Task/Mixture from a given Task/Mixture with a new vocabulary.
 
@@ -61,6 +62,8 @@ def mixture_or_task_with_new_vocab(
       the new Mixture can refer to these.
     add_cache_placeholder: If True, adds CacheDatasetPlaceholder in new tasks if
       their old tasks do not have it.
+    validate_features: Whether to validate the new feature set is compatible
+      with the source task's output features.
 
   Returns:
     The new `Task` or `Mixture` object.
@@ -100,7 +103,8 @@ def mixture_or_task_with_new_vocab(
           f_name: dataclasses.replace(f, vocabulary=new_vocab)
           for f_name, f in og_task.output_features.items()
       }
-    else:
+
+    if validate_features:
       _validate_output_features(og_task.output_features, new_output_features)
 
     preprocessors = og_task.preprocessors

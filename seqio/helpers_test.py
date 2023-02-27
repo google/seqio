@@ -328,6 +328,37 @@ class HelpersTest(test_utils.FakeTaskTest):
           },
       )
 
+  def test_mixture_or_task_with_new_vocab_override_valid(self):
+    task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
+    dp.TaskRegistry.add(
+        "my_test_task",
+        source=dp.FunctionDataSource(task_dataset_fn, splits=["train"]),
+        preprocessors=[pr.tokenize],
+        output_features={
+            "feature_a": dp.Feature(VOCAB1),
+            "feature_b": dp.Feature(VOCAB1, add_eos=False),
+        },
+    )
+    helpers.mixture_or_task_with_new_vocab(
+        "my_test_task",
+        "my_new_test_task",
+        new_output_features={
+            "feature_a": dp.Feature(VOCAB2, rank=3),
+            "feature_b": dp.Feature(VOCAB1),
+        },
+        validate_features=False,
+    )
+    with self.assertRaises(ValueError):
+      helpers.mixture_or_task_with_new_vocab(
+          "my_test_task",
+          "my_new_test_task",
+          new_output_features={
+              "feature_a": dp.Feature(VOCAB2, rank=3),
+              "feature_b": dp.Feature(VOCAB1),
+          },
+          validate_features=True,
+      )
+
   def test_task_with_truncated_data(self):
     task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
     _ = dp.TaskRegistry.add(
