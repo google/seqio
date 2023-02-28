@@ -512,7 +512,8 @@ class TfdsDataSource(DataSource):
 
 
 def _list_files(pattern: str) -> Sequence[str]:
-  return tf.io.gfile.glob(pattern)
+  # Ensure that all machines observe the list of files in the same order.
+  return sorted(tf.io.gfile.glob(pattern))
 
 
 class FileDataSource(DataSource):
