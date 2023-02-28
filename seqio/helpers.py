@@ -145,14 +145,14 @@ def mixture_or_task_with_new_vocab(
   new_tasks_and_rates = []
   for task_name, rate in og_mix._task_to_rate.items():
     new_task_name = f"{new_mixture_or_task_name}.{task_name}"
-    _ = mixture_or_task_with_new_vocab(
+    new_task = mixture_or_task_with_new_vocab(
         task_name,
         new_task_name,
         new_vocab=new_vocab,
         new_output_features=new_output_features,
-        add_to_seqio_registry=True,
+        add_to_seqio_registry=add_to_seqio_registry,
     )
-    new_tasks_and_rates.append((new_task_name, rate))
+    new_tasks_and_rates.append((new_task, rate))
 
   new_mix = dp.Mixture(
       new_mixture_or_task_name,

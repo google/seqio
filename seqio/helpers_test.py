@@ -237,16 +237,35 @@ class HelpersTest(test_utils.FakeTaskTest):
         add_to_seqio_registry=False,
     )
 
-    # Step 4: Get new Tasks and Mixtures from the Registry.
+    # Step 4: Get new Tasks and Mixtures.
     self.assertNotIn("my_new_test_mix2", dp.MixtureRegistry.names())
-    new_submix = dp.get_mixture_or_task("my_new_test_mix2.my_test_mix1")
-    new_submix_subtask1 = dp.get_mixture_or_task(
-        "my_new_test_mix2.my_test_mix1.my_test_task1"
+
+    self.assertNotIn(
+        "my_new_test_mix2.my_test_mix1", dp.MixtureRegistry.names()
     )
-    new_submix_subtask2 = dp.get_mixture_or_task(
-        "my_new_test_mix2.my_test_mix1.my_test_task2"
+    self.assertLen(new_mix._sub_mixtures, 1)
+    new_submix = new_mix._sub_mixtures[0]
+    self.assertEqual(new_submix.name, "my_new_test_mix2.my_test_mix1")
+
+    self.assertNotIn(
+        "my_new_test_mix2.my_test_mix1.my_test_task1", dp.TaskRegistry.names()
     )
-    new_subtask = dp.get_mixture_or_task("my_new_test_mix2.my_test_task1")
+    self.assertNotIn(
+        "my_new_test_mix2.my_test_mix1.my_test_task2", dp.TaskRegistry.names()
+    )
+    self.assertLen(new_submix._tasks, 2)
+    new_submix_subtask1, new_submix_subtask2 = new_submix._tasks
+    self.assertEqual(
+        new_submix_subtask1.name, "my_new_test_mix2.my_test_mix1.my_test_task1"
+    )
+    self.assertEqual(
+        new_submix_subtask2.name, "my_new_test_mix2.my_test_mix1.my_test_task2"
+    )
+
+    self.assertNotIn("my_new_test_mix2.my_test_task1", dp.TaskRegistry.names())
+    self.assertLen(new_mix._tasks, 1)
+    new_subtask = new_mix._tasks[0]
+    self.assertEqual(new_subtask.name, "my_new_test_mix2.my_test_task1")
 
     # Step 5: Verify mixing rates for new mixtures.
     self.assertDictEqual(
