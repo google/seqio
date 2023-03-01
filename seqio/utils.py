@@ -168,7 +168,7 @@ class LazyTfdsLoader(object):
     split = self._map_split(split)
     read_config = self.read_config
     read_config.input_context = (
-        tf.distribute.InputContext(
+        tf.distribute.InputContext(  # pylint: disable=g-long-ternary
             num_input_pipelines=shard_info.num_shards,
             input_pipeline_id=shard_info.index,
         )
@@ -1103,6 +1103,7 @@ def mixing_rate_num_examples(
     scale: float = 1.0,
     temperature: float = 1.0,
     fallback_to_num_input_examples: bool = True,
+    split: str = "train",
 ) -> float:
   """Mixing rate based on the number of examples for the task's 'train' split.
 
@@ -1115,13 +1116,14 @@ def mixing_rate_num_examples(
     fallback_to_num_input_examples: whether to fallback to using the number of
       input examples when the Task is not cached. Otherwise, an error will be
       raised.
+    split: the split to look at for cached stats.
 
   Returns:
     The mixing rate for this task.
   """
 
   if task.cache_dir or not fallback_to_num_input_examples:
-    ret = task.get_cached_stats("train")["examples"]
+    ret = task.get_cached_stats(split)["examples"]
   else:
     logging.warning(
         (
@@ -1130,7 +1132,7 @@ def mixing_rate_num_examples(
         ),
         task.name,
     )
-    ret = task.num_input_examples("train")
+    ret = task.num_input_examples(split)
 
   ret *= scale
   if maximum:
