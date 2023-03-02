@@ -1105,7 +1105,10 @@ def mixing_rate_num_examples(
     fallback_to_num_input_examples: bool = True,
     split: str = "train",
 ) -> float:
-  """Mixing rate based on the number of examples for the task's 'train' split.
+  """Mixing rate based on the number of examples for the task's split.
+
+  It should be noted that SeqIO only injects the task, and all other parameters
+  must be provided by the user when initializing the Mixture.
 
   Args:
     task: the seqio.Task to compute a rate for.
