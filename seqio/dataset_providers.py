@@ -2020,6 +2020,21 @@ def get_mixture_or_task(task_or_mixture_name: str):
     )
 
 
+def maybe_get_mixture_or_task(
+    task: Union[str, Task, Mixture]
+) -> Union[Task, Mixture]:
+  """Given a task name, Task, or Mixture object, return an object."""
+  if isinstance(task, str):
+    return get_mixture_or_task(task)
+
+  if not isinstance(task, (Task, Mixture)):
+    raise ValueError(
+        "User passed in a task that was not a string, Task, or Mixture."
+        f"Got type: {type(task)}"
+    )
+  return task
+
+
 def get_subtasks(task_or_mixture):
   """Returns all the Tasks in a Mixture as a list or the Task itself."""
   if isinstance(task_or_mixture, Task):
