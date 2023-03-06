@@ -19,6 +19,7 @@ import hashlib
 import importlib
 import json
 import operator
+import os
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from absl import logging
@@ -464,3 +465,146 @@ class GetStats(beam.PTransform):
         | "flatten_counts" >> beam.Flatten()
         | "merge_stats" >> beam.CombineGlobally(_merge_dicts)
     )
+
+
+class Cacher:
+  """Base class to cache a task."""
+
+  def __init__(
+      self,
+      task: seqio.Task,
+      output_dir: str,
+      pipeline: beam.Pipeline,
+      modules_to_import=(),
+      add_provenance: bool = False,
+      base_seed: Optional[int] = None,
+      tfds_data_dir: Optional[str] = None,
+      min_shards: Optional[int] = None,
+      completed_file_contents: str = "",
+  ):
+    self.task = task
+    self.output_dir = output_dir
+    self.pipeline = pipeline
+    self.modules_to_import = modules_to_import
+    self.add_provenance = add_provenance
+    self.base_seed = base_seed
+    self.tfds_data_dir = tfds_data_dir
+    self.min_shards = min_shards
+    self.completed_file_contents = completed_file_contents
+
+  def is_cached(self) -> bool:
+    return self.task.cache_dir is not None
+
+  def clean_cache(self) -> None:
+    logging.warning(
+        "Overwriting cached data for task/mixture '%s' in cache_dir %s",
+        self.task.name,
+        self.output_dir,
+    )
+    tf.io.gfile.rmtree(self.output_dir)
+
+  def _label_for(self, split: str) -> str:
+    return "%s_%s" % (self.task.name, split)
+
+  def preprocessors_seed(self) -> Optional[int]:
+    if self.base_seed and self.base_seed != -1:
+      # Create a unique, deterministic preprocessors seed for the task.
+      task_uid = hashlib.md5(self.task.name.encode()).digest()
+      return int.from_bytes(task_uid, "little") + self.base_seed
+    else:
+      return None
+
+  def _get_transforms(
+      self, split: str
+  ) -> Tuple[beam.PCollection, beam.PTransform, beam.PTransform, int]:
+    """Returns the examples, the info and stats transforms, and the number of shards."""
+    label = self._label_for(split)
+    pat = PreprocessTask(
+        task=self.task,
+        split=split,
+        modules_to_import=self.modules_to_import,
+        preprocessors_seed=self.preprocessors_seed(),
+        tfds_data_dir=self.tfds_data_dir,
+        add_provenance=self.add_provenance,
+    )
+    num_shards = max(len(pat.shards), self.min_shards)
+    examples = (
+        self.pipeline
+        | "%s_pat" % label >> pat
+        # this reshuffle globally shuffles examples as a side-effect,
+        # and should not be removed.
+        | "%s_global_example_shuffle" % label >> beam.Reshuffle()
+    )
+    info_transform = GetInfo(num_shards)
+    stats_transform = GetStats(self.task.output_features)
+    return examples, info_transform, stats_transform, num_shards
+
+  def _write_examples(
+      self,
+      examples: beam.PCollection,
+      split: str,
+      num_shards: int,
+  ) -> beam.PCollection:
+    label = self._label_for(split)
+    return examples | "%s_write_tfrecord" % label >> WriteExampleTfRecord(
+        seqio.get_cached_tfrecord_prefix(self.output_dir, split),
+        num_shards=num_shards,
+    )
+
+  def _write_completed_file(
+      self,
+      completion_values: Sequence[beam.PCollection],
+  ) -> None:
+    # After all splits for this task have completed, write COMPLETED files to
+    # the task's output directory.
+    label = self.task.name
+    _ = (
+        completion_values
+        | "%s_flatten_completion_values" % label >> beam.Flatten()
+        | "%s_discard_completion_values" % label >> beam.Filter(lambda _: False)
+        | "%s_write_completed_file" % label
+        >> beam.io.textio.WriteToText(
+            os.path.join(self.output_dir, "COMPLETED"),
+            append_trailing_newlines=False,
+            num_shards=1,
+            shard_name_template="",
+            header=self.completed_file_contents,
+        )
+    )
+
+  def store(self, splits: Sequence[str]) -> str:
+    """Stores the cached splits to disk.
+
+    Arguments:
+      splits: the splits of the given task or mixture that need to be cached.
+
+    Returns:
+      the folder where it has been cached.
+    """
+    completion_values = []
+
+    for split in splits:
+      label = self._label_for(split)
+      examples, info_transform, stats_transform, num_shards = (
+          self._get_transforms(split=split)
+      )
+      completion_values.append(
+          self._write_examples(
+              examples=examples, split=split, num_shards=num_shards
+          )
+      )
+      info_path = seqio.get_cached_info_path(self.output_dir, split)
+      completion_values.append(
+          examples
+          | "%s_info" % label >> info_transform
+          | "%s_write_info" % label >> WriteJson(info_path)
+      )
+      stats_path = seqio.get_cached_stats_path(self.output_dir, split)
+      completion_values.append(
+          examples
+          | "%s_stats" % label >> stats_transform
+          | "%s_write_stats" % label >> WriteJson(stats_path)
+      )
+
+    self._write_completed_file(completion_values)
+    return self.output_dir
