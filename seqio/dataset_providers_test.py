@@ -380,7 +380,7 @@ class TasksTest(test_utils.FakeTaskTest):
             " `CacheDatasetPlaceholder` and try again."
         ),
     ):
-      dataset_providers.Task(
+      task = dataset_providers.Task(
           "prohibits_cache",
           output_features=self.DEFAULT_OUTPUT_FEATURES,
           source=function_source_no_cache,
@@ -389,6 +389,7 @@ class TasksTest(test_utils.FakeTaskTest):
               preprocessors.tokenize,
           ],
       )
+      task._validate_preprocessors()
 
   def test_cache_exists(self):
     self.assertTrue(self.cached_task.cache_dir)
@@ -458,22 +459,32 @@ class TasksTest(test_utils.FakeTaskTest):
     )
 
     # Test with token preprocessor.
-    self.cached_task._preprocessors = self.DEFAULT_PREPROCESSORS + (
-        test_utils.test_token_preprocessor,
+    self.cached_task = self.cached_task.replace(
+        preprocessors=(
+            self.DEFAULT_PREPROCESSORS + (test_utils.test_token_preprocessor,)
+        )
     )
+
     self.verify_task_matches_fake_datasets(
-        "cached_task", use_cached=True, token_preprocessed=True
+        "cached_task",
+        use_cached=True,
+        token_preprocessed=False,
     )
 
   def test_get_dataset_onthefly(self):
     self.verify_task_matches_fake_datasets("uncached_task", use_cached=False)
 
     # Test with token preprocessor.
-    self.cached_task._preprocessors = self.DEFAULT_PREPROCESSORS + (
-        test_utils.test_token_preprocessor,
+    self.cached_task = self.cached_task.replace(
+        preprocessors=(
+            self.DEFAULT_PREPROCESSORS + (test_utils.test_token_preprocessor,)
+        )
     )
+
     self.verify_task_matches_fake_datasets(
-        "cached_task", use_cached=False, token_preprocessed=True
+        "cached_task",
+        use_cached=False,
+        token_preprocessed=False,
     )
 
   def test_get_dataset_no_truncation(self):
@@ -593,7 +604,7 @@ class TasksTest(test_utils.FakeTaskTest):
             " 'multiple_cache_placeholders'."
         ),
     ):
-      dataset_providers.Task(
+      _ = dataset_providers.Task(
           "multiple_cache_placeholders",
           source=dataset_providers.FunctionDataSource(
               dataset_fn=dataset_fn, splits=["train", "validation"]
@@ -618,7 +629,7 @@ class TasksTest(test_utils.FakeTaskTest):
             " sequence length is specified at run time."
         ),
     ):
-      dataset_providers.Task(
+      task = dataset_providers.Task(
           "sequence_length_pre_cache",
           dataset_providers.FunctionDataSource(
               dataset_fn=dataset_fn,
@@ -633,6 +644,7 @@ class TasksTest(test_utils.FakeTaskTest):
           output_features=output_features,
           metric_fns=[],
       )
+      task._validate_preprocessors()
 
   def test_no_eos(self):
     default_vocab = test_utils.sentencepiece_vocab()

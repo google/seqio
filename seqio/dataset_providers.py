@@ -948,38 +948,24 @@ class Task(DatasetProviderBase):
           for mf in metric_fns
       ]
     self._metric_objs = metric_objs
+
+    # Capture constructor arguments and use them lazily to speed up
+    # Task initialization in case many Tasks are being created that are unused.
+    self._metric_fn_constructor_args = metric_fns
     self._predict_metric_fns = []
     self._predict_with_aux_metric_fns = []
     self._score_metric_fns = []
-    for metric_fn in metric_fns:
-      pos_args = tuple(
-          key
-          for key, param in inspect.signature(metric_fn).parameters.items()
-          if param.default == inspect.Parameter.empty
-          and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
-      )
-      if pos_args == ("targets", "scores"):
-        self._score_metric_fns.append(metric_fn)
-      elif pos_args == ("targets", "predictions"):
-        self._predict_metric_fns.append(metric_fn)
-      elif pos_args == ("targets", "predictions", "aux_values"):
-        self._predict_with_aux_metric_fns.append(metric_fn)
-      else:
-        raise ValueError(
-            "Metric functions must have positional arguments matching either "
-            "('targets', 'scores'), ('targets', 'predictions') or "
-            "('targets', 'predictions', 'aux_values'). "
-            f"Got: {pos_args}"
-        )
 
     self._name = name
     self._source = source
 
-    # Find optional CacheDatasetPlaceholder.
-    preprocessors = tuple(preprocessors or [])
+    # Capture constructor arguments and use them lazily to speed up
+    # Task initialization in case many Tasks are being created that are unused.
+    self._preprocessor_constructor_args = preprocessors or ()
+
     self._cache_step_idx: Optional[int] = None
     self._cache_dataset_placerholder: Optional[CacheDatasetPlaceholder] = None
-    for i, p in enumerate(preprocessors):
+    for i, p in enumerate(preprocessors or []):
       if isinstance(p, CacheDatasetPlaceholder):
         if self._cache_step_idx is not None:
           raise ValueError(
@@ -988,33 +974,14 @@ class Task(DatasetProviderBase):
           )
         self._cache_step_idx = i
         self._cache_dataset_placerholder = p
+
     if self._cache_step_idx is not None:
-      if not source.caching_permitted:
+      if not self.source.caching_permitted:
         raise ValueError(
-            f"Caching was requested for '{name}', but the underlying data "
+            f"Caching was requested for '{self.name}', but the underlying data "
             "source prohibits caching. Please remove `CacheDatasetPlaceholder` "
             "and try again."
         )
-      for prep in preprocessors[: self._cache_step_idx]:
-        prep_args = inspect.signature(prep).parameters.keys()
-        if "sequence_length" in prep_args:
-          raise ValueError(
-              f"'{_get_name(prep)}' has a `sequence_length` argument but occurs"
-              f" before `CacheDatasetPlaceholder` in '{name}'. This is not"
-              " allowed since the sequence length is specified at run time."
-          )
-        if "seed" in prep_args or "seeds" in prep_args:
-          logging.warning(
-              (
-                  "'%s' has a `seed(s)` argument but occurs before "
-                  "`CacheDatasetPlaceholder` in '%s'. This is not recommended "
-                  "since the same samples will be used each epoch when reading "
-                  "from the cache."
-              ),
-              _get_name(prep),
-              name,
-          )
-    self._preprocessors = preprocessors
 
     self._metric_fns = tuple(metric_fns)
     self._postprocess_fn = postprocess_fn
@@ -1036,28 +1003,76 @@ class Task(DatasetProviderBase):
     """List of all metric objects."""
     return self._metric_objs
 
-  @property
+  def _instantiate_metric_fns(self) -> None:
+    """Instantiates metric functions.
+
+    Validation of metric functions, which depend on slow `inspect` calls to help
+    catch common errors, is deferred slightly:
+    1) only validate the Tasks that are used, and
+    2) as a result, to improve loading time.
+    If/when the module-level TaskRegistry.add pattern is turned down, validation
+    can probably be made eager again.
+
+    Raises:
+      ValueError if metric functions don't have positional arguments matching
+       (targets, scores), (targets, predictions), or
+       (targets, predictions, aux_values)
+    """
+    for metric_fn in self._metric_fn_constructor_args:
+      pos_args = tuple(
+          key
+          for key, param in inspect.signature(metric_fn).parameters.items()
+          if param.default == inspect.Parameter.empty
+          and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
+      )
+      if pos_args == ("targets", "scores"):
+        self._score_metric_fns.append(metric_fn)
+      elif pos_args == ("targets", "predictions"):
+        self._predict_metric_fns.append(metric_fn)
+      elif pos_args == ("targets", "predictions", "aux_values"):
+        self._predict_with_aux_metric_fns.append(metric_fn)
+      else:
+        raise ValueError(
+            "Metric functions must have positional arguments matching either "
+            "('targets', 'scores'), ('targets', 'predictions') or "
+            "('targets', 'predictions', 'aux_values'). "
+            f"Got: {pos_args}"
+        )
+
+  @functools.cached_property
   def metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of all metric functions."""
+    if (
+        not self._predict_metric_fns
+        or not self._score_metric_fns
+        or not self._predict_with_aux_metric_fns
+    ):
+      self._instantiate_metric_fns()
     return (
         self._predict_metric_fns
         + self._score_metric_fns
         + self._predict_with_aux_metric_fns
     )
 
-  @property
+  @functools.cached_property
   def score_metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of metric functions that use log likelihood scores."""
+    if not self._score_metric_fns:
+      self._instantiate_metric_fns()
     return self._score_metric_fns
 
-  @property
+  @functools.cached_property
   def predict_metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of metric functions that use model predictions."""
+    if not self._predict_metric_fns:
+      self._instantiate_metric_fns()
     return self._predict_metric_fns
 
-  @property
+  @functools.cached_property
   def predict_with_aux_metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of metric functions that use model predictions with aux values."""
+    if self._predict_with_aux_metric_fns is None:
+      self._instantiate_metric_fns()
     return self._predict_with_aux_metric_fns
 
   @property
@@ -1075,9 +1090,43 @@ class Task(DatasetProviderBase):
   def source(self) -> DataSource:
     return self._source
 
-  @property
+  def _validate_preprocessors(self):
+    """Validates that some common errors are not made with preprocessors.
+
+    Raises:
+      ValueError if caching is improperly requested.
+    """
+    if self._cache_step_idx is not None:
+      for prep in self._preprocessor_constructor_args[: self._cache_step_idx]:
+        prep_args = inspect.signature(prep).parameters.keys()
+        if "sequence_length" in prep_args:
+          raise ValueError(
+              f"'{_get_name(prep)}' has a `sequence_length` argument but occurs"
+              f" before `CacheDatasetPlaceholder` in '{self.name}'. This is not"
+              " allowed since the sequence length is specified at run time."
+          )
+        if "seed" in prep_args or "seeds" in prep_args:
+          logging.warning(
+              (
+                  "'%s' has a `seed(s)` argument but occurs before "
+                  "`CacheDatasetPlaceholder` in '%s'. This is not recommended "
+                  "since the same samples will be used each epoch when reading "
+                  "from the cache."
+              ),
+              _get_name(prep),
+              self.name,
+          )
+
+  @functools.cached_property
   def preprocessors(self) -> Sequence[Callable[..., tf.data.Dataset]]:
-    return self._preprocessors
+    # Validation of preprocessors, which depends on slow `inspect` calls to
+    # help catch common errors, is deferred slightly:
+    # 1) only validate the Tasks that are used, and
+    # 2) as a result, to improve loading time.
+    # If/when the module-level TaskRegistry.add pattern is turned down,
+    # validation can probably be made eager again.
+    self._validate_preprocessors()
+    return self._preprocessor_constructor_args
 
   @property
   def postprocessor(self) -> Callable[..., Any]:
@@ -1181,7 +1230,7 @@ class Task(DatasetProviderBase):
     with utils.map_seed_manager(seed):
       return self._preprocess_dataset(
           dataset,
-          self._preprocessors[: self._cache_step_idx],
+          self.preprocessors[: self._cache_step_idx],
       )
 
   def preprocess_postcache(
@@ -1210,7 +1259,7 @@ class Task(DatasetProviderBase):
     with utils.map_seed_manager(seed):
       dataset = self._preprocess_dataset(
           dataset,
-          self._preprocessors[start_idx:],
+          self.preprocessors[start_idx:],
           sequence_length=sequence_length,
       )
     return dataset
@@ -1884,7 +1933,7 @@ def _log_mixing_proportions(
         return 0
       if (
           task.supports_caching
-          and task._cache_step_idx < len(task._preprocessors) - 1
+          and task._cache_step_idx < len(task.preprocessors) - 1
       ):  # pylint:disable=protected-access
         # There is processing after caching, so we can't rely on the stats.
         return sequence_length[key]

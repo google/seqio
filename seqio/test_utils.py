@@ -562,7 +562,7 @@ def _assert_compare_to_fake_dataset(
     token_preprocessed: bool = False,
     ndfeatures: bool = False,
 ):
-  """Calls assertion to compare fake examples to actual dataaset."""
+  """Calls assertion to compare fake examples to actual dataset."""
   dataset = "token_preprocessed" if token_preprocessed else "tokenized"
   dataset = dataset if not ndfeatures else "token_preprocessed_ndfeatures"
   fake_examples = copy.deepcopy(_FAKE_DATASETS[dataset][split])
