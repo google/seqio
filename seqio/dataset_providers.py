@@ -1143,6 +1143,8 @@ class Task(DatasetProviderBase):
         "source",
         "output_features",
         "preprocessors",
+        "postprocess_fn",
+        "metric_fns",
         "metric_objs",
         "shuffle_buffer_size",
     ]
@@ -1151,7 +1153,10 @@ class Task(DatasetProviderBase):
       if key in kwargs:
         value = kwargs[key]
       else:
-        value = getattr(self, key)
+        if key == "postprocess_fn":
+          value = self.postprocessor
+        else:
+          value = getattr(self, key)
       task_kwargs[key] = value
     return Task(**task_kwargs)
 

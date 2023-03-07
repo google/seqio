@@ -952,6 +952,9 @@ class TasksTest(test_utils.FakeTaskTest):
     new_task = task.replace(name="new_tfds_task", shuffle_buffer_size=10000)
     self.assertEqual("new_tfds_task", new_task.name)
     self.assertEqual(10000, new_task.shuffle_buffer_size)
+    self.assertEqual(task.preprocessors, new_task.preprocessors)
+    self.assertEqual(task._postprocess_fn, new_task._postprocess_fn)
+    self.assertEqual(task.metric_fns, new_task.metric_fns)
 
 
 
