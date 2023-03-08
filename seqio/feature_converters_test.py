@@ -1332,5 +1332,31 @@ class PrefixSuffixLMFeatureConverter(tf.test.TestCase):
     assert_dataset(converted_ds, expected)
 
 
+class PrefixLM2RLFeatureConverterTest(tf.test.TestCase):
+
+  def test_lm_unpacked(self):
+    x = [{
+        "inputs": tf.constant([6, 1, 2, 3, 4]),
+        "targets": tf.constant([3, 9, 1]),
+    }]
+    ds = create_default_dataset(
+        x, feature_names=["inputs", "targets"]
+    )
+    task_feature_lengths = {
+        "inputs": 10,
+        "targets": 5,
+    }
+
+    converter = feature_converters.PrefixLM2RLFeatureConverter()
+    converted_ds = converter(ds, task_feature_lengths)
+    expected = {
+        "decoder_target_tokens": [3, 9, 1, 0, 0],
+        "decoder_input_tokens": [6, 1, 2, 3, 4, 0, 0, 0, 0, 0],
+        "decoder_loss_weights": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+        "decoder_causal_attention": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+    }
+    assert_dataset(converted_ds, expected)
+
+
 if __name__ == "__main__":
   tf.test.main()

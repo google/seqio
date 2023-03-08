@@ -1126,6 +1126,124 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
     return self._loss_on_targets_only
 
 
+class PrefixLM2RLFeatureConverter(FeatureConverter):
+  """Feature converter for a prefix LM corpus to be used for RL training.
+
+  The input dataset must have both "inputs" and "targets" fields. For language
+  modeling objective with "targets" only dataset, use LMFeatureConverter.
+
+  For RL, only the "inputs" field is going to be used but we keep the targets
+  for utilization as a length constraint.
+
+  See PrefixLMFeatureConverter for a description of the fields utilized.
+
+  """
+
+  TASK_FEATURES = {
+      "inputs": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "targets": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+  MODEL_FEATURES = {
+      "decoder_target_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_input_tokens": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_loss_weights": FeatureConverter.FeatureSpec(dtype=tf.int32),
+      "decoder_causal_attention": FeatureConverter.FeatureSpec(dtype=tf.int32),
+  }
+  PACKING_FEATURE_DTYPES = {}
+
+  def __init__(self,
+               **kwargs) -> None:
+    super().__init__(**kwargs)
+
+  def _convert_example(
+      self, features: Mapping[str, tf.Tensor]
+  ) -> Mapping[str, tf.Tensor]:
+    """Convert a Prefix LM example into an example with RL model features.
+
+    Example:
+    ```
+    Suppose the original dataset is
+
+    ds = [{"inputs": [9, 4, 6, 1], "targets": [3, 9, 1]}]
+
+    Then the input features to this method (after padding) are
+
+    features = {
+                   "inputs"  =   [9, 4, 6, 1, 0, 0, 0, 0, 0]
+                   "targets" =   [3, 9, 1, 0, 0, 0, 0, 0, 0]
+          "inputs_positions" =   [0, 1, 2, 3, 0, 0, 0, 0, 0]
+    }
+
+    where "inputs_positions" indicates valid input positions.
+
+    Then we compute "decoder_causal_attention". For an upacked dataset, we need
+    to define the decoder_causal_attention; we do this similar to the
+    LMFeatureConverter by tiling the length+1 and creating an array of the
+    positions and then the decoder causal attention is where the positions
+    are less than the inputs_width:
+
+        "inputs_width_add_pos" = [4, 4, 4, 4, 0, 0, 0, 0, 0]
+                   "positions" = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+                           <     ---------------------------
+    "decoder_causal_attention" = [1, 1, 1, 1, 0, 0, 0, 0, 0]
+    ```
+
+    Args:
+      features: an input tf.data.Dataset to be converted.
+
+    Returns:
+      d: the converted features.
+    """
+
+    inputs = features["inputs"]
+    targets = features["targets"]
+    d = {
+        "decoder_target_tokens": targets,
+        "decoder_input_tokens": inputs,
+        "decoder_loss_weights": non_padding_position(features["inputs"]),
+    }
+    width = tf.argmax(features["inputs_positions"]) + 1
+    inputs_size = tf.size(inputs)
+    positions = tf.range(inputs_size, dtype=tf.int64)
+    inputs_width = tf.fill([inputs_size], width)
+    # Binary mask where 1 represents a position in a non-causal attention region
+    d["decoder_causal_attention"] = tf.cast(
+        positions < inputs_width, dtype=features["targets"].dtype
+    )
+    return d
+
+  def _convert_features(
+      self, ds: tf.data.Dataset, task_feature_lengths: Mapping[str, int]
+  ) -> tf.data.Dataset:
+    """Convert the input dataset to an output dataset to be fed to the model.
+
+    Args:
+      ds: an input tf.data.Dataset to be converted.
+      task_feature_lengths: a mapping from task feature name to its length.
+
+    Returns:
+      ds: the converted dataset.
+    """
+    ds = self._pack_or_pad(ds, task_feature_lengths)
+    return ds.map(
+        self._convert_example, num_parallel_calls=tf.data.experimental.AUTOTUNE
+    )
+
+  def get_model_feature_lengths(
+      self, task_feature_lengths: Mapping[str, int]
+  ) -> Mapping[str, int]:
+    """Define the length relationship between task and model features."""
+    decoder_length = task_feature_lengths["targets"]
+    inputs_length = task_feature_lengths["inputs"]
+    model_feature_lengths = {
+        "decoder_target_tokens": decoder_length,
+        "decoder_input_tokens": inputs_length,
+        "decoder_loss_weights": inputs_length,
+        "decoder_causal_attention": inputs_length,
+    }
+    return model_feature_lengths
+
+
 class PrefixSuffixLMFeatureConverter(PrefixLMFeatureConverter):
   """Feature converter for a input + target + suffix language model.
 
