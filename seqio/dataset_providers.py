@@ -952,9 +952,6 @@ class Task(DatasetProviderBase):
     # Capture constructor arguments and use them lazily to speed up
     # Task initialization in case many Tasks are being created that are unused.
     self._metric_fn_constructor_args = metric_fns
-    self._predict_metric_fns = []
-    self._predict_with_aux_metric_fns = []
-    self._score_metric_fns = []
 
     self._name = name
     self._source = source
@@ -1003,8 +1000,15 @@ class Task(DatasetProviderBase):
     """List of all metric objects."""
     return self._metric_objs
 
-  def _instantiate_metric_fns(self) -> None:
-    """Instantiates metric functions.
+  @functools.cached_property
+  def _all_metric_fns(
+      self,
+  ) -> Tuple[
+      List[MetricFnCallable],
+      List[MetricFnCallable],
+      List[MetricFnCallable],
+  ]:
+    """Creates all metric functions {predict,score,predict_with_aux}_metric_fns.
 
     Validation of metric functions, which depend on slow `inspect` calls to help
     catch common errors, is deferred slightly:
@@ -1013,11 +1017,17 @@ class Task(DatasetProviderBase):
     If/when the module-level TaskRegistry.add pattern is turned down, validation
     can probably be made eager again.
 
+    Returns:
+      tuple: predict_metric_fns, score_metric_fns, predict_with_aux_metric_fns.
     Raises:
       ValueError if metric functions don't have positional arguments matching
        (targets, scores), (targets, predictions), or
        (targets, predictions, aux_values)
     """
+    predict_fns = []
+    score_fns = []
+    predict_with_aux_fns = []
+
     for metric_fn in self._metric_fn_constructor_args:
       pos_args = tuple(
           key
@@ -1025,12 +1035,12 @@ class Task(DatasetProviderBase):
           if param.default == inspect.Parameter.empty
           and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
       )
-      if pos_args == ("targets", "scores"):
-        self._score_metric_fns.append(metric_fn)
-      elif pos_args == ("targets", "predictions"):
-        self._predict_metric_fns.append(metric_fn)
+      if pos_args == ("targets", "predictions"):
+        predict_fns.append(metric_fn)
+      elif pos_args == ("targets", "scores"):
+        score_fns.append(metric_fn)
       elif pos_args == ("targets", "predictions", "aux_values"):
-        self._predict_with_aux_metric_fns.append(metric_fn)
+        predict_with_aux_fns.append(metric_fn)
       else:
         raise ValueError(
             "Metric functions must have positional arguments matching either "
@@ -1038,42 +1048,28 @@ class Task(DatasetProviderBase):
             "('targets', 'predictions', 'aux_values'). "
             f"Got: {pos_args}"
         )
+    return predict_fns, score_fns, predict_with_aux_fns
 
-  @functools.cached_property
+  @property
   def metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of all metric functions."""
-    if (
-        not self._predict_metric_fns
-        or not self._score_metric_fns
-        or not self._predict_with_aux_metric_fns
-    ):
-      self._instantiate_metric_fns()
-    return (
-        self._predict_metric_fns
-        + self._score_metric_fns
-        + self._predict_with_aux_metric_fns
-    )
+    predict_fns, score_fns, predict_with_aux_fns = self._all_metric_fns
+    return predict_fns + score_fns + predict_with_aux_fns  # pytype: disable=unsupported-operands
 
-  @functools.cached_property
-  def score_metric_fns(self) -> Sequence[MetricFnCallable]:
-    """List of metric functions that use log likelihood scores."""
-    if not self._score_metric_fns:
-      self._instantiate_metric_fns()
-    return self._score_metric_fns
-
-  @functools.cached_property
+  @property
   def predict_metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of metric functions that use model predictions."""
-    if not self._predict_metric_fns:
-      self._instantiate_metric_fns()
-    return self._predict_metric_fns
+    return self._all_metric_fns[0]
+
+  @property
+  def score_metric_fns(self) -> Sequence[MetricFnCallable]:
+    """List of metric functions that use log likelihood scores."""
+    return self._all_metric_fns[1]
 
   @functools.cached_property
   def predict_with_aux_metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of metric functions that use model predictions with aux values."""
-    if self._predict_with_aux_metric_fns is None:
-      self._instantiate_metric_fns()
-    return self._predict_with_aux_metric_fns
+    return self._all_metric_fns[2]
 
   @property
   def output_features(self) -> Mapping[str, Feature]:
