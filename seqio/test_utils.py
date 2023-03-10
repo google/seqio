@@ -734,7 +734,7 @@ class DataInjector:
     self._task = dataset_providers.get_mixture_or_task(task_name)
 
     self.per_split_data = per_split_data
-    self._saved_source = self._task._source
+    self._saved_source = self._task._source  # pytype: disable=attribute-error  # always-use-return-annotations
 
   def __enter__(self):
     def ds_fn(split, shuffle_files, seed=None):
