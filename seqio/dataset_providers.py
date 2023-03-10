@@ -1561,7 +1561,9 @@ class Mixture(DatasetProviderBase):
           Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
       ],
       default_rate: Optional[MixtureRate] = None,
-      sample_fn: SampleFn = tf.data.experimental.sample_from_datasets,
+      sample_fn: SampleFn = functools.partial(
+          tf.data.Dataset.sample_from_datasets, stop_on_empty_dataset=True
+      ),
   ):
     """Mixture constructor.
 
@@ -1834,7 +1836,9 @@ class PyGloveTunableMixture(Mixture):
           Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
       ],
       default_rate: Optional[MixtureRate] = None,
-      sample_fn: SampleFn = tf.data.experimental.sample_from_datasets,
+      sample_fn: SampleFn = functools.partial(
+          tf.data.Dataset.sample_from_datasets, stop_on_empty_dataset=True
+      ),
   ):
     def hyper_ratio(task_name, hyper):
       """Function for converting PyGlove hyper primitive as ratio fn."""
