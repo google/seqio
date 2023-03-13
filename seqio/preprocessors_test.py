@@ -282,6 +282,8 @@ class PreprocessorsTest(tf.test.TestCase):
     )
 
   def test_append_to_innermost_axis(self):
+    # Skip this test until a new version of TF is released.
+    self.skipTest('b/273289576')
     test_cases = [
         ([1, 2, 3], -1, [1, 2, 3, -1]),
         ([[1, 2], [3, 4]], -1, [[1, 2, -1], [3, 4, -1]]),
