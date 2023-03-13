@@ -27,7 +27,6 @@ import numbers
 import operator
 import os
 import re
-import types
 from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
@@ -305,14 +304,6 @@ class DataSource(DatasetProviderBase):
 
 
 
-def _get_name(function) -> str:
-  """Returns the name of a (possibly partially applied) function."""
-  if isinstance(function, functools.partial):
-    return function.func.__name__
-  else:
-    return function.__name__
-
-
 def _validate_args(fn, expected_pos_args):
   """Ensure function has exactly expected positional args."""
   argspec = inspect.getfullargspec(fn)
@@ -321,7 +312,7 @@ def _validate_args(fn, expected_pos_args):
   if actual_args[: len(expected_pos_args)] != expected_pos_args:
     raise ValueError(
         "'%s' must have positional args %s, got: %s"
-        % (_get_name(fn), expected_pos_args, actual_args)
+        % (utils.function_name(fn), expected_pos_args, actual_args)
     )
   actual_pos_args = tuple(
       argspec.args[: -len(argspec.defaults)]
@@ -331,7 +322,7 @@ def _validate_args(fn, expected_pos_args):
   if actual_pos_args != expected_pos_args[: len(actual_pos_args)]:
     raise ValueError(
         "'%s' may only have positional args %s, got: %s"
-        % (_get_name(fn), expected_pos_args, actual_pos_args)
+        % (utils.function_name(fn), expected_pos_args, actual_pos_args)
     )
 
 
@@ -1097,9 +1088,10 @@ class Task(DatasetProviderBase):
         prep_args = inspect.signature(prep).parameters.keys()
         if "sequence_length" in prep_args:
           raise ValueError(
-              f"'{_get_name(prep)}' has a `sequence_length` argument but occurs"
-              f" before `CacheDatasetPlaceholder` in '{self.name}'. This is not"
-              " allowed since the sequence length is specified at run time."
+              f"'{utils.function_name(prep)}' has a `sequence_length` argument"
+              f" but occurs before `CacheDatasetPlaceholder` in '{self.name}'."
+              " This is not allowed since the sequence length is specified at"
+              " run time."
           )
         if "seed" in prep_args or "seeds" in prep_args:
           logging.warning(
@@ -1109,7 +1101,7 @@ class Task(DatasetProviderBase):
                   "since the same samples will be used each epoch when reading "
                   "from the cache."
               ),
-              _get_name(prep),
+              utils.function_name(prep),
               self.name,
           )
 

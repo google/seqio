@@ -20,6 +20,8 @@ import dataclasses
 import functools
 import inspect
 import os
+import re
+import types
 from typing import Any, Callable, Dict, Mapping, Optional, Union
 
 from absl import logging
@@ -1340,3 +1342,14 @@ def map_over_dataset(
 def fully_qualified_class_name(instance: Any) -> str:
   """Returns the fully qualified class name of the given instance."""
   return f"{type(instance).__module__}.{type(instance).__name__}"
+
+
+def function_name(function) -> str:
+  """Returns the name of a (possibly partially applied) function."""
+  if isinstance(function, functools.partial):
+    # functools.partial can be applied multiple times.
+    return function_name(function.func)
+  else:
+    return function.__name__
+
+
