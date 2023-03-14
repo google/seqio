@@ -923,6 +923,7 @@ def test_postprocessing(
     feature_encoder: feature_converters.FeatureConverter = feature_converters.EncDecFeatureConverter(
         pack=False
     ),
+    sequence_length: Optional[Mapping[str, int]] = None,
 ) -> Mapping[str, Any]:
   """Test the postprocessing and metrics for a given task.
 
@@ -948,6 +949,7 @@ def test_postprocessing(
     score_output: A list of floats representing the score of the raw_data.
       Optional, only used when the task specifies score_metric_fns.
     feature_encoder: An optional feature encoder object. Defaults to None.
+    sequence_length: An optional length specification.
 
   Returns:
     metrics: a mapping from metric name to values.
@@ -983,7 +985,9 @@ def test_postprocessing(
 
   with DataInjector(task_name, raw_data):
     evaluator = evaluation.Evaluator(
-        task_name, feature_converter=feature_encoder
+        task_name,
+        feature_converter=feature_encoder,
+        sequence_length=sequence_length,
     )
 
     return evaluator.evaluate(
