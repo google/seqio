@@ -229,7 +229,7 @@ class DataSource(DatasetProviderBase):
   """A `DatasetProvider` that provides raw data from an input source.
 
   Inherits all abstract methods and properties of `DatasetProviderBase` except
-  those overidden below.
+  those overridden below.
   """
 
   def __init__(
@@ -1737,7 +1737,7 @@ class Mixture(DatasetProviderBase):
       copy_pretokenized: bool, whether to pass through copies of pretokenized
         features a "_pretokenized" suffix added to the key.
       compute_stats_empirically: a boolean - does not work on TPU
-      log_mixing_proportions: whether to log the mixing porportions of the tasks
+      log_mixing_proportions: whether to log the mixing proportions of the tasks
       passthrough_features: a list of additional features that will be kept
         after the feature filtering. If set to be None, then only the
         output_features defined for the mixture will be kept.
