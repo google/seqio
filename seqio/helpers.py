@@ -173,7 +173,7 @@ class TruncatedDatasetProvider(dp.DataSource):
 
   def __init__(
       self,
-      child: dp.DataSource,
+      child: dp.DatasetProvider,
       split_sizes: Mapping[str, int],
       shuffle_buffer_size: Optional[int] = None,
   ):

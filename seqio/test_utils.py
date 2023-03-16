@@ -1351,6 +1351,63 @@ class FakeTaskTest(absltest.TestCase):
         preprocessors=self.DEFAULT_PREPROCESSORS + (test_token_preprocessor,),
     )
 
+    # Prepare Task with Task source
+    self.task_with_task_source = self.add_task(
+        "task_with_task_source", source=self.uncached_task, preprocessors=[]
+    )
+    # Prepare cache for above task
+    self.cached_task_with_task_dir = os.path.join(
+        self.test_data_dir, "task_with_task_source"
+    )
+    _dump_fake_dataset(
+        os.path.join(self.cached_task_with_task_dir, "train.tfrecord"),
+        _FAKE_TOKENIZED_DATASET["train"],
+        [2, 1],
+        _dump_examples_to_tfrecord,
+    )
+    _dump_fake_dataset(
+        os.path.join(self.cached_task_with_task_dir, "validation.tfrecord"),
+        _FAKE_TOKENIZED_DATASET["validation"],
+        [2],
+        _dump_examples_to_tfrecord,
+    )
+
+    # Prepare Task with Mixture source
+    MixtureRegistry.add("mixture_for_task", [("uncached_task", 1.0)])
+    self.mixture_for_task = MixtureRegistry.get("mixture_for_task")
+    self.mixture_for_task.get_dataset = functools.partial(
+        self.mixture_for_task.get_dataset,
+        passthrough_features=[
+            "inputs_pretokenized",
+            "targets_pretokenized",
+            "id",
+            "ids",
+            "idx",
+            "idxs",
+        ],
+    )
+    self.task_with_mixture_source = self.add_task(
+        "task_with_mixture_source",
+        source=self.mixture_for_task,
+        preprocessors=[],
+    )
+    # Prepare cache for above task
+    self.cached_task_with_mixture_dir = os.path.join(
+        self.test_data_dir, "task_with_mixture_source"
+    )
+    _dump_fake_dataset(
+        os.path.join(self.cached_task_with_mixture_dir, "train.tfrecord"),
+        _FAKE_TOKENIZED_DATASET["train"],
+        [2, 1],
+        _dump_examples_to_tfrecord,
+    )
+    _dump_fake_dataset(
+        os.path.join(self.cached_task_with_mixture_dir, "validation.tfrecord"),
+        _FAKE_TOKENIZED_DATASET["validation"],
+        [2],
+        _dump_examples_to_tfrecord,
+    )
+
   def tearDown(self):
     super().tearDown()
     self._tfds_patcher.stop()

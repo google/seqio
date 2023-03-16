@@ -72,14 +72,16 @@ class ShardInfo:
   num_shards: int
 
 
-class DatasetProviderBase(metaclass=abc.ABCMeta):
-  """Abstract base for classes that provide a tf.data.Dataset."""
+class DatasetProvider(metaclass=abc.ABCMeta):
+  """Interface for classes that provide a tf.data.Dataset."""
 
-  @abc.abstractproperty
+  @property
+  @abc.abstractmethod
   def output_features(self) -> Mapping[str, Feature]:
     raise NotImplementedError
 
-  @abc.abstractproperty
+  @property
+  @abc.abstractmethod
   def splits(self) -> Sequence[str]:
     raise NotImplementedError
 
@@ -101,6 +103,84 @@ class DatasetProviderBase(metaclass=abc.ABCMeta):
   def num_input_examples(self, split: str) -> Optional[int]:
     raise NotImplementedError
 
+  @property
+  @abc.abstractmethod
+  def caching_permitted(self) -> bool:
+    """Indicates whether this dataset provider may be cached.
+
+    Caching may be prohibited for the sake of data versioning rigor or as a
+    matter of policy for certain datasets.
+    """
+    return NotImplementedError
+
+  @property
+  @abc.abstractmethod
+  def supports_arbitrary_sharding(self) -> bool:
+    return NotImplementedError
+
+  @property
+  @abc.abstractmethod
+  def cache_dir(self) -> Optional[str]:
+    return NotImplementedError
+
+  @abc.abstractmethod
+  def list_shards(self, split: str) -> Sequence[str]:
+    raise NotImplementedError
+
+
+
+class DatasetProviderBase(DatasetProvider, metaclass=abc.ABCMeta):
+  """Abstract base for classes that provide a tf.data.Dataset."""
+
+  @property
+  @abc.abstractmethod
+  def output_features(self) -> Mapping[str, Feature]:
+    raise NotImplementedError
+
+  @property
+  @abc.abstractmethod
+  def splits(self) -> Sequence[str]:
+    raise NotImplementedError
+
+  @abc.abstractmethod
+  def get_dataset(
+      self,
+      sequence_length: Optional[Mapping[str, int]] = None,
+      split: str = tfds.Split.TRAIN,
+      use_cached: bool = False,
+      shuffle: bool = True,
+      seed: Optional[int] = None,
+      shard_info: Optional[ShardInfo] = None,
+      num_epochs: Optional[int] = 1,
+  ) -> tf.data.Dataset:
+    """Returns the requested tf.data.Dataset."""
+    raise NotImplementedError
+
+  @abc.abstractmethod
+  def num_input_examples(self, split: str) -> Optional[int]:
+    raise NotImplementedError
+
+  @property
+  def caching_permitted(self) -> bool:
+    """Indicates whether this dataset provider may be cached.
+
+    Caching may be prohibited for the sake of data versioning rigor or as a
+    matter of policy for certain datasets.
+    """
+    return True
+
+  @property
+  def supports_arbitrary_sharding(self) -> bool:
+    return True
+
+  @property
+  def cache_dir(self) -> Optional[str]:
+    return None
+
+  def list_shards(self, split: str) -> Sequence[str]:
+    raise NotImplementedError
+
+
 
 class DatasetProviderRegistry(object):
   """Base for registry of data providers.
@@ -110,8 +190,8 @@ class DatasetProviderRegistry(object):
   """
 
   # Class variables must be defined in subclasses.
-  _REGISTRY: MutableMapping[str, DatasetProviderBase]
-  _PROVIDER_TYPE: Type[DatasetProviderBase]
+  _REGISTRY: MutableMapping[str, DatasetProvider]
+  _PROVIDER_TYPE: Type[DatasetProvider]
 
   @classmethod
   def add_provider(cls, name: str, provider):
@@ -228,7 +308,7 @@ class DataSourceInterface(typing_extensions.Protocol):
 class DataSource(DatasetProviderBase):
   """A `DatasetProvider` that provides raw data from an input source.
 
-  Inherits all abstract methods and properties of `DatasetProviderBase` except
+  Inherits all abstract methods and properties of `DatasetProvider` except
   those overidden below.
   """
 
@@ -264,7 +344,7 @@ class DataSource(DatasetProviderBase):
 
   @property
   def output_features(self) -> Mapping[str, Feature]:
-    """Override unused property of `DatasetProviderBase`."""
+    """Override unused property of `DatasetProvider`."""
     raise NotImplementedError
 
   @abc.abstractmethod
@@ -887,7 +967,7 @@ class Task(DatasetProviderBase):
   def __init__(
       self,
       name: str,
-      source: DataSource,
+      source: DatasetProvider,
       output_features: Mapping[str, Feature],
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
@@ -899,7 +979,7 @@ class Task(DatasetProviderBase):
 
     Args:
       name: a unique name for the Task.
-      source: a `DataSource` that provides a raw `tf.data.Dataset`.
+      source: a `DatasetProvider` that provides a raw `tf.data.Dataset`.
       output_features: dict(str, Feature), output features of the Task to be
         passed to the model. After preprocessing, examples will be validated to
         ensure they include features that match this specification. Note that
@@ -1074,7 +1154,7 @@ class Task(DatasetProviderBase):
     return s
 
   @property
-  def source(self) -> DataSource:
+  def source(self) -> DatasetProvider:
     return self._source
 
   def _validate_preprocessors(self):
@@ -1344,7 +1424,7 @@ class Task(DatasetProviderBase):
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
       num_epochs: Optional[int] = 1,
-      trim_output_features: bool = True,  # Unique to Task
+      trim_output_features: bool = True,  # unique to Task & Mixture
   ) -> tf.data.Dataset:
     """Returns a tf.data.Dataset from cache or generated on the fly.
 
@@ -1413,12 +1493,32 @@ class Task(DatasetProviderBase):
       shard_data_source = True
       shard_info = None
 
+    # If source is a Task or Mixture, we will have addional arguments to pass.
+    # This can be removed and added to the call when we are certain all
+    # DataSources inherit the full get_dataset method signature.
+    kwargs = {}
+    if isinstance(source, Task):
+      kwargs["sequence_length"] = sequence_length
+      kwargs["use_cached"] = use_cached
+      kwargs["shuffle_buffer_size"] = shuffle_buffer_size
+      kwargs["num_epochs"] = num_epochs
+      kwargs["trim_output_features"] = trim_output_features
+    elif isinstance(source, Mixture):
+      kwargs["sequence_length"] = sequence_length
+      kwargs["use_cached"] = use_cached
+      kwargs["num_epochs"] = num_epochs
+      kwargs["trim_output_features"] = trim_output_features
+
     if shard_data_source:
       ds = source.get_dataset(
-          split=split, shuffle=shuffle, seed=seed, shard_info=shard_info
+          split=split,
+          shuffle=shuffle,
+          seed=seed,
+          shard_info=shard_info,
+          **kwargs,
       )
     else:
-      ds = source.get_dataset(split=split, shuffle=shuffle, seed=seed)
+      ds = source.get_dataset(split=split, shuffle=shuffle, seed=seed, **kwargs)
       ds = ds.shard(shard_info.num_shards, shard_info.index)
 
     if (
@@ -1466,7 +1566,7 @@ class Task(DatasetProviderBase):
 
   def _get_cached_source(
       self, split: str, file_shuffle_buffer_size: Optional[int] = None
-  ) -> _CachedDataSource:
+  ) -> DatasetProvider:
     """Returns a DataSource to read cached files for split."""
     self.assert_cached()
     file_shuffle_buffer_size = (
@@ -1502,7 +1602,7 @@ class TaskRegistry(DatasetProviderRegistry):
   def add(
       cls,
       name: str,
-      source: DataSourceInterface,
+      source: DatasetProvider,
       output_features: Mapping[str, Feature],
       preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None,
       postprocess_fn: Optional[Callable[..., Any]] = None,
@@ -2146,7 +2246,7 @@ def get_dataset(
 
   mixture_or_task = (
       get_mixture_or_task(mixture_or_task_name)
-      if not isinstance(mixture_or_task_name, DatasetProviderBase)
+      if not isinstance(mixture_or_task_name, DatasetProvider)
       else mixture_or_task_name
   )
   is_grain_task = False
