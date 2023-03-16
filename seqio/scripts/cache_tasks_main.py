@@ -131,6 +131,16 @@ flags.DEFINE_integer(
     "The base seed used to reproducibly generate seeds for preprocessing.",
 )
 
+flags.DEFINE_boolean(
+    "enable_char_counts",
+    False,
+    (
+        "If set, counts characters in the preprocessed dataset and writes to"
+        " stats.json. Detokenizes the dataset adds significant overhead. Enable"
+        " with caution."
+    ),
+)
+
 
 def _import_modules(modules):
   for module in modules:
@@ -294,7 +304,10 @@ def run_pipeline(
       )
       completion_values.append(
           examples
-          | "%s_stats" % label >> beam_utils.GetStats(task.output_features)
+          | "%s_stats" % label
+          >> beam_utils.GetStats(
+              task.output_features, enable_char_counts=FLAGS.enable_char_counts
+          )
           | "%s_write_stats" % label
           >> beam_utils.WriteJson(
               seqio.get_cached_stats_path(output_dir, split)

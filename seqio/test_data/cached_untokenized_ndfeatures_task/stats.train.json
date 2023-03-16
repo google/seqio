@@ -3,7 +3,5 @@
   "2d_feature_tokens": 9,
   "3d_feature_max_tokens": 6,
   "3d_feature_tokens": 18,
-  "examples": 3,
-  "inputs_chars": 43,
-  "targets_chars": 29
+  "examples": 3
 }
