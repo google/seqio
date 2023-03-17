@@ -133,9 +133,8 @@ class PreprocessTask(beam.PTransform):
         shuffle=False,
         seed=shard_preprocessors_seed,
     )
-
-    ds = ds.prefetch(tf.data.AUTOTUNE)
     ds = self._task.preprocess_precache(ds, seed=shard_preprocessors_seed)
+    ds = ds.prefetch(tf.data.AUTOTUNE)
 
     def _add_provenance(index_within_shard: int, ex: Dict[str, Any]):
       ex.update({
