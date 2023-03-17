@@ -17,6 +17,7 @@
 Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 """
 
+
 import abc
 import collections
 import dataclasses
@@ -28,7 +29,6 @@ import operator
 import os
 import re
 from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
-
 from absl import logging
 import clu.metrics
 import editdistance
@@ -37,6 +37,7 @@ from packaging import version as version_lib
 import pyglove as pg
 from seqio import metrics as metrics_lib
 from seqio import preprocessors as seqio_preprocessors
+from seqio import task_registry_provenance_tracking
 from seqio import utils
 from seqio.feature_converters import FeatureConverter
 from seqio.vocabularies import PassThroughVocabulary
@@ -126,6 +127,11 @@ class DatasetProviderRegistry(object):
       )
 
     cls._REGISTRY[name] = provider
+
+    task_registry_provenance_tracking.maybe_record_provenance(
+        frame=inspect.currentframe(),
+        name=name,
+    )
 
   @classmethod
   def add(cls, name: str, provider_cls, provider_kwargs):
@@ -930,6 +936,8 @@ class Task(DatasetProviderBase):
           "Task name '%s' contains invalid characters. Must match regex: %s"
           % (name, _VALID_TASK_NAME_REGEX.pattern)
       )
+
+    self._name = name
     # Convert metric_fns into metric_objs for backward compatibility.
     metric_fns = metric_fns or []
     metric_objs = metric_objs or []
@@ -1522,6 +1530,7 @@ class TaskRegistry(DatasetProviderRegistry):
         "metric_objs": metric_objs,
         **kwargs,
     }
+
     return super().add(
         name, provider_cls=task_cls, provider_kwargs=provider_kwargs
     )
@@ -1531,7 +1540,6 @@ class TaskRegistry(DatasetProviderRegistry):
   @classmethod
   def get(cls, name) -> Task:
     return super().get(name)
-
 
 # ================================ Mixtures ====================================
 SampleFn = Callable[
