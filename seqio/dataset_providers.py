@@ -1541,6 +1541,7 @@ class TaskRegistry(DatasetProviderRegistry):
   def get(cls, name) -> Task:
     return super().get(name)
 
+
 # ================================ Mixtures ====================================
 SampleFn = Callable[
     [Sequence[tf.data.Dataset], Sequence[float], Optional[int]], tf.data.Dataset
