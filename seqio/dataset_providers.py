@@ -28,7 +28,7 @@ import numbers
 import operator
 import os
 import re
-from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Callable, ClassVar, Generic, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 from absl import logging
 import clu.metrics
 import editdistance
@@ -136,7 +136,54 @@ class DatasetProviderBase(metaclass=abc.ABCMeta):
     raise NotImplementedError
 
 
-class DatasetProviderRegistry(object):
+_DatasetProviderT = TypeVar("_DatasetProviderT", bound=DatasetProviderBase)
+
+
+class DatasetProviderFactoryBase(
+    Generic[_DatasetProviderT], metaclass=abc.ABCMeta
+):
+  """Abstract base class for factories of dataset providers.
+
+  This is EXPERIMENTAL and is likely to change. Use at own risk.
+  """
+
+  @classmethod
+  def name(cls) -> str:
+    """Returns the name of this factory.
+
+    The name is used as a part of the complete name in registries. For example,
+    if you have a `TaskDef` factory with name `abc`, which has a config called
+    `xyz`, then the complete task name is `abc:xyz`.
+    """
+    return tfds.core.naming.camelcase_to_snakecase(cls.__name__)
+
+  @abc.abstractmethod
+  def names(self) -> Sequence[str]:
+    """Returns all the dataset provider names that are defined in this factory."""
+    raise NotImplementedError
+
+  @abc.abstractmethod
+  def get(
+      self, config_name: Optional[str] = None
+  ) -> Optional[_DatasetProviderT]:
+    """Returns an instantiated dataset provider with the given config.
+
+    For example, if there's a `TaskDef` called 'wikipedia' with a `TaskConfig`
+    with config 'en' and version '1.0.0', then the this factory instance has
+    name `wikipedia` and you could create that task by calling
+    `.get(config_name='en:1.0.0')`. Note that the full task name is
+    `wikipedia:en:1.0.0`.
+
+    Arguments:
+      config_name: the config.
+
+    Returns:
+      the instantiated dataset provider with the given config.
+    """
+    raise NotImplementedError
+
+
+class DatasetProviderRegistry:
   """Base for registry of data providers.
 
   Subclasses must wrap `get` method to override the return type for pytype.
@@ -145,6 +192,9 @@ class DatasetProviderRegistry(object):
 
   # Class variables must be defined in subclasses.
   _REGISTRY: MutableMapping[str, DatasetProviderBase]
+  _FACTORY_REGISTRY: MutableMapping[
+      str, DatasetProviderFactoryBase[DatasetProviderBase]
+  ]
   _PROVIDER_TYPE: Type[DatasetProviderBase]
 
   @classmethod
@@ -181,25 +231,66 @@ class DatasetProviderRegistry(object):
     return provider
 
   @classmethod
-  def remove(cls, name):
+  def remove(cls, name: str) -> None:
     """Remove provider from the registry, if it exists."""
     if name in cls._REGISTRY:
-      del cls._REGISTRY[name]
+      cls._REGISTRY.pop(name)
 
   @classmethod
-  def get(cls, name):
+  def add_factory(
+      cls,
+      provider_factory: DatasetProviderFactoryBase[DatasetProviderBase],
+  ) -> None:
+    """Add a dataset provider factory to the registry.
+
+    Dataset provider factories can create dataset providers (tasks & mixtures).
+
+    Arguments:
+      provider_factory: the factory to add to the registry.
+    """
+    name = provider_factory.name()
+    if name in cls._FACTORY_REGISTRY:
+      raise ValueError(f"There's already a factory with name {name}!")
+    cls._FACTORY_REGISTRY[name] = provider_factory
+
+  @classmethod
+  def remove_factory(cls, name: str) -> None:
+    if name in cls._FACTORY_REGISTRY:
+      cls._FACTORY_REGISTRY.pop(name)
+
+  @classmethod
+  def get(cls, name: str):
     """Returns provider from the registry."""
-    if name not in cls._REGISTRY:
+    result = cls._REGISTRY.get(name)
+    if result is None:
+      factory_name, factory_config = name.split(":", maxsplit=1)
+      factory = cls._FACTORY_REGISTRY.get(factory_name)
+      if factory is None:
+        raise ValueError(
+            f"No provider found with name '{name}' and no factory found with"
+            f" name '{factory_name}'."
+        )
+      result = factory.get(factory_config)
+      if result is None:
+        raise ValueError(
+            f"Provider '{name}' not registered, also not found in factory"
+            f" '{factory_name}' with config '{factory_config}'. "
+            f"Factory contains: {factory.names()}"
+        )
+    if result is None:
       raise ValueError("Provider name not registered: %s" % name)
-    return cls._REGISTRY[name]
+    return result
 
   @classmethod
   def names(cls):
     """Returns all provider names in registry."""
-    return cls._REGISTRY.keys()
+    result = list(cls._REGISTRY.keys())
+    for factory in cls._FACTORY_REGISTRY.values():
+      result.extend(factory.names())
+    return result
 
   @classmethod
-  def reset(cls):
+  def reset(cls) -> None:
     """Removes all of the registered tasks."""
     cls._REGISTRY = {}
 
@@ -938,6 +1029,9 @@ class Task(DatasetProviderBase):
       metric_objs: Optional[Sequence[metrics_lib.Metric]] = None,
       shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE,
       source_info: Optional[SourceInfo] = None,
+      version: Optional[Union[str, version_lib.Version]] = None,
+      description: Optional[str] = None,
+      release_notes: Optional[Mapping[str, str]] = None,
   ):
     """Task constructor.
 
@@ -945,7 +1039,7 @@ class Task(DatasetProviderBase):
       name: a unique name for the Task.
       source: a `DataSource` that provides a raw `tf.data.Dataset`.
       output_features: dict(str, Feature), output features of the Task to be
-        passed to the model. After preprocessing, examples will be validated to
+        passed to the model. After preprocessing, examples will be validated dto
         ensure they include features that match this specification. Note that
         additional features may be included (e.g., for evaluation), but they
         will not be passed to the model.
@@ -969,6 +1063,9 @@ class Task(DatasetProviderBase):
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
       source_info: optional metadata about where this `Task` was defined.
+      version: the version of this task.
+      description: human readable description of this task.
+      release_notes: description of what changed per version.
     """
     if not _VALID_TASK_NAME_REGEX.match(name):
       raise ValueError(
@@ -1018,10 +1115,23 @@ class Task(DatasetProviderBase):
     self._output_features = collections.OrderedDict(
         sorted(list(output_features.items()))
     )
+    if isinstance(version, str):
+      version = version_lib.Version(version)
+    self._version = version
+    self._description = description
+    self._release_notes = release_notes
 
   @property
   def name(self) -> str:
     return self._name
+
+  @property
+  def version(self) -> Optional[version_lib.Version]:
+    return self._version
+
+  @property
+  def description(self) -> Optional[str]:
+    return self._description
 
   @property
   def source_info(self) -> Optional[SourceInfo]:
@@ -1556,12 +1666,247 @@ class Task(DatasetProviderBase):
 
 
 
+class _RegisteredTask(abc.ABC):
+  """Subclasses will be registered and given a `name` property."""
+
+  def __init_subclass__(cls, skip_registration: bool = False, **kwargs):
+    super().__init_subclass__(**kwargs)
+    if skip_registration:
+      return
+    if not inspect.isabstract(cls):
+      if issubclass(cls, TaskDef):
+        TaskRegistry.add_factory(cls)
+      else:
+        raise ValueError(f"Do not support class of type {type(cls)}!")
+
+
+@dataclasses.dataclass()
+class TaskConfig:
+  """Configuration for a single task.
+
+  This is EXPERIMENTAL and is likely to change. Use at own risk.
+
+  Attributes:
+    config: the name of the config of this task.
+    version: the version of this task config. If `None`, then the version of the
+      `TaskDef` to which this config belongs is used.
+    description: human-readable description of this task.
+    source: see documentation in `Task`.
+    output_features: see documentation in `Task`.
+    preprocessors: see documentation in `Task`.
+    postprocess_fn: see documentation in `Task`.
+    metric_fns: see documentation in `Task`.
+    metric_objs: see documentation in `Task`.
+    shuffle_buffer_size: see documentation in `Task`.
+  """
+
+  config: Optional[str] = None
+  version: str | version_lib.Version | None = None
+  description: Optional[str] = None
+  source: Optional[DataSource] = None
+  output_features: Optional[Mapping[str, Feature]] = None
+  preprocessors: Optional[Sequence[Callable[..., tf.data.Dataset]]] = None
+  postprocess_fn: Optional[Callable[..., Any]] = None
+  metric_fns: Optional[Sequence[MetricFnCallable]] = None
+  metric_objs: Optional[Sequence[metrics_lib.Metric]] = None
+  shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE
+
+  def config_name(self, version: Optional[str] = None) -> str:
+    """Returns the full name for this task config.
+
+    Note that the version specified inside this config is used, and that the
+    version parameter is used as a fallback in case this config doesn't specify
+    a version.
+
+    Arguments:
+      version: the version of the `TaskDef` to which this config belongs. The
+        version specified in this config overrides the version in the `TaskDef`.
+
+    Returns:
+      the full name for this task config.
+    """
+    parts = []
+    if self.config:
+      parts.append(self.config)
+    if self.version:
+      parts.append(str(self.version))
+    elif version:
+      parts.append(version)
+    return ":".join(parts)
+
+
+class TaskDef(
+    DatasetProviderFactoryBase[Task], _RegisteredTask, skip_registration=True
+):
+  """Definition of a task, possibly with different configs.
+
+  This is EXPERIMENTAL and is likely to change. Use at own risk.
+
+  `TaskDef` stands for 'task definition' and is a factory of tasks. A `TaskDef`
+  can define different 'configs' for:
+
+  * different versions of the same data source, e.g. different versions of a
+    TFDS dataset.
+  * variants with different preprocessors.
+  * variants with tokenization using different vocabularies.
+
+  To use a `TaskDef`, you need to create a subclass in which you override the
+  `VERSION`, `DESCRIPTION`, and `TASK_CONFIGS` class variables. The
+  `TASK_CONFIGS` contains a predefined list of task configs.
+
+  Task that can be created by a `TaskDef` are automatically registered in the
+  `TaskRegistry`. For example:
+  ```
+  class MyTask(seqio.TaskDef):
+    DESCRIPTION = "My task"
+    RELEASE_NOTES = {
+        "1.0.0": "Initial release",
+        "1.1.0": "Add new TFDS dataset version.",
+    }
+    TASK_CONFIGS = [
+        seqio.TaskConfig(
+            config="xyz",
+            version="1.0.0",
+            source=seqio.TfdsDataSource("xyz:1.0.0"),
+            output_features=...,
+            preprocessors=[fn1, fn2],
+        ),
+        seqio.TaskConfig(
+            config="xyz",
+            version="2.0.0",
+            source=seqio.TfdsDataSource("xyz:2.0.0"),
+            output_features=...,
+            preprocessors=[fn1, fn2],
+        ),
+        seqio.TaskConfig(
+            config="xyz_extra_fn",
+            version="2.0.0",
+            source=seqio.TfdsDataSource("xyz:2.0.0"),
+            output_features=...,
+            preprocessors=[fn1, fn2, extra_fn],
+        ),
+    ]
+  ```
+  The names under which tasks defined in a factory are registered with have the
+  following form `<factory_name>:<config>:<version>`, where `<factory_name>` is
+  the class name in camel case, `<config>` is the `config` attribute in
+  `TaskConfig`, and `<version>` is the `version` attribute in `TaskConfig` if
+  not `None`, otherwise the `VERSION` class variable in your `TaskDef` class.
+
+  ```
+  task_xyz_1 = seqio.TaskRegistry("my_task:xyz:1.0.0")
+  task_xyz_extra_fn_2 = seqio.TaskRegistry("my_task:xyz_extra_fn:2.0.0")
+  ```
+  """
+
+  # Version of this task. Use this if all configs of this task have the same
+  # version. If not, use the version attribute in `TaskConfig`.
+  VERSION: ClassVar[str | version_lib.Version | None] = None
+  DESCRIPTION: ClassVar[Optional[str]] = None
+  RELEASE_NOTES: ClassVar[dict[str, str]] = {}
+
+  # Different configs for the same task.
+  TASK_CONFIGS: ClassVar[Sequence[TaskConfig]] = []
+  _TASK_CACHE: ClassVar[dict[str, Task]] = {}
+
+  @classmethod
+  def names(cls) -> Sequence[str]:
+    return [cls.task_name_for(config) for config in cls.TASK_CONFIGS]
+
+  @classmethod
+  def get_config(cls, config_name: str) -> Optional[TaskConfig]:
+    """Returns the `TaskConfig` corresponding to the given config name.
+
+    Arguments:
+      config_name: the name of the config as defined in `TaskConfig`. Must not
+        include the `TaskDef` name.
+
+    Returns:
+      the corresponding `TaskConfig` if one was found with the given
+      `config_name`.
+    """
+    # TODO(weide): support wildcards in version
+    # TODO(weide): support dynamically created TaskConfigs by parsing the given
+    #              config_name and constructing the right TaskConfig.
+    for config in cls.TASK_CONFIGS:
+      if config.config_name(cls.VERSION) == config_name:
+        return config
+    return None
+
+  @classmethod
+  def get(cls, config_name: Optional[str] = None) -> Optional[Task]:
+    """Creates a `seqio.Task` from the config.
+
+    Args:
+      config_name: the name of the task config. If unspecified or `None`, it'll
+        use the first specified task config.
+
+    Returns:
+      A `seqio.Task` object.
+    """
+    if not cls.TASK_CONFIGS:
+      raise ValueError(f"TaskDef {cls.name()} doesn't have any task configs!")
+    if config_name is None:
+      config_name = cls.TASK_CONFIGS[0].config_name(cls.VERSION)
+
+    if config_name not in cls._TASK_CACHE:
+      config = cls.get_config(config_name)
+      if config is None:
+        return None
+      cls._TASK_CACHE[config_name] = cls.task_for(config)
+    return cls._TASK_CACHE[config_name]
+
+  @classmethod
+  def task_name_for(cls, task_config: TaskConfig) -> str:
+    """Returns the full task name to be used in the TaskRegistry for the given config."""
+    parts = [cls.name()]
+    config_name = task_config.config_name(cls.VERSION)
+    if config_name:
+      parts.append(config_name)
+    return ":".join(parts)
+
+  @classmethod
+  def task_for(cls, task_config: TaskConfig) -> Task:
+    """Creates a `seqio.Task` from the config.
+
+    Arguments:
+      task_config: the task config from which to create a `seqio.Task`.
+
+    Returns:
+      instantiated `seqio.Task`.
+
+    Raises:
+      ValueError: when the task config is missing essential attributes such as
+      `source` or `output_features`.
+    """
+    if task_config.source is None:
+      raise ValueError("Cannot create a `seqio.Task` if `source` is None!")
+    if task_config.output_features is None:
+      raise ValueError(
+          "Cannot create a `seqio.Task` if `output_features` is None!"
+      )
+    task_name = cls.task_name_for(task_config)
+    return Task(
+        name=task_name,
+        source=task_config.source,
+        output_features=task_config.output_features,
+        description=task_config.description,
+        preprocessors=task_config.preprocessors,
+        postprocess_fn=task_config.postprocess_fn,
+        metric_fns=task_config.metric_fns,
+        metric_objs=task_config.metric_objs,
+        shuffle_buffer_size=task_config.shuffle_buffer_size,
+        source_info=SourceInfo.for_class(cls),
+    )
+
+
 
 
 class TaskRegistry(DatasetProviderRegistry):
   """Registry of Tasks."""
 
-  _REGISTRY = {}
+  _REGISTRY: MutableMapping[str, Task] = {}
+  _FACTORY_REGISTRY: MutableMapping[str, TaskDef] = {}
   _PROVIDER_TYPE = Task
 
   # pylint: disable=arguments-renamed
@@ -1597,8 +1942,11 @@ class TaskRegistry(DatasetProviderRegistry):
   # pylint: enable=arguments-renamed
 
   @classmethod
-  def get(cls, name) -> Task:
-    return super().get(name)
+  def get(cls, name: str) -> Task:
+    result = super().get(name)
+    if isinstance(result, Task):
+      return result
+    raise TypeError(f"Expected type `Task`, got: {type(result)}")
 
 
 # ================================ Mixtures ====================================
@@ -1625,6 +1973,8 @@ class Mixture(DatasetProviderBase):
           tf.data.Dataset.sample_from_datasets, stop_on_empty_dataset=True
       ),
       source_info: Optional[SourceInfo] = None,
+      version: Optional[str] = None,
+      description: Optional[str] = None,
   ):
     """Mixture constructor.
 
@@ -1652,12 +2002,18 @@ class Mixture(DatasetProviderBase):
       sample_fn: SampleFn callable that implements sampling logic to interleave
         multiple datasets into a single dataset.
       source_info: optional metadata about where this `Mixture` was defined.
+      version: the version of this mixture
+      description: human readable description of this version of this mixture.
     """
     self._task_to_rate = {}
     self._task_map = {}
     self._tasks = []
     self._sub_mixtures = []
     self._name = name
+    if isinstance(version, str):
+      version = version_lib.Version(version)
+    self._version = version
+    self._description = description
     self._sample_fn = sample_fn
     self._source_info = source_info
     for t in tasks:
@@ -1675,7 +2031,7 @@ class Mixture(DatasetProviderBase):
         subtask = (
             TaskRegistry.get(task_name)
             if is_task
-            else MixtureRegistry.get(task_name)
+            else MixtureRegistry.get(task_name)  # pytype: disable=name-error
         )
       else:
         subtask = task_or_name
@@ -1703,6 +2059,14 @@ class Mixture(DatasetProviderBase):
   @property
   def name(self) -> str:
     return self._name
+
+  @property
+  def version(self) -> Optional[version_lib.Version]:
+    return self._version
+
+  @property
+  def description(self) -> Optional[str]:
+    return self._description
 
   @property
   def source_info(self) -> Optional[SourceInfo]:
@@ -1895,6 +2259,130 @@ class Mixture(DatasetProviderBase):
 
 
 
+class _RegisteredMixture(abc.ABC):
+  """Subclasses will be registered and given a `name` property."""
+
+  def __init_subclass__(cls, skip_registration: bool = False, **kwargs):
+    super().__init_subclass__(**kwargs)
+    if skip_registration:
+      return
+    if not inspect.isabstract(cls):
+      if issubclass(cls, MixtureDef):
+        MixtureRegistry.add_factory(cls)
+      else:
+        raise ValueError(f"Do not support class of type {type(cls)}!")
+
+
+@dataclasses.dataclass()
+class MixtureConfig:
+  """Config for a single mixture version.
+
+  This is EXPERIMENTAL and is likely to change. Use at own risk.
+  """
+
+  version: str
+  tasks: Union[
+      Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
+  ]
+  default_rate: Optional[MixtureRate] = None
+  sample_fn: SampleFn = functools.partial(
+      tf.data.Dataset.sample_from_datasets, stop_on_empty_dataset=True
+  )
+
+  def config_name(self) -> str:
+    return self.version
+
+
+class MixtureDef(
+    DatasetProviderFactoryBase[Mixture],
+    _RegisteredMixture,
+    skip_registration=True,
+):
+  """Definition of a mixture, possibly with different versions.
+
+  This is EXPERIMENTAL and is likely to change. Use at own risk.
+
+  A `MixtureDef` stands for 'mixture definition' and is a factory of mixtures.
+  Using the class variable `MIXTURE_CONFIGS`, you can define different versions
+  of the same mixture.
+
+  When you want to use a `MixtureDef`, you have to create a subclass where you
+  override the class variables. `MixtureDef`s are automatically registered in
+  the `MixtureRegistry`.
+
+  The name of the mixtures that it creates are `<mixture_def_name>:<version>`,
+  where `<mixture_def_name>` is the name of your subclass in camel case.
+
+  For example:
+  ```
+  class MyMixture(seqio.MixtureDef):
+    DESCRIPTION = "This is my mixture."
+    RELEASE_NOTES = {
+        "1.0.0": "initial release",
+        "1.1.0": "Updated task weights",
+    }
+    MIXTURE_CONFIGS = [
+        seqio.MixtureConfig(version="1.0.0", tasks=[...]),
+        seqio.MixtureConfig(version="1.1.0", tasks=[...]),
+    ]
+
+  # You can now load them from the registry:
+  mixture1 = seqio.MixtureRegistry.get("my_mixture:1.0.0")
+  mixture2 = seqio.MixtureRegistry.get("my_mixture:1.1.0")
+  ```
+
+  This creates a factory with name `my_mixture`, that has two configs, that are
+  both registered in the `MixtureRegistry` under the names `my_mixture:1.0.0`
+  and `my_mixture:1.1.0`.
+  """
+
+  DESCRIPTION: ClassVar[Optional[str]] = None
+  RELEASE_NOTES: ClassVar[dict[str, str]] = {}
+  MIXTURE_CONFIGS: ClassVar[Sequence[MixtureConfig]] = []
+
+  @classmethod
+  def names(cls) -> Sequence[str]:
+    return [cls.mixture_name_for(config) for config in cls.MIXTURE_CONFIGS]
+
+  @classmethod
+  def get(cls, config_name: Optional[str] = None) -> Optional[Mixture]:
+    """Creates a `seqio.Mixture` from the config.
+
+    Args:
+      config_name: the name of the mixture config. If unspecified or `None`,
+        it'll use the first specified mixture config.
+
+    Returns:
+      A `seqio.Mixture` object.
+    """
+    mixture_config = None
+    if config_name is None:
+      mixture_config = cls.MIXTURE_CONFIGS[0]
+    else:
+      for config in cls.MIXTURE_CONFIGS:
+        if config.config_name() == config_name:
+          mixture_config = config
+          break
+    if mixture_config is None:
+      return None
+    return cls.mixture_for(mixture_config)
+
+  @classmethod
+  def mixture_name_for(cls, mixture_config: MixtureConfig) -> str:
+    return f"{cls.name()}:{mixture_config.config_name()}"
+
+  @classmethod
+  def mixture_for(cls, mixture_config: MixtureConfig) -> Mixture:
+    return Mixture(
+        name=cls.mixture_name_for(mixture_config),
+        tasks=mixture_config.tasks,
+        default_rate=mixture_config.default_rate,
+        sample_fn=mixture_config.sample_fn,
+        version=mixture_config.version,
+        source_info=SourceInfo.for_class(cls),
+    )
+
+
 class PyGloveTunableMixture(Mixture):
   """Mixture whose task rates can be tuned by PyGlove."""
 
@@ -2068,16 +2556,21 @@ def _log_mixing_proportions(
 class MixtureRegistry(DatasetProviderRegistry):
   """Registry of Mixtures."""
 
-  _REGISTRY = {}
+  _REGISTRY: MutableMapping[str, Mixture] = {}
+  _FACTORY_REGISTRY: MutableMapping[
+      str, DatasetProviderFactoryBase[Mixture]
+  ] = {}
   _PROVIDER_TYPE = Mixture
 
   # pylint: disable=arguments-renamed
   @classmethod
   def add(
       cls,
-      name,
-      tasks,
-      default_rate=None,
+      name: str,
+      tasks: Union[
+          Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
+      ],
+      default_rate: Optional[MixtureRate] = None,
       mixture_cls: Type[Mixture] = Mixture,
       **kwargs,
   ) -> Mixture:
@@ -2092,11 +2585,14 @@ class MixtureRegistry(DatasetProviderRegistry):
         name, provider_cls=mixture_cls, provider_kwargs=provider_kwargs
     )
 
-  @classmethod
-  def get(cls, name) -> Mixture:
-    return super().get(name)
-
   # pylint: enable=arguments-renamed
+
+  @classmethod
+  def get(cls, name: str) -> Mixture:
+    result = super().get(name)
+    if isinstance(result, Mixture):
+      return result
+    raise TypeError(f"Expected type `Mixture`, got: {type(result)}")
 
 
 def _get_closest_names(
