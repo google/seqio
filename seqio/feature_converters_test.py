@@ -900,6 +900,25 @@ class PrefixLMFeatureConverter(tf.test.TestCase):
     }
     assert_dataset(converted_ds, expected)
 
+  def test_empty_inputs(self):
+    ds = tf.data.Dataset.from_tensor_slices({
+        "inputs": tf.ragged.constant([[1], [], [2, 3, 4, 5, 6]]),
+        "targets": tf.ragged.constant([[1, 2], [3, 4], [5, 6]]),
+    })
+    converter = feature_converters.PrefixLMFeatureConverter(pack=True)
+    converted_ds = converter(
+        ds.take(3), task_feature_lengths={"inputs": 7, "targets": 7}
+    )
+    expected = {
+        "decoder_target_tokens": [1, 1, 2, 3, 4, 2, 3, 4, 5, 6, 5, 6, 0, 0],
+        "decoder_input_tokens": [0, 1, 1, 0, 3, 0, 2, 3, 4, 5, 6, 5, 0, 0],
+        "decoder_loss_weights": [0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+        "decoder_segment_ids": [1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 0, 0],
+        "decoder_positions": [0, 1, 2, 0, 1, 0, 1, 2, 3, 4, 5, 6, 0, 0],
+        "decoder_causal_attention": [1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+    }
+    assert_dataset(converted_ds, expected)
+
 
 class DecoderFeatureConverterTest(FeatureConvertersTest):
 

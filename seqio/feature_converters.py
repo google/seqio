@@ -1096,6 +1096,17 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
     Returns:
       ds: the converted dataset.
     """
+
+    def swap_vals(t, old_val, new_val):
+      return tf.where(tf.equal(t, old_val), tf.fill([tf.size(t)], new_val), t)
+
+    def swap_inputs_width(ex, old_val, new_val):
+      ex["inputs_width"] = swap_vals(ex["inputs_width"], old_val, new_val)
+      return ex
+
+    replace_0s = functools.partial(swap_inputs_width, old_val=0, new_val=-1)
+    restore_0s = functools.partial(swap_inputs_width, old_val=-1, new_val=-0)
+
     ds = ds.map(
         self._concat_and_add_masks,
         num_parallel_calls=tf.data.experimental.AUTOTUNE,
@@ -1105,7 +1116,10 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
         task_feature_lengths
     )
 
+    ds = ds.map(replace_0s, num_parallel_calls=tf.data.experimental.AUTOTUNE)
     ds = self._pack_or_pad(ds, concat_task_feature_lengths)
+    ds = ds.map(restore_0s, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
     return ds.map(
         self._convert_example, num_parallel_calls=tf.data.experimental.AUTOTUNE
     )
