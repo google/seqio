@@ -937,20 +937,10 @@ class Task(DatasetProviderBase):
           % (name, _VALID_TASK_NAME_REGEX.pattern)
       )
 
-    self._name = name
-    # Convert metric_fns into metric_objs for backward compatibility.
-    metric_fns = metric_fns or []
-    metric_objs = metric_objs or []
-    if metric_fns:
-      metric_objs += [
-          metrics_lib.LegacyMetric.empty(mf, postprocess_fn)
-          for mf in metric_fns
-      ]
-    self._metric_objs = metric_objs
-
     # Capture constructor arguments and use them lazily to speed up
     # Task initialization in case many Tasks are being created that are unused.
-    self._metric_fn_constructor_args = metric_fns
+    self._metric_objs_constructor_args = metric_objs or []
+    self._metric_fn_constructor_args = metric_fns or []
 
     self._name = name
     self._source = source
@@ -979,7 +969,6 @@ class Task(DatasetProviderBase):
             "and try again."
         )
 
-    self._metric_fns = tuple(metric_fns)
     self._postprocess_fn = postprocess_fn
 
     self._cache_dir = None
@@ -994,10 +983,18 @@ class Task(DatasetProviderBase):
   def name(self) -> str:
     return self._name
 
-  @property
+  @functools.cached_property
   def metric_objs(self) -> Sequence[metrics_lib.Metric]:
     """List of all metric objects."""
-    return self._metric_objs
+    # Copy list to prevent callers from directly modifying by accessing public
+    # attribute.
+    to_return = list(x for x in self._metric_objs_constructor_args)
+    if self.metric_fns:
+      to_return += [
+          metrics_lib.LegacyMetric.empty(mf, self._postprocess_fn)
+          for mf in self.metric_fns
+      ]
+    return to_return
 
   @functools.cached_property
   def _all_metric_fns(

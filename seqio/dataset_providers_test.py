@@ -65,6 +65,36 @@ class TasksTest(test_utils.FakeTaskTest):
     ):
       self.add_task("text_line_task", self.text_line_source)
 
+  def test_metric_obj_arg_for_task(self):
+    def score_metric_fn_1(targets, scores):
+      del targets, scores
+      return {}
+
+    def score_metric_fn_2(targets, scores):
+      del targets, scores
+      return {}
+
+    input_metric_objs = [
+        metrics_lib.LegacyMetric.empty(
+            metric_fn=score_metric_fn_1, postprocess_fn=None
+        )
+    ]
+    input_metric_fns = [score_metric_fn_2]
+    task = self.add_task(
+        name="test_metric_obj_arg_for_task",
+        source=self.function_source,
+        preprocessors=self.DEFAULT_PREPROCESSORS,
+        output_features=self.DEFAULT_OUTPUT_FEATURES,
+        metric_fns=input_metric_fns,
+        metric_objs=input_metric_objs,
+    )
+
+    actual_metric_objs = list(task.metric_objs)
+    expected_metric_objs = input_metric_objs + [
+        metrics_lib.LegacyMetric.empty(score_metric_fn_2, None)
+    ]
+    self.assertListEqual(actual_metric_objs, expected_metric_objs)
+
   def test_metric_fn_signature(self):
     # pylint:disable=unused-argument
 
@@ -115,6 +145,10 @@ class TasksTest(test_utils.FakeTaskTest):
       valid_task = add_task(
           "extra_arg_metric", metric_fns=[extra_arg_metric_fn]
       )
+      # Construction (and thus validation) of metric functions and metric
+      # objects is deferred until access time, so we need to actually access
+      # them in order to trigger the error.
+      _ = valid_task.metric_objs
 
     def bad_order_metric_fn(predictions, targets):
       return {}
@@ -125,6 +159,10 @@ class TasksTest(test_utils.FakeTaskTest):
       valid_task = add_task(
           "bad_order_metric", metric_fns=[bad_order_metric_fn]
       )
+      # Construction (and thus validation) of metric functions and metric
+      # objects is deferred until access time, so we need to actually access
+      # them in order to trigger the error.
+      _ = valid_task.metric_objs
 
     def bad_default_metric_fn(targets, predictions=(0)):
       return {}
@@ -135,6 +173,10 @@ class TasksTest(test_utils.FakeTaskTest):
       valid_task = add_task(
           "bad_default_metric", metric_fns=[bad_default_metric_fn]
       )
+      # Construction (and thus validation) of metric functions and metric
+      # objects is deferred until access time, so we need to actually access
+      # them in order to trigger the error.
+      _ = valid_task.metric_objs
 
     def ok_default_metric_fn(targets, predictions, extra_param=3):
       return {}
