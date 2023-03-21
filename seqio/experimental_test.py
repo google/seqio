@@ -983,5 +983,6 @@ class DisableRegistryTest(absltest.TestCase):
         experimental.disable_registry()
         MixtureRegistry.get('dummy_mixture')
 
+
 if __name__ == '__main__':
   absltest.main()

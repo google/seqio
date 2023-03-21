@@ -17,6 +17,7 @@
 Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 """
 
+
 import abc
 import collections
 import dataclasses
@@ -27,9 +28,7 @@ import numbers
 import operator
 import os
 import re
-import types
 from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
-
 from absl import logging
 import clu.metrics
 import editdistance
@@ -38,6 +37,7 @@ from packaging import version as version_lib
 import pyglove as pg
 from seqio import metrics as metrics_lib
 from seqio import preprocessors as seqio_preprocessors
+from seqio import task_registry_provenance_tracking
 from seqio import utils
 from seqio.feature_converters import FeatureConverter
 from seqio.vocabularies import PassThroughVocabulary
@@ -127,6 +127,11 @@ class DatasetProviderRegistry(object):
       )
 
     cls._REGISTRY[name] = provider
+
+    task_registry_provenance_tracking.maybe_record_provenance(
+        frame=inspect.currentframe(),
+        name=name,
+    )
 
   @classmethod
   def add(cls, name: str, provider_cls, provider_kwargs):
@@ -305,14 +310,6 @@ class DataSource(DatasetProviderBase):
 
 
 
-def _get_name(function) -> str:
-  """Returns the name of a (possibly partially applied) function."""
-  if isinstance(function, functools.partial):
-    return function.func.__name__
-  else:
-    return function.__name__
-
-
 def _validate_args(fn, expected_pos_args):
   """Ensure function has exactly expected positional args."""
   argspec = inspect.getfullargspec(fn)
@@ -321,7 +318,7 @@ def _validate_args(fn, expected_pos_args):
   if actual_args[: len(expected_pos_args)] != expected_pos_args:
     raise ValueError(
         "'%s' must have positional args %s, got: %s"
-        % (_get_name(fn), expected_pos_args, actual_args)
+        % (utils.function_name(fn), expected_pos_args, actual_args)
     )
   actual_pos_args = tuple(
       argspec.args[: -len(argspec.defaults)]
@@ -331,7 +328,7 @@ def _validate_args(fn, expected_pos_args):
   if actual_pos_args != expected_pos_args[: len(actual_pos_args)]:
     raise ValueError(
         "'%s' may only have positional args %s, got: %s"
-        % (_get_name(fn), expected_pos_args, actual_pos_args)
+        % (utils.function_name(fn), expected_pos_args, actual_pos_args)
     )
 
 
@@ -939,6 +936,8 @@ class Task(DatasetProviderBase):
           "Task name '%s' contains invalid characters. Must match regex: %s"
           % (name, _VALID_TASK_NAME_REGEX.pattern)
       )
+
+    self._name = name
     # Convert metric_fns into metric_objs for backward compatibility.
     metric_fns = metric_fns or []
     metric_objs = metric_objs or []
@@ -948,38 +947,21 @@ class Task(DatasetProviderBase):
           for mf in metric_fns
       ]
     self._metric_objs = metric_objs
-    self._predict_metric_fns = []
-    self._predict_with_aux_metric_fns = []
-    self._score_metric_fns = []
-    for metric_fn in metric_fns:
-      pos_args = tuple(
-          key
-          for key, param in inspect.signature(metric_fn).parameters.items()
-          if param.default == inspect.Parameter.empty
-          and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
-      )
-      if pos_args == ("targets", "scores"):
-        self._score_metric_fns.append(metric_fn)
-      elif pos_args == ("targets", "predictions"):
-        self._predict_metric_fns.append(metric_fn)
-      elif pos_args == ("targets", "predictions", "aux_values"):
-        self._predict_with_aux_metric_fns.append(metric_fn)
-      else:
-        raise ValueError(
-            "Metric functions must have positional arguments matching either "
-            "('targets', 'scores'), ('targets', 'predictions') or "
-            "('targets', 'predictions', 'aux_values'). "
-            f"Got: {pos_args}"
-        )
+
+    # Capture constructor arguments and use them lazily to speed up
+    # Task initialization in case many Tasks are being created that are unused.
+    self._metric_fn_constructor_args = metric_fns
 
     self._name = name
     self._source = source
 
-    # Find optional CacheDatasetPlaceholder.
-    preprocessors = tuple(preprocessors or [])
+    # Capture constructor arguments and use them lazily to speed up
+    # Task initialization in case many Tasks are being created that are unused.
+    self._preprocessor_constructor_args = preprocessors or ()
+
     self._cache_step_idx: Optional[int] = None
     self._cache_dataset_placerholder: Optional[CacheDatasetPlaceholder] = None
-    for i, p in enumerate(preprocessors):
+    for i, p in enumerate(preprocessors or []):
       if isinstance(p, CacheDatasetPlaceholder):
         if self._cache_step_idx is not None:
           raise ValueError(
@@ -988,33 +970,14 @@ class Task(DatasetProviderBase):
           )
         self._cache_step_idx = i
         self._cache_dataset_placerholder = p
+
     if self._cache_step_idx is not None:
-      if not source.caching_permitted:
+      if not self.source.caching_permitted:
         raise ValueError(
-            f"Caching was requested for '{name}', but the underlying data "
+            f"Caching was requested for '{self.name}', but the underlying data "
             "source prohibits caching. Please remove `CacheDatasetPlaceholder` "
             "and try again."
         )
-      for prep in preprocessors[: self._cache_step_idx]:
-        prep_args = inspect.signature(prep).parameters.keys()
-        if "sequence_length" in prep_args:
-          raise ValueError(
-              f"'{_get_name(prep)}' has a `sequence_length` argument but occurs"
-              f" before `CacheDatasetPlaceholder` in '{name}'. This is not"
-              " allowed since the sequence length is specified at run time."
-          )
-        if "seed" in prep_args or "seeds" in prep_args:
-          logging.warning(
-              (
-                  "'%s' has a `seed(s)` argument but occurs before "
-                  "`CacheDatasetPlaceholder` in '%s'. This is not recommended "
-                  "since the same samples will be used each epoch when reading "
-                  "from the cache."
-              ),
-              _get_name(prep),
-              name,
-          )
-    self._preprocessors = preprocessors
 
     self._metric_fns = tuple(metric_fns)
     self._postprocess_fn = postprocess_fn
@@ -1036,29 +999,76 @@ class Task(DatasetProviderBase):
     """List of all metric objects."""
     return self._metric_objs
 
+  @functools.cached_property
+  def _all_metric_fns(
+      self,
+  ) -> Tuple[
+      List[MetricFnCallable],
+      List[MetricFnCallable],
+      List[MetricFnCallable],
+  ]:
+    """Creates all metric functions {predict,score,predict_with_aux}_metric_fns.
+
+    Validation of metric functions, which depend on slow `inspect` calls to help
+    catch common errors, is deferred slightly:
+    1) only validate the Tasks that are used, and
+    2) as a result, to improve loading time.
+    If/when the module-level TaskRegistry.add pattern is turned down, validation
+    can probably be made eager again.
+
+    Returns:
+      tuple: predict_metric_fns, score_metric_fns, predict_with_aux_metric_fns.
+    Raises:
+      ValueError if metric functions don't have positional arguments matching
+       (targets, scores), (targets, predictions), or
+       (targets, predictions, aux_values)
+    """
+    predict_fns = []
+    score_fns = []
+    predict_with_aux_fns = []
+
+    for metric_fn in self._metric_fn_constructor_args:
+      pos_args = tuple(
+          key
+          for key, param in inspect.signature(metric_fn).parameters.items()
+          if param.default == inspect.Parameter.empty
+          and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
+      )
+      if pos_args == ("targets", "predictions"):
+        predict_fns.append(metric_fn)
+      elif pos_args == ("targets", "scores"):
+        score_fns.append(metric_fn)
+      elif pos_args == ("targets", "predictions", "aux_values"):
+        predict_with_aux_fns.append(metric_fn)
+      else:
+        raise ValueError(
+            "Metric functions must have positional arguments matching either "
+            "('targets', 'scores'), ('targets', 'predictions') or "
+            "('targets', 'predictions', 'aux_values'). "
+            f"Got: {pos_args}"
+        )
+    return predict_fns, score_fns, predict_with_aux_fns
+
   @property
   def metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of all metric functions."""
-    return (
-        self._predict_metric_fns
-        + self._score_metric_fns
-        + self._predict_with_aux_metric_fns
-    )
-
-  @property
-  def score_metric_fns(self) -> Sequence[MetricFnCallable]:
-    """List of metric functions that use log likelihood scores."""
-    return self._score_metric_fns
+    predict_fns, score_fns, predict_with_aux_fns = self._all_metric_fns
+    return predict_fns + score_fns + predict_with_aux_fns  # pytype: disable=unsupported-operands
 
   @property
   def predict_metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of metric functions that use model predictions."""
-    return self._predict_metric_fns
+    return self._all_metric_fns[0]
 
   @property
+  def score_metric_fns(self) -> Sequence[MetricFnCallable]:
+    """List of metric functions that use log likelihood scores."""
+    return self._all_metric_fns[1]
+
+  @functools.cached_property
   def predict_with_aux_metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of metric functions that use model predictions with aux values."""
-    return self._predict_with_aux_metric_fns
+    return self._all_metric_fns[2]
 
   @property
   def output_features(self) -> Mapping[str, Feature]:
@@ -1075,9 +1085,44 @@ class Task(DatasetProviderBase):
   def source(self) -> DataSource:
     return self._source
 
-  @property
+  def _validate_preprocessors(self):
+    """Validates that some common errors are not made with preprocessors.
+
+    Raises:
+      ValueError if caching is improperly requested.
+    """
+    if self._cache_step_idx is not None:
+      for prep in self._preprocessor_constructor_args[: self._cache_step_idx]:
+        prep_args = inspect.signature(prep).parameters.keys()
+        if "sequence_length" in prep_args:
+          raise ValueError(
+              f"'{utils.function_name(prep)}' has a `sequence_length` argument"
+              f" but occurs before `CacheDatasetPlaceholder` in '{self.name}'."
+              " This is not allowed since the sequence length is specified at"
+              " run time."
+          )
+        if "seed" in prep_args or "seeds" in prep_args:
+          logging.warning(
+              (
+                  "'%s' has a `seed(s)` argument but occurs before "
+                  "`CacheDatasetPlaceholder` in '%s'. This is not recommended "
+                  "since the same samples will be used each epoch when reading "
+                  "from the cache."
+              ),
+              utils.function_name(prep),
+              self.name,
+          )
+
+  @functools.cached_property
   def preprocessors(self) -> Sequence[Callable[..., tf.data.Dataset]]:
-    return self._preprocessors
+    # Validation of preprocessors, which depends on slow `inspect` calls to
+    # help catch common errors, is deferred slightly:
+    # 1) only validate the Tasks that are used, and
+    # 2) as a result, to improve loading time.
+    # If/when the module-level TaskRegistry.add pattern is turned down,
+    # validation can probably be made eager again.
+    self._validate_preprocessors()
+    return self._preprocessor_constructor_args
 
   @property
   def postprocessor(self) -> Callable[..., Any]:
@@ -1094,6 +1139,8 @@ class Task(DatasetProviderBase):
         "source",
         "output_features",
         "preprocessors",
+        "postprocess_fn",
+        "metric_fns",
         "metric_objs",
         "shuffle_buffer_size",
     ]
@@ -1102,7 +1149,10 @@ class Task(DatasetProviderBase):
       if key in kwargs:
         value = kwargs[key]
       else:
-        value = getattr(self, key)
+        if key == "postprocess_fn":
+          value = self.postprocessor
+        else:
+          value = getattr(self, key)
       task_kwargs[key] = value
     return Task(**task_kwargs)
 
@@ -1181,7 +1231,7 @@ class Task(DatasetProviderBase):
     with utils.map_seed_manager(seed):
       return self._preprocess_dataset(
           dataset,
-          self._preprocessors[: self._cache_step_idx],
+          self.preprocessors[: self._cache_step_idx],
       )
 
   def preprocess_postcache(
@@ -1210,7 +1260,7 @@ class Task(DatasetProviderBase):
     with utils.map_seed_manager(seed):
       dataset = self._preprocess_dataset(
           dataset,
-          self._preprocessors[start_idx:],
+          self.preprocessors[start_idx:],
           sequence_length=sequence_length,
       )
     return dataset
@@ -1480,6 +1530,7 @@ class TaskRegistry(DatasetProviderRegistry):
         "metric_objs": metric_objs,
         **kwargs,
     }
+
     return super().add(
         name, provider_cls=task_cls, provider_kwargs=provider_kwargs
     )
@@ -1489,7 +1540,6 @@ class TaskRegistry(DatasetProviderRegistry):
   @classmethod
   def get(cls, name) -> Task:
     return super().get(name)
-
 
 # ================================ Mixtures ====================================
 SampleFn = Callable[
@@ -1511,7 +1561,9 @@ class Mixture(DatasetProviderBase):
           Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
       ],
       default_rate: Optional[MixtureRate] = None,
-      sample_fn: SampleFn = tf.data.experimental.sample_from_datasets,
+      sample_fn: SampleFn = functools.partial(
+          tf.data.Dataset.sample_from_datasets, stop_on_empty_dataset=True
+      ),
   ):
     """Mixture constructor.
 
@@ -1784,7 +1836,9 @@ class PyGloveTunableMixture(Mixture):
           Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
       ],
       default_rate: Optional[MixtureRate] = None,
-      sample_fn: SampleFn = tf.data.experimental.sample_from_datasets,
+      sample_fn: SampleFn = functools.partial(
+          tf.data.Dataset.sample_from_datasets, stop_on_empty_dataset=True
+      ),
   ):
     def hyper_ratio(task_name, hyper):
       """Function for converting PyGlove hyper primitive as ratio fn."""
@@ -1884,7 +1938,7 @@ def _log_mixing_proportions(
         return 0
       if (
           task.supports_caching
-          and task._cache_step_idx < len(task._preprocessors) - 1
+          and task._cache_step_idx < len(task.preprocessors) - 1
       ):  # pylint:disable=protected-access
         # There is processing after caching, so we can't rely on the stats.
         return sequence_length[key]
@@ -2018,6 +2072,21 @@ def get_mixture_or_task(task_or_mixture_name: str):
     raise ValueError(
         "No Task or Mixture found with name '%s'." % task_or_mixture_name
     )
+
+
+def maybe_get_mixture_or_task(
+    task: Union[str, Task, Mixture]
+) -> Union[Task, Mixture]:
+  """Given a task name, Task, or Mixture object, return an object."""
+  if isinstance(task, str):
+    return get_mixture_or_task(task)
+
+  if not isinstance(task, (Task, Mixture)):
+    raise ValueError(
+        "User passed in a task that was not a string, Task, or Mixture."
+        f"Got type: {type(task)}"
+    )
+  return task
 
 
 def get_subtasks(task_or_mixture):

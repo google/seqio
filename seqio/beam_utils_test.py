@@ -189,7 +189,7 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
       )
 
       util.assert_that(
-          pcoll, util.equal_to([{"text_chars": 64, "examples": 2}])
+          pcoll, util.equal_to([{"examples": 2}])
       )
 
   def test_get_stats_tokenized_dataset(self):
@@ -226,8 +226,6 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "inputs_max_tokens": 2,
               "targets_max_tokens": 5,
               "examples": 2,
-              "inputs_chars": 3,
-              "targets_chars": 12,
           }]),
       )
 
@@ -268,8 +266,8 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               "inputs_max_tokens": 2,
               "targets_max_tokens": 5,
               "examples": 2,
-              "inputs_chars": 3,
-              "targets_chars": 12,
+              # "inputs_chars": 3,
+              # "targets_chars": 12,
               "task_ids": {"task_name_1": 1, "task_name_2": 2},
           }]),
       )

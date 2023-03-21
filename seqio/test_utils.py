@@ -562,7 +562,7 @@ def _assert_compare_to_fake_dataset(
     token_preprocessed: bool = False,
     ndfeatures: bool = False,
 ):
-  """Calls assertion to compare fake examples to actual dataaset."""
+  """Calls assertion to compare fake examples to actual dataset."""
   dataset = "token_preprocessed" if token_preprocessed else "tokenized"
   dataset = dataset if not ndfeatures else "token_preprocessed_ndfeatures"
   fake_examples = copy.deepcopy(_FAKE_DATASETS[dataset][split])
@@ -734,7 +734,7 @@ class DataInjector:
     self._task = dataset_providers.get_mixture_or_task(task_name)
 
     self.per_split_data = per_split_data
-    self._saved_source = self._task._source
+    self._saved_source = self._task._source  # pytype: disable=attribute-error  # always-use-return-annotations
 
   def __enter__(self):
     def ds_fn(split, shuffle_files, seed=None):
@@ -923,6 +923,7 @@ def test_postprocessing(
     feature_encoder: feature_converters.FeatureConverter = feature_converters.EncDecFeatureConverter(
         pack=False
     ),
+    sequence_length: Optional[Mapping[str, int]] = None,
 ) -> Mapping[str, Any]:
   """Test the postprocessing and metrics for a given task.
 
@@ -948,6 +949,7 @@ def test_postprocessing(
     score_output: A list of floats representing the score of the raw_data.
       Optional, only used when the task specifies score_metric_fns.
     feature_encoder: An optional feature encoder object. Defaults to None.
+    sequence_length: An optional length specification.
 
   Returns:
     metrics: a mapping from metric name to values.
@@ -983,7 +985,9 @@ def test_postprocessing(
 
   with DataInjector(task_name, raw_data):
     evaluator = evaluation.Evaluator(
-        task_name, feature_converter=feature_encoder
+        task_name,
+        feature_converter=feature_encoder,
+        sequence_length=sequence_length,
     )
 
     return evaluator.evaluate(

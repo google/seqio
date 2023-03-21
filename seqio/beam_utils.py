@@ -133,9 +133,8 @@ class PreprocessTask(beam.PTransform):
         shuffle=False,
         seed=shard_preprocessors_seed,
     )
-
-    ds = ds.prefetch(tf.data.AUTOTUNE)
     ds = self._task.preprocess_precache(ds, seed=shard_preprocessors_seed)
+    ds = ds.prefetch(tf.data.AUTOTUNE)
 
     def _add_provenance(index_within_shard: int, ex: Dict[str, Any]):
       ex.update({
@@ -404,9 +403,11 @@ class GetStats(beam.PTransform):
       self,
       output_features: Mapping[str, seqio.Feature],
       task_ids: Optional[Mapping[str, Any]] = None,
+      enable_char_counts: bool = False,
   ):
     self._output_features = output_features
     self._task_ids = task_ids or {}
+    self._enable_char_counts = enable_char_counts
 
   def expand(self, pcoll):
     example_counts = (
@@ -431,14 +432,15 @@ class GetStats(beam.PTransform):
         >> beam.Map(lambda x: (x[0].replace("tokens", "max_tokens"), x[1]))
         | "token_max_dict" >> beam.combiners.ToDict()
     )
-
-    # Compute the character length
-    char_length = (
-        pcoll
-        | beam.ParDo(_CountCharacters(self._output_features))
-        | "sum_characters" >> beam.CombinePerKey(sum)
-        | "character_length_dict" >> beam.combiners.ToDict()
-    )
+    stats = [example_counts, total_tokens, max_tokens]
+    if self._enable_char_counts:
+      char_length = (
+          pcoll
+          | beam.ParDo(_CountCharacters(self._output_features))
+          | "sum_characters" >> beam.CombinePerKey(sum)
+          | "character_length_dict" >> beam.combiners.ToDict()
+      )
+      stats.append(char_length)
 
     def _merge_dicts(dicts):
       merged_dict = {}
@@ -447,7 +449,6 @@ class GetStats(beam.PTransform):
         merged_dict.update(d)
       return merged_dict
 
-    stats = [example_counts, total_tokens, max_tokens, char_length]
     if self._task_ids:
       # ids could be Tensors, cast to int.
       self._task_ids = {k: int(v) for k, v in self._task_ids.items()}

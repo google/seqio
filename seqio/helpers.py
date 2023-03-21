@@ -27,7 +27,7 @@ import tensorflow_datasets as tfds
 
 
 def mixture_or_task_with_new_vocab(
-    mixture_or_task_name: str,
+    mixture_or_task: Union[dp.Task, dp.Mixture, str],
     new_mixture_or_task_name: str,
     *,
     new_vocab: Optional[vc.Vocabulary] = None,
@@ -39,7 +39,8 @@ def mixture_or_task_with_new_vocab(
   """Creates a new Task/Mixture from a given Task/Mixture with a new vocabulary.
 
   Args:
-    mixture_or_task_name: The name of the original Task or Mixture.
+    mixture_or_task: The original Task or Mixture, or the name of a registered
+      Task or Mixture.
     new_mixture_or_task_name: The name of the new Task or Mixture. For Mixtures,
       this is also used as a prefix for subtasks, e.g. "subtask_1" is registered
       with the new vocabulary as "new_mixture_or_task_name.subtask_1".
@@ -94,20 +95,24 @@ def mixture_or_task_with_new_vocab(
               f"original output_features: {og_output_features}"
           )
 
-  if mixture_or_task_name in dp.TaskRegistry.names():
+  if isinstance(mixture_or_task, str):
+    mixture_or_task = dp.get_mixture_or_task(mixture_or_task)
+
+  if isinstance(mixture_or_task, dp.Task):
     # This is a Task. Create a new Task with the provided vocab/output_features.
-    og_task: dp.Task = dp.get_mixture_or_task(mixture_or_task_name)
 
     if new_vocab:
       new_output_features = {
           f_name: dataclasses.replace(f, vocabulary=new_vocab)
-          for f_name, f in og_task.output_features.items()
+          for f_name, f in mixture_or_task.output_features.items()
       }
 
     if validate_features:
-      _validate_output_features(og_task.output_features, new_output_features)
+      _validate_output_features(
+          mixture_or_task.output_features, new_output_features
+      )
 
-    preprocessors = og_task.preprocessors
+    preprocessors = mixture_or_task.preprocessors
     if add_cache_placeholder:
       no_cache_placeholder = True
       for prep in preprocessors:
@@ -127,12 +132,12 @@ def mixture_or_task_with_new_vocab(
 
     new_task = dp.Task(
         new_mixture_or_task_name,
-        source=og_task.source,
+        source=mixture_or_task.source,
         output_features=new_output_features,
         preprocessors=preprocessors,
-        postprocess_fn=og_task.postprocessor,
-        metric_fns=og_task.metric_fns,
-        shuffle_buffer_size=og_task._shuffle_buffer_size,
+        postprocess_fn=mixture_or_task.postprocessor,
+        metric_fns=mixture_or_task.metric_fns,
+        shuffle_buffer_size=mixture_or_task._shuffle_buffer_size,
     )
     if add_to_seqio_registry:
       dp.TaskRegistry.add_provider(new_mixture_or_task_name, new_task)
@@ -140,10 +145,8 @@ def mixture_or_task_with_new_vocab(
 
   # This is a Mixture. Create and register new sub-Tasks/Mixtures with the
   # provided vocab/output_features, then create a new Mixture.
-  og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_or_task_name)
-
   new_tasks_and_rates = []
-  for task_name, rate in og_mix._task_to_rate.items():
+  for task_name, rate in mixture_or_task._task_to_rate.items():
     new_task_name = f"{new_mixture_or_task_name}.{task_name}"
     new_task = mixture_or_task_with_new_vocab(
         task_name,
@@ -158,7 +161,7 @@ def mixture_or_task_with_new_vocab(
       new_mixture_or_task_name,
       new_tasks_and_rates,
       default_rate=None,
-      sample_fn=og_mix._sample_fn,
+      sample_fn=mixture_or_task._sample_fn,
   )
   if add_to_seqio_registry:
     dp.MixtureRegistry.add_provider(new_mixture_or_task_name, new_mix)
@@ -248,7 +251,7 @@ class TruncatedDatasetProvider(dp.DataSource):
 
 
 def mixture_or_task_with_truncated_data(
-    mixture_or_task_name: str,
+    mixture_or_task: Union[dp.Task, dp.Mixture, str],
     new_mixture_or_task_name: str,
     *,
     split_sizes: Mapping[str, int],
@@ -260,7 +263,8 @@ def mixture_or_task_with_truncated_data(
   and few-shot fine-tuning datasets.
 
   Args:
-    mixture_or_task_name: The name of the original Task or Mixture.
+    mixture_or_task: The original Task or Mixture, or the name of a registered
+      Task or Mixture.
     new_mixture_or_task_name: The name of the new Task or Mixture. For Mixtures,
       this is also used as a prefix for subtasks, e.g. "subtask_1" is registered
       with the new vocabulary as "new_mixture_or_task_name.subtask_1".
@@ -274,23 +278,23 @@ def mixture_or_task_with_truncated_data(
   Returns:
     The new `Task` or `Mixture` object.
   """
+  if isinstance(mixture_or_task, str):
+    mixture_or_task = dp.get_mixture_or_task(mixture_or_task)
 
-  if mixture_or_task_name in dp.TaskRegistry.names():
+  if isinstance(mixture_or_task, dp.Task):
     # This is a `Task`.
-    og_task: dp.Task = dp.get_mixture_or_task(mixture_or_task_name)
-
     new_task = dp.Task(
         new_mixture_or_task_name,
         source=TruncatedDatasetProvider(
-            og_task.source,
+            mixture_or_task.source,
             split_sizes=split_sizes,
-            shuffle_buffer_size=og_task._shuffle_buffer_size,
+            shuffle_buffer_size=mixture_or_task._shuffle_buffer_size,
         ),
-        output_features=og_task.output_features,
-        preprocessors=og_task.preprocessors,
-        postprocess_fn=og_task.postprocessor,
-        metric_fns=og_task.metric_fns,
-        shuffle_buffer_size=og_task._shuffle_buffer_size,
+        output_features=mixture_or_task.output_features,
+        preprocessors=mixture_or_task.preprocessors,
+        postprocess_fn=mixture_or_task.postprocessor,
+        metric_fns=mixture_or_task.metric_fns,
+        shuffle_buffer_size=mixture_or_task._shuffle_buffer_size,
     )
     if add_to_seqio_registry:
       dp.TaskRegistry.add_provider(new_mixture_or_task_name, new_task)
@@ -298,24 +302,21 @@ def mixture_or_task_with_truncated_data(
   else:
     # This is a Mixture. Create and register new sub-Tasks/Mixtures with the
     # provided vocab/output_features, then create a new Mixture.
-    og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_or_task_name)
-
     new_tasks_and_rates = []
-    for task_name, rate in og_mix._task_to_rate.items():
-      new_task_name = f"{new_mixture_or_task_name}.{task_name}"
-      _ = mixture_or_task_with_truncated_data(
+    for task_name, rate in mixture_or_task._task_to_rate.items():
+      new_task = mixture_or_task_with_truncated_data(
           task_name,
-          new_task_name,
+          f"{new_mixture_or_task_name}.{task_name}",
           split_sizes=split_sizes,
-          add_to_seqio_registry=True,
+          add_to_seqio_registry=add_to_seqio_registry,
       )
-      new_tasks_and_rates.append((new_task_name, rate))
+      new_tasks_and_rates.append((new_task, rate))
 
     new_mix = dp.Mixture(
         new_mixture_or_task_name,
         new_tasks_and_rates,
         default_rate=None,
-        sample_fn=og_mix._sample_fn,
+        sample_fn=mixture_or_task._sample_fn,
     )
     if add_to_seqio_registry:
       dp.MixtureRegistry.add_provider(new_mixture_or_task_name, new_mix)
@@ -348,10 +349,10 @@ def mixture_with_missing_task_splits_removed(
   Returns:
     The new `Mixture` object.
   """
-  og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_name)
+  og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_name)  # pytype: disable=annotation-type-mismatch  # always-use-return-annotations
   new_tasks_and_rates = []
   for task_name, rate in og_mix._task_to_rate.items():
-    subtask: dp.Task = dp.get_mixture_or_task(task_name)
+    subtask: dp.Task = dp.get_mixture_or_task(task_name)  # pytype: disable=annotation-type-mismatch  # always-use-return-annotations
     if split in subtask.splits:
       new_tasks_and_rates.append((subtask.name, rate))
   new_mix = dp.Mixture(

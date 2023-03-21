@@ -202,7 +202,7 @@ class TasksTest(test_utils.FakeTaskTest):
   def _mock_and_assert_cached_source(self, task_name):
     cached_task = dataset_providers.get_mixture_or_task(task_name)
     cached_task._get_cached_source = mock.MagicMock(
-        side_effect=cached_task._get_cached_source
+        side_effect=cached_task._get_cached_source  # pytype: disable=attribute-error  # always-use-return-annotations
     )
     _ = cached_task.get_dataset(None, "train", use_cached=True)
     cached_task._get_cached_source.assert_called_once_with("train")
@@ -380,7 +380,7 @@ class TasksTest(test_utils.FakeTaskTest):
             " `CacheDatasetPlaceholder` and try again."
         ),
     ):
-      dataset_providers.Task(
+      task = dataset_providers.Task(
           "prohibits_cache",
           output_features=self.DEFAULT_OUTPUT_FEATURES,
           source=function_source_no_cache,
@@ -389,6 +389,7 @@ class TasksTest(test_utils.FakeTaskTest):
               preprocessors.tokenize,
           ],
       )
+      task._validate_preprocessors()
 
   def test_cache_exists(self):
     self.assertTrue(self.cached_task.cache_dir)
@@ -408,10 +409,8 @@ class TasksTest(test_utils.FakeTaskTest):
   def test_get_cached_stats(self):
     expected_train_stats = {
         "examples": 3,
-        "inputs_chars": 43,
         "inputs_tokens": 36,
         "inputs_max_tokens": 13,
-        "targets_chars": 29,
         "targets_tokens": 18,
         "targets_max_tokens": 6,
     }
@@ -424,10 +423,8 @@ class TasksTest(test_utils.FakeTaskTest):
     )
     expected_validation_stats = {
         "examples": 2,
-        "inputs_chars": 28,
         "inputs_tokens": 23,
         "inputs_max_tokens": 12,
-        "targets_chars": 37,
         "targets_tokens": 36,
         "targets_max_tokens": 21,
     }
@@ -458,22 +455,32 @@ class TasksTest(test_utils.FakeTaskTest):
     )
 
     # Test with token preprocessor.
-    self.cached_task._preprocessors = self.DEFAULT_PREPROCESSORS + (
-        test_utils.test_token_preprocessor,
+    self.cached_task = self.cached_task.replace(
+        preprocessors=(
+            self.DEFAULT_PREPROCESSORS + (test_utils.test_token_preprocessor,)
+        )
     )
+
     self.verify_task_matches_fake_datasets(
-        "cached_task", use_cached=True, token_preprocessed=True
+        "cached_task",
+        use_cached=True,
+        token_preprocessed=False,
     )
 
   def test_get_dataset_onthefly(self):
     self.verify_task_matches_fake_datasets("uncached_task", use_cached=False)
 
     # Test with token preprocessor.
-    self.cached_task._preprocessors = self.DEFAULT_PREPROCESSORS + (
-        test_utils.test_token_preprocessor,
+    self.cached_task = self.cached_task.replace(
+        preprocessors=(
+            self.DEFAULT_PREPROCESSORS + (test_utils.test_token_preprocessor,)
+        )
     )
+
     self.verify_task_matches_fake_datasets(
-        "cached_task", use_cached=False, token_preprocessed=True
+        "cached_task",
+        use_cached=False,
+        token_preprocessed=False,
     )
 
   def test_get_dataset_no_truncation(self):
@@ -593,7 +600,7 @@ class TasksTest(test_utils.FakeTaskTest):
             " 'multiple_cache_placeholders'."
         ),
     ):
-      dataset_providers.Task(
+      _ = dataset_providers.Task(
           "multiple_cache_placeholders",
           source=dataset_providers.FunctionDataSource(
               dataset_fn=dataset_fn, splits=["train", "validation"]
@@ -618,7 +625,7 @@ class TasksTest(test_utils.FakeTaskTest):
             " sequence length is specified at run time."
         ),
     ):
-      dataset_providers.Task(
+      task = dataset_providers.Task(
           "sequence_length_pre_cache",
           dataset_providers.FunctionDataSource(
               dataset_fn=dataset_fn,
@@ -633,6 +640,7 @@ class TasksTest(test_utils.FakeTaskTest):
           output_features=output_features,
           metric_fns=[],
       )
+      task._validate_preprocessors()
 
   def test_no_eos(self):
     default_vocab = test_utils.sentencepiece_vocab()
@@ -889,7 +897,7 @@ class TasksTest(test_utils.FakeTaskTest):
     def _get_formatted_shards_list(task_name, split):
       shards = dataset_providers.get_mixture_or_task(
           task_name
-      ).source.list_shards(split)
+      ).source.list_shards(split)  # pytype: disable=attribute-error  # always-use-return-annotations
       shards = [s.split("/")[-1] for s in shards]
       return sorted(shards)
 
@@ -940,6 +948,9 @@ class TasksTest(test_utils.FakeTaskTest):
     new_task = task.replace(name="new_tfds_task", shuffle_buffer_size=10000)
     self.assertEqual("new_tfds_task", new_task.name)
     self.assertEqual(10000, new_task.shuffle_buffer_size)
+    self.assertEqual(task.preprocessors, new_task.preprocessors)
+    self.assertEqual(task._postprocess_fn, new_task._postprocess_fn)
+    self.assertEqual(task.metric_fns, new_task.metric_fns)
 
 
 
