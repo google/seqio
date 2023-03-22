@@ -1675,7 +1675,9 @@ class Mixture(DatasetProviderBase):
     return float(rate)
 
   def num_input_examples(self, split: str) -> int:
-    return sum(t.num_input_examples(split) for t in self.tasks)
+    return sum(
+        t.num_input_examples(split) for t in self.tasks if split in t.splits
+    )
 
   @property
   def splits(self) -> Sequence[str]:
