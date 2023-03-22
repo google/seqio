@@ -1141,16 +1141,29 @@ class Task(DatasetProviderBase):
         "metric_objs",
         "shuffle_buffer_size",
     ]
-    task_kwargs = {}
-    for key in properties:
-      if key in kwargs:
-        value = kwargs[key]
+    if set(kwargs.keys() - set(properties)):
+      raise ValueError(
+          "Expected keys of kwargs argument task.replace to be one of"
+          f" {properties}. However, there were keys in kwargs that are not in"
+          f" this set: {set(kwargs.keys() - set(properties))}"
+      )
+
+    task_kwargs = {k: v for k, v in kwargs.items() if k in properties}
+    keys_not_specified_by_user = [k for k in properties if k not in kwargs]
+    for key in keys_not_specified_by_user:
+      if key == "postprocess_fn":
+        task_kwargs["postprocess_fn"] = self.postprocessor
+      elif key == "preprocessors":
+        # This check isn't strictly needed, but if additional functionality
+        # is added to self.preprocessors, it will be. So we leave it in
+        # to help future-proof.
+        task_kwargs["preprocessors"] = self._preprocessor_constructor_args
+      elif key == "metric_fns":
+        task_kwargs["metric_fns"] = self._metric_fn_constructor_args
+      elif key == "metric_objs":
+        task_kwargs["metric_objs"] = self._metric_objs_constructor_args
       else:
-        if key == "postprocess_fn":
-          value = self.postprocessor
-        else:
-          value = getattr(self, key)
-      task_kwargs[key] = value
+        task_kwargs[key] = getattr(self, key)
     return Task(**task_kwargs)
 
   def num_input_examples(self, split: str) -> Optional[int]:  # pytype: disable=signature-mismatch  # overriding-return-type-checks

@@ -985,14 +985,171 @@ class TasksTest(test_utils.FakeTaskTest):
         ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"],
     )
 
-  def test_replace(self):
+  def test_replace_name(self):
+    new_name = "new_tfds_task"
     task = TaskRegistry.get("tfds_task")
-    new_task = task.replace(name="new_tfds_task", shuffle_buffer_size=10000)
-    self.assertEqual("new_tfds_task", new_task.name)
-    self.assertEqual(10000, new_task.shuffle_buffer_size)
+    new_task = task.replace(
+        name=new_name,
+    )
+    # Assert that the changed attribute should be different.
+    self.assertEqual(new_name, new_task.name)
+
+    # Assert that the other attributes remain the same.
+    self.assertEqual(task.source, new_task.source)
     self.assertEqual(task.preprocessors, new_task.preprocessors)
     self.assertEqual(task._postprocess_fn, new_task._postprocess_fn)
     self.assertEqual(task.metric_fns, new_task.metric_fns)
+    self.assertEqual(task.metric_objs, new_task.metric_objs)
+    self.assertEqual(task.shuffle_buffer_size, new_task.shuffle_buffer_size)
+
+  def test_replace_source(self):
+    new_source = dataset_providers.FunctionDataSource(
+        dataset_fn=test_utils.get_fake_dataset, splits=["a_weird_split"]
+    )
+    task = TaskRegistry.get("tfds_task")
+    new_task = task.replace(
+        source=new_source,
+    )
+    # Assert that the changed attribute should be different.
+    self.assertEqual(new_source, new_task.source)
+
+    # Assert that the other attributes remain the same.
+    self.assertEqual(task.name, new_task.name)
+    self.assertEqual(task.preprocessors, new_task.preprocessors)
+    self.assertEqual(task._postprocess_fn, new_task._postprocess_fn)
+    self.assertEqual(task.metric_fns, new_task.metric_fns)
+    self.assertEqual(task.metric_objs, new_task.metric_objs)
+    self.assertEqual(task.shuffle_buffer_size, new_task.shuffle_buffer_size)
+
+  def test_replace_output_features(self):
+    new_output_features = {
+        "weird_inputs": dataset_providers.Feature(
+            test_utils.sentencepiece_vocab()
+        ),
+        "weird_targets": dataset_providers.Feature(
+            test_utils.sentencepiece_vocab()
+        ),
+    }
+    task = TaskRegistry.get("tfds_task")
+    new_task = task.replace(
+        output_features=new_output_features,
+    )
+    # Assert that the changed attribute should be different.
+    self.assertEqual(new_output_features, new_task.output_features)
+
+    # Assert that the other attributes remain the same.
+    self.assertEqual(task.name, new_task.name)
+    self.assertEqual(task.source, new_task.source)
+    self.assertEqual(task.preprocessors, new_task.preprocessors)
+    self.assertEqual(task._postprocess_fn, new_task._postprocess_fn)
+    self.assertEqual(task.metric_fns, new_task.metric_fns)
+    self.assertEqual(task.metric_objs, new_task.metric_objs)
+    self.assertEqual(task.shuffle_buffer_size, new_task.shuffle_buffer_size)
+
+  def test_replace_preprocessors(self):
+    new_preprocessors = (dataset_providers.CacheDatasetPlaceholder(),)
+    task = TaskRegistry.get("tfds_task")
+    new_task = task.replace(
+        preprocessors=new_preprocessors,
+    )
+    # Assert that the changed attribute should be different.
+    self.assertEqual(new_preprocessors, new_task.preprocessors)
+
+    # Assert that the other attributes remain the same.
+    self.assertEqual(task.name, new_task.name)
+    self.assertEqual(task.source, new_task.source)
+    self.assertEqual(task.output_features, new_task.output_features)
+    self.assertEqual(task._postprocess_fn, new_task._postprocess_fn)
+    self.assertEqual(task.metric_fns, new_task.metric_fns)
+    self.assertEqual(task.metric_objs, new_task.metric_objs)
+    self.assertEqual(task.shuffle_buffer_size, new_task.shuffle_buffer_size)
+
+  def test_replace_postprocess_fn(self):
+    new_postprocessor = lambda x: x
+    task = TaskRegistry.get("tfds_task")
+    new_task = task.replace(
+        postprocess_fn=new_postprocessor,
+    )
+    # Assert that the changed attribute should be different.
+    self.assertEqual(new_postprocessor, new_task.postprocessor)
+
+    # Assert that the other attributes remain the same.
+    self.assertEqual(task.name, new_task.name)
+    self.assertEqual(task.source, new_task.source)
+    self.assertEqual(task.output_features, new_task.output_features)
+    self.assertEqual(task.preprocessors, new_task.preprocessors)
+    self.assertEqual(task.metric_fns, new_task.metric_fns)
+    self.assertEqual(task.metric_objs, new_task.metric_objs)
+    self.assertEqual(task.shuffle_buffer_size, new_task.shuffle_buffer_size)
+
+  def test_replace_metric_fns(self):
+    def score_metric_fn_1(targets, scores):
+      del targets, scores
+      return {}
+
+    new_metric_fns = [score_metric_fn_1]
+    task = TaskRegistry.get("tfds_task")
+    new_task = task.replace(
+        metric_fns=new_metric_fns,
+    )
+    # Assert that the changed attribute should be different.
+    self.assertEqual(new_metric_fns, new_task.metric_fns)
+
+    # Assert that the other attributes remain the same.
+    self.assertEqual(task.name, new_task.name)
+    self.assertEqual(task.source, new_task.source)
+    self.assertEqual(task.output_features, new_task.output_features)
+    self.assertEqual(task.preprocessors, new_task.preprocessors)
+    self.assertEqual(task.postprocessor, new_task.postprocessor)
+    self.assertEqual(task.shuffle_buffer_size, new_task.shuffle_buffer_size)
+
+  def test_replace_metric_objs(self):
+    def score_metric_fn_1(targets, scores):
+      del targets, scores
+      return {}
+
+    new_metric_objs = [
+        metrics_lib.LegacyMetric.empty(
+            metric_fn=score_metric_fn_1, postprocess_fn=None
+        )
+    ]
+    task = TaskRegistry.get("tfds_task")
+    new_task = task.replace(
+        metric_objs=new_metric_objs,
+    )
+    # Assert that the changed attribute should be different.
+    self.assertEqual(new_metric_objs, new_task.metric_objs)
+
+    # Assert that the other attributes remain the same.
+    self.assertEqual(task.name, new_task.name)
+    self.assertEqual(task.source, new_task.source)
+    self.assertEqual(task.output_features, new_task.output_features)
+    self.assertEqual(task.preprocessors, new_task.preprocessors)
+    self.assertEqual(task.postprocessor, new_task.postprocessor)
+    self.assertEqual(task.shuffle_buffer_size, new_task.shuffle_buffer_size)
+
+  def test_replace_shuffle_butter_size(self):
+    new_shuffle_buffer_size = 987654321
+    task = TaskRegistry.get("tfds_task")
+    new_task = task.replace(
+        shuffle_buffer_size=new_shuffle_buffer_size,
+    )
+    # Assert that the changed attribute should be different.
+    self.assertEqual(new_shuffle_buffer_size, new_task.shuffle_buffer_size)
+
+    # Assert that the other attributes remain the same.
+    self.assertEqual(task.name, new_task.name)
+    self.assertEqual(task.source, new_task.source)
+    self.assertEqual(task.output_features, new_task.output_features)
+    self.assertEqual(task.preprocessors, new_task.preprocessors)
+    self.assertEqual(task.postprocessor, new_task.postprocessor)
+    self.assertEqual(task.metric_fns, new_task.metric_fns)
+    self.assertEqual(task.metric_objs, new_task.metric_objs)
+
+  def test_replace_fails_on_invalid_args(self):
+    task = TaskRegistry.get("tfds_task")
+    with self.assertRaisesRegex(ValueError, "Expected keys"):
+      task.replace(this_argument_is_not_valid=616161616)
 
 
 
