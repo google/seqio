@@ -1457,11 +1457,12 @@ class Task(DatasetProviderBase):
     if not use_cached:
       ds = self.preprocess_precache(ds, seed=seed)
 
-    ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
+    # ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
 
     # We repeat before calling any (potentially) stochastic post-cache
     # preprocessing in order to take new samples each epoch.
-    ds = ds.repeat(num_epochs)
+    if num_epochs != 1:
+      ds = ds.repeat(num_epochs)
 
     # Post cache processing.
     ds = self.preprocess_postcache(
