@@ -939,7 +939,9 @@ class TasksTest(test_utils.FakeTaskTest):
     def _get_formatted_shards_list(task_name, split):
       shards = dataset_providers.get_mixture_or_task(
           task_name
-      ).source.list_shards(split)  # pytype: disable=attribute-error  # always-use-return-annotations
+      ).source.list_shards(  # pytype: disable=attribute-error
+          split
+      )  # always-use-return-annotations
       shards = [s.split("/")[-1] for s in shards]
       return sorted(shards)
 

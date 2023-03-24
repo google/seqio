@@ -33,6 +33,9 @@ mock = absltest.mock
 assert_dataset = test_utils.assert_dataset
 
 
+_GLOBAL_INCREMENT: int = 2
+
+
 class AnyArg(object):
 
   def __eq__(self, var):
