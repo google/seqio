@@ -127,7 +127,7 @@ def get_mocked_task(
   # Identity postprocess function
   task.postprocess_fn = lambda d, example, is_target: d
   task.metric_objs = [
-      metrics_lib.LegacyMetric.empty(mf, task.postprocess_fn)
+      metrics_lib.LegacyMetric.from_metric_fn(mf, task.postprocess_fn)
       for mf in task.metric_fns
   ]
 
@@ -624,7 +624,7 @@ class EvaluationTest(tf.test.TestCase):
         lambda x, example, is_target: x if is_target else x.replace("e6", "e7")
     )
     task.metric_objs = [
-        metrics_lib.LegacyMetric.empty(mf, task.postprocess_fn)
+        metrics_lib.LegacyMetric.from_metric_fn(mf, task.postprocess_fn)
         for mf in task.metric_fns
     ]
 
@@ -696,7 +696,7 @@ class EvaluationTest(tf.test.TestCase):
     # Overrides postprocess fn for the task and its metric objects.
     task.postprocess_fn = lambda d, example, is_target: list(d)
     task.metric_objs = [
-        metrics_lib.LegacyMetric.empty(mf, task.postprocess_fn)
+        metrics_lib.LegacyMetric.from_metric_fn(mf, task.postprocess_fn)
         for mf in task.metric_fns
     ]
     mock_vocab = task.output_features["targets"].vocabulary
@@ -1295,7 +1295,7 @@ class EvaluationTest(tf.test.TestCase):
         lambda x, example, is_target: x if is_target else x.replace("e6", "e7")
     )
     task.metric_objs = [
-        metrics_lib.LegacyMetric.empty(mf, task.postprocess_fn)
+        metrics_lib.LegacyMetric.from_metric_fn(mf, task.postprocess_fn)
         for mf in task.metric_fns
     ]
 
