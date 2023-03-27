@@ -76,11 +76,13 @@ class ShardInfo:
 class DatasetProviderBase(metaclass=abc.ABCMeta):
   """Abstract base for classes that provide a tf.data.Dataset."""
 
-  @abc.abstractproperty
+  @property
+  @abc.abstractmethod
   def output_features(self) -> Mapping[str, Feature]:
     raise NotImplementedError
 
-  @abc.abstractproperty
+  @property
+  @abc.abstractmethod
   def splits(self) -> Sequence[str]:
     raise NotImplementedError
 
@@ -263,7 +265,8 @@ class DataSource(DatasetProviderBase):
   def splits(self) -> Sequence[str]:
     return self._splits
 
-  @abc.abstractproperty
+  @property
+  @abc.abstractmethod
   def supports_arbitrary_sharding(self) -> bool:
     """Whether supports sharding beyond those available in `list_shards`."""
     raise NotImplementedError
@@ -1549,6 +1552,7 @@ class TaskRegistry(DatasetProviderRegistry):
   @classmethod
   def get(cls, name) -> Task:
     return super().get(name)
+
 
 # ================================ Mixtures ====================================
 SampleFn = Callable[

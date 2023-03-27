@@ -49,7 +49,8 @@ class Vocabulary(metaclass=abc.ABCMeta):
     """
     self._extra_ids = extra_ids or 0
 
-  @abc.abstractproperty
+  @property
+  @abc.abstractmethod
   def eos_id(self) -> Optional[int]:
     raise NotImplementedError("need to implement eos_id")
 
@@ -57,7 +58,8 @@ class Vocabulary(metaclass=abc.ABCMeta):
   def pad_id(self) -> int:
     return PAD_ID
 
-  @abc.abstractproperty
+  @property
+  @abc.abstractmethod
   def unk_id(self) -> Optional[int]:
     raise NotImplementedError("need to implement unk_id")
 
@@ -70,7 +72,8 @@ class Vocabulary(metaclass=abc.ABCMeta):
     """Vocabulary size, including extra ids."""
     return self._base_vocab_size + self.extra_ids
 
-  @abc.abstractproperty
+  @property
+  @abc.abstractmethod
   def _base_vocab_size(self) -> int:
     """Vocabulary size, excluding extra ids but including PAD/EOS/UNK."""
     # TODO(fjord): add a check that pad_id and unk_id (if present)
