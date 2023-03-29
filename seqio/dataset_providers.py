@@ -1,4 +1,4 @@
-# Copyright 2022 The SeqIO Authors.
+# Copyright 2023 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1366,6 +1366,7 @@ class Task(DatasetProviderBase):
       shard_info: Optional[ShardInfo] = None,
       num_epochs: Optional[int] = 1,
       trim_output_features: bool = True,  # Unique to Task
+      try_in_mem_cache: bool = True,
   ) -> tf.data.Dataset:
     """Returns a tf.data.Dataset from cache or generated on the fly.
 
@@ -1392,6 +1393,8 @@ class Task(DatasetProviderBase):
         `repeat()` on the returned dataset. Defaults to `1`.
       trim_output_features: If True, it trims output features to be less than
         the length given by `sequence_length`.
+      try_in_mem_cache: If True, caches sufficiently small datasets in memory
+        for efficiency.
 
     Returns:
       A tf.data.Dataset.
@@ -1442,13 +1445,16 @@ class Task(DatasetProviderBase):
       ds = source.get_dataset(split=split, shuffle=shuffle, seed=seed)
       ds = ds.shard(shard_info.num_shards, shard_info.index)
 
-    if (
-        use_cached
-        and self.get_cached_stats(split)["examples"]
-        < _MAX_EXAMPLES_TO_MEM_CACHE
-    ) or (
-        self.num_input_examples(split)
-        and self.num_input_examples(split) < _MAX_EXAMPLES_TO_MEM_CACHE
+    if try_in_mem_cache and (
+        (
+            use_cached
+            and self.get_cached_stats(split)["examples"]
+            < _MAX_EXAMPLES_TO_MEM_CACHE
+        )
+        or (
+            self.num_input_examples(split)
+            and self.num_input_examples(split) < _MAX_EXAMPLES_TO_MEM_CACHE
+        )
     ):
       logging.info(
           "Automatically caching small dataset in memory: '%s:%s'",
