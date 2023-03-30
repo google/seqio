@@ -429,7 +429,7 @@ class EvaluationTest(tf.test.TestCase):
     mock_vocab = task.output_features[target_field_name].vocabulary
     # Define a dummy decoding logic.
     mock_vocab.decode = lambda ids: " ".join([id_to_vocab[i] for i in ids])
-
+    num_times_called = {"predict": 0, "predict_with_aux": 0, "score": 0}
     def mock_init(self):
       mock_ds = tf.data.Dataset.from_tensor_slices(["e5 e6", "e6", "e7"]).map(
           lambda x: {f"{target_field_name}_pretokenized": x}
@@ -452,6 +452,7 @@ class EvaluationTest(tf.test.TestCase):
           ds: tf.data.Dataset,
           model_feature_shapes: Optional[Mapping[str, int]] = None,
       ) -> evaluation.PredictFnReturnType:
+        num_times_called["predict"] += 1
         del ds, model_feature_shapes
         return (
             [(0, [5, 6]), (1, [7]), (2, [7])]
@@ -463,6 +464,7 @@ class EvaluationTest(tf.test.TestCase):
           ds: tf.data.Dataset,
           model_feature_shapes: Optional[Mapping[str, int]] = None,
       ) -> evaluation.PredictFnReturnType:
+        num_times_called["predict_with_aux"] += 1
         del ds, model_feature_shapes
 
         indices_and_predictions = (
@@ -483,6 +485,7 @@ class EvaluationTest(tf.test.TestCase):
           ds: tf.data.Dataset,
           model_feature_shapes: Optional[Mapping[str, int]] = None,
       ) -> Sequence[Tuple[int, float]]:
+        num_times_called["score"] += 1
         del ds, model_feature_shapes
         return (
             [(1, 1), (0, 2), (2, 3)]
@@ -500,13 +503,13 @@ class EvaluationTest(tf.test.TestCase):
           predict_with_aux_fn=predict_with_aux_fn,
           step=42,
       )
-      return all_metrics.result(), evaluator
+      return all_metrics.result(), evaluator, num_times_called
 
   def test_evaluate_single_task_predict(self):
     task = get_mocked_task(
         predict_metric_fns=[_sequence_accuracy_metric], score_metric_fns=[]
     )
-    all_metrics, _ = self._evaluate_single_task(task)
+    all_metrics, _, _ = self._evaluate_single_task(task)
     self.assertDictClose(
         {"sequence_accuracy": 2.0 / 3 * 100}, all_metrics[task.name]
     )
@@ -515,7 +518,7 @@ class EvaluationTest(tf.test.TestCase):
     task = get_mocked_task(
         predict_metric_fns=[], score_metric_fns=[_sum_scores_metric]
     )
-    all_metrics, _ = self._evaluate_single_task(task)
+    all_metrics, _, _ = self._evaluate_single_task(task)
     self.assertDictClose({"total_score": 1305}, all_metrics[task.name])
 
   def test_evaluate_single_task_both(self):
@@ -523,7 +526,7 @@ class EvaluationTest(tf.test.TestCase):
         predict_metric_fns=[_sequence_accuracy_metric],
         score_metric_fns=[_sum_scores_metric],
     )
-    all_metrics, _ = self._evaluate_single_task(task)
+    all_metrics, _, _ = self._evaluate_single_task(task)
     expected = {"sequence_accuracy": 2.0 / 3 * 100, "total_score": 1305}
     self.assertDictClose(expected, all_metrics[task.name])
 
@@ -531,8 +534,22 @@ class EvaluationTest(tf.test.TestCase):
     task = get_mocked_task(
         predict_with_aux_metric_fns=[_fake_aux_values_metric]
     )
-    all_metrics, _ = self._evaluate_single_task(task, has_aux_values=True)
+    all_metrics, _, _ = self._evaluate_single_task(task, has_aux_values=True)
     self.assertEqual(1, all_metrics[task.name]["fake_metric"])
+
+  def test_evaluate_doesnt_run_both_predict_and_predict_with_aux(self):
+    task = get_mocked_task(
+        predict_metric_fns=[_sequence_accuracy_metric],
+        predict_with_aux_metric_fns=[_fake_aux_values_metric],
+    )
+    all_metrics, _, num_times_called = self._evaluate_single_task(
+        task, has_aux_values=True
+    )
+    expected = {"sequence_accuracy": 2.0 / 3 * 100, "fake_metric": 1}
+    self.assertDictClose(expected, all_metrics[task.name])
+    self.assertDictEqual(
+        num_times_called, {"predict_with_aux": 1, "score": 0, "predict": 0}
+    )
 
   def test_aux_scores_sorted_with_tokens(self):
     """Tests that the correct aux scores correspond with the correct tokens."""
@@ -608,7 +625,9 @@ class EvaluationTest(tf.test.TestCase):
         score_metric_fns=[],
         target_field_name="foo",
     )
-    all_metrics, _ = self._evaluate_single_task(task, target_field_name="foo")
+    all_metrics, _, _ = self._evaluate_single_task(
+        task, target_field_name="foo"
+    )
     self.assertDictClose(
         {"sequence_accuracy": 2.0 / 3 * 100}, all_metrics[task.name]
     )
@@ -628,7 +647,7 @@ class EvaluationTest(tf.test.TestCase):
         for mf in task.metric_fns
     ]
 
-    _, evaluator = self._evaluate_single_task(task, loggers=loggers)
+    _, evaluator, _ = self._evaluate_single_task(task, loggers=loggers)
     metrics = {
         "sequence_accuracy": metrics_lib.Scalar(1 / 3 * 100),
         "total_score": metrics_lib.Scalar(1305),

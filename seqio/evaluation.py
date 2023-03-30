@@ -628,15 +628,31 @@ class Evaluator:
       logging.info("Evaluating %s", task.name)
 
       all_output[task.name] = {}
-      # We loop over metrics and collect all the model outputs
-      # that are needed for metric computation.
-      for metric_obj in task.metric_objs:
-        model_output_type = metric_obj.model_output_type
-        if model_output_type not in all_output[task.name]:
-          model_fn = model_fns[model_output_type]
-          all_output[task.name][model_output_type] = _extract_model_output(
-              self._cached_model_datasets[task.name], model_fn
-          )
+      # Loop over metrics and collect all the model outputs that are needed for
+      # metric computation. However, if we require both 'prediction' and
+      # 'prediction_with_aux', reuse the outputs of the latter for the former.
+      model_output_types = set(
+          [metric_obj.model_output_type for metric_obj in task.metric_objs]
+      )
+      did_dedupe_model_outputs = False
+      if (
+          metrics_lib.ModelOutputType.PREDICTION in model_output_types
+          and metrics_lib.ModelOutputType.PREDICTION_WITH_AUX
+          in model_output_types
+      ):
+        model_output_types.remove(metrics_lib.ModelOutputType.PREDICTION)
+        did_dedupe_model_outputs = True
+      for model_output_type in model_output_types:
+        model_fn = model_fns[model_output_type]
+        all_output[task.name][model_output_type] = _extract_model_output(
+            self._cached_model_datasets[task.name], model_fn
+        )
+      if did_dedupe_model_outputs:
+        all_output[task.name][metrics_lib.ModelOutputType.PREDICTION] = (
+            all_output[task.name][
+                metrics_lib.ModelOutputType.PREDICTION_WITH_AUX
+            ][0]
+        )
 
     if compute_metrics:
       if self._metrics_future:
