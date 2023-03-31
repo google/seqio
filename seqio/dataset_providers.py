@@ -16,6 +16,7 @@
 
 Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 """
+from __future__ import annotations
 
 
 import abc
@@ -28,7 +29,7 @@ import numbers
 import operator
 import os
 import re
-from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Callable, Generic, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union
 from absl import logging
 import clu.metrics
 import editdistance
@@ -105,7 +106,10 @@ class DatasetProviderBase(metaclass=abc.ABCMeta):
     raise NotImplementedError
 
 
-class DatasetProviderRegistry(object):
+_DatasetProviderT = TypeVar("_DatasetProviderT", bound=DatasetProviderBase)
+
+
+class DatasetProviderRegistry(Generic[_DatasetProviderT]):
   """Base for registry of data providers.
 
   Subclasses must wrap `get` method to override the return type for pytype.
@@ -113,11 +117,11 @@ class DatasetProviderRegistry(object):
   """
 
   # Class variables must be defined in subclasses.
-  _REGISTRY: MutableMapping[str, DatasetProviderBase]
-  _PROVIDER_TYPE: Type[DatasetProviderBase]
+  _REGISTRY: MutableMapping[str, _DatasetProviderT]
+  _PROVIDER_TYPE: Type[_DatasetProviderT]
 
   @classmethod
-  def add_provider(cls, name: str, provider):
+  def add_provider(cls, name: str, provider: _DatasetProviderT) -> None:
     """Adds a data provider instance to the registry."""
     if name in cls._REGISTRY:
       raise ValueError("Attempting to register duplicate provider: %s" % name)
@@ -136,53 +140,52 @@ class DatasetProviderRegistry(object):
     )
 
   @classmethod
-  def add(cls, name: str, provider_cls, provider_kwargs):
+  def add(
+      cls,
+      name: str,
+      provider_cls: Type[_DatasetProviderT],
+      provider_kwargs: Mapping[str, Any],
+  ) -> _DatasetProviderT:
     """Instantiates and adds provider to the registry."""
-    if not issubclass(provider_cls, cls._PROVIDER_TYPE):
-      raise ValueError(
-          "Attempting to register a class of an invalid type. "
-          "Expecting instance of %s, got %s"
-          % (cls._PROVIDER_TYPE, provider_cls)
-      )
-    provider = provider_cls(**provider_kwargs)  # pytype: disable=wrong-arg-types  # dynamic-method-lookup
+    provider = provider_cls(**provider_kwargs)
     cls.add_provider(name, provider)
     return provider
 
   @classmethod
-  def remove(cls, name):
+  def remove(cls, name: str) -> None:
     """Remove provider from the registry, if it exists."""
     if name in cls._REGISTRY:
       del cls._REGISTRY[name]
 
   @classmethod
-  def get(cls, name):
+  def get(cls, name: str) -> _DatasetProviderT:
     """Returns provider from the registry."""
     if name not in cls._REGISTRY:
       raise ValueError("Provider name not registered: %s" % name)
     return cls._REGISTRY[name]
 
   @classmethod
-  def names(cls):
+  def names(cls) -> Set[str]:
     """Returns all provider names in registry."""
-    return cls._REGISTRY.keys()
+    return set(cls._REGISTRY.keys())
 
   @classmethod
-  def reset(cls):
+  def reset(cls) -> None:
     """Removes all of the registered tasks."""
     cls._REGISTRY = {}
 
   @classmethod
   def get_dataset(
       cls,
-      name,
-      sequence_length,
-      split,
-      use_cached=False,
-      shuffle=True,
-      seed=None,
-      shard_info=None,
-      num_epochs=1,
-  ):
+      name: str,
+      sequence_length: Optional[Mapping[str, int]],
+      split: str,
+      use_cached: bool = False,
+      shuffle: bool = True,
+      seed: Optional[int] = None,
+      shard_info: Optional[ShardInfo] = None,
+      num_epochs: Optional[int] = 1,
+  ) -> tf.data.Dataset:
     """Returns the requested tf.data.Dataset."""
     return cls.get(name).get_dataset(
         sequence_length=sequence_length,
@@ -852,7 +855,7 @@ class _CachedDataSource(FileDataSource):
     )
 
 
-class CacheDatasetPlaceholder(object):
+class CacheDatasetPlaceholder:
   """A placeholder to signal when in the pipeline offline caching will occur."""
 
   def __init__(
@@ -1517,10 +1520,10 @@ class Task(DatasetProviderBase):
 
 
 
-class TaskRegistry(DatasetProviderRegistry):
+class TaskRegistry(DatasetProviderRegistry[Task]):
   """Registry of Tasks."""
 
-  _REGISTRY = {}
+  _REGISTRY: MutableMapping[str, Task] = {}
   _PROVIDER_TYPE = Task
 
   # pylint: disable=arguments-renamed
@@ -1557,7 +1560,10 @@ class TaskRegistry(DatasetProviderRegistry):
 
   @classmethod
   def get(cls, name) -> Task:
-    return super().get(name)
+    result = super().get(name)
+    if isinstance(result, Task):
+      return result
+    raise TypeError(f"Expected type `Task`, got: {type(result)}")
 
 
 # ================================ Mixtures ====================================
@@ -1612,9 +1618,9 @@ class Mixture(DatasetProviderBase):
     """
     self._task_to_rate = {}
     self._task_map = {}
-    self._tasks = []
-    self._sub_mixtures = []
-    self._name = name
+    self._tasks: list[Task] = []
+    self._sub_mixtures: list[Mixture] = []
+    self._name: str = name
     self._sample_fn = sample_fn
     for t in tasks:
       if isinstance(t, (str, Task, Mixture)):
@@ -1631,16 +1637,18 @@ class Mixture(DatasetProviderBase):
         subtask = (
             TaskRegistry.get(task_name)
             if is_task
-            else MixtureRegistry.get(task_name)
+            else MixtureRegistry.get(task_name)  # pytype: disable=name-error
         )
       else:
         subtask = task_or_name
         task_name = subtask.name
         is_task = isinstance(subtask, Task)
-      if is_task:
+      if is_task and isinstance(subtask, Task):
         self._tasks.append(subtask)
-      else:
+      elif isinstance(subtask, Mixture):
         self._sub_mixtures.append(subtask)
+      else:
+        raise ValueError(f"Only support Task or Mixture, got: {type(subtask)}")
       self._task_to_rate[task_name] = rate
       self._task_map[task_name] = subtask
 
@@ -1687,7 +1695,7 @@ class Mixture(DatasetProviderBase):
 
     return value
 
-  def _get_submixture_rate(self, mix: "Mixture") -> float:
+  def _get_submixture_rate(self, mix: Mixture) -> float:
     """Returns the rate for a sub mixture by name."""
     rate = self._task_to_rate[mix.name]
     if not isinstance(rate, numbers.Number):
@@ -1886,7 +1894,7 @@ class PyGloveTunableMixture(Mixture):
         sample_fn=sample_fn,
     )
 
-  def _get_submixture_rate(self, mix: "Mixture") -> float:
+  def _get_submixture_rate(self, mix: Mixture) -> float:
     """Overrides this method to make submixture ratio tunable."""
     rate = self._task_to_rate[mix.name]
     if callable(rate):
@@ -1962,10 +1970,8 @@ def _log_mixing_proportions(
     def _estimated_mean_length(task, key):
       if key not in sequence_length:
         return 0
-      if (
-          task.supports_caching
-          and task._cache_step_idx < len(task.preprocessors) - 1
-      ):  # pylint:disable=protected-access
+      cache_step_idx = task._cache_step_idx  # pylint: disable=protected-access
+      if task.supports_caching and cache_step_idx < len(task.preprocessors) - 1:
         # There is processing after caching, so we can't rely on the stats.
         return sequence_length[key]
       # Some tasks, like LMs, don't have inputs.
@@ -2017,19 +2023,21 @@ def _log_mixing_proportions(
     _log_padding_fractions(mixed_dataset, sequence_length)
 
 
-class MixtureRegistry(DatasetProviderRegistry):
+class MixtureRegistry(DatasetProviderRegistry[Mixture]):
   """Registry of Mixtures."""
 
-  _REGISTRY = {}
+  _REGISTRY: MutableMapping[str, Mixture] = {}
   _PROVIDER_TYPE = Mixture
 
   # pylint: disable=arguments-renamed
   @classmethod
   def add(
       cls,
-      name,
-      tasks,
-      default_rate=None,
+      name: str,
+      tasks: Union[
+          Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
+      ],
+      default_rate: Optional[MixtureRate] = None,
       mixture_cls: Type[Mixture] = Mixture,
       **kwargs,
   ) -> Mixture:
@@ -2044,11 +2052,14 @@ class MixtureRegistry(DatasetProviderRegistry):
         name, provider_cls=mixture_cls, provider_kwargs=provider_kwargs
     )
 
-  @classmethod
-  def get(cls, name) -> Mixture:
-    return super().get(name)
-
   # pylint: enable=arguments-renamed
+
+  @classmethod
+  def get(cls, name: str) -> Mixture:
+    result = super().get(name)
+    if isinstance(result, Mixture):
+      return result
+    raise TypeError(f"Expected type `Mixture`, got: {type(result)}")
 
 
 def _get_closest_names(
@@ -2072,7 +2083,7 @@ def _get_closest_names(
   return [k for (k, v) in sorted_d]
 
 
-def get_mixture_or_task(task_or_mixture_name: str):
+def get_mixture_or_task(task_or_mixture_name: str) -> Union[Task, Mixture]:
   """Return the Task or Mixture from the appropriate registry."""
   mixtures = MixtureRegistry.names()
   tasks = TaskRegistry.names()
