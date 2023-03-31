@@ -17,6 +17,7 @@
 # pylint:disable=protected-access
 
 import dataclasses
+import functools
 import inspect
 from typing import Mapping, Optional, Sequence, Union
 
@@ -203,6 +204,7 @@ class TruncatedDatasetProvider(dp.DataSource):
     """See base class for documentation."""
     return self.child.output_features
 
+  @functools.lru_cache()
   def list_shards(self, split: str) -> Sequence[str]:
     """See base class for documentation."""
     return self.child.list_shards(split)

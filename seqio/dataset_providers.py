@@ -501,6 +501,7 @@ class TfdsDataSource(DataSource):
     """Overrides since we can't call `info.splits` until after init."""
     return self.tfds_dataset.size(split)
 
+  @functools.lru_cache(maxsize=1024)
   def list_shards(self, split: str) -> Sequence[str]:
     def _get_filename(info):
       if isinstance(info, dict):  # this is true for unit tests
@@ -607,6 +608,7 @@ class FileDataSource(DataSource):
         num_parallel_calls=tf.data.experimental.AUTOTUNE,
     )
 
+  @functools.lru_cache(maxsize=1024)
   def list_shards(self, split: str) -> Sequence[str]:
     return _list_files(pattern=self._split_to_filepattern[split])
 

@@ -290,6 +290,7 @@ class FewshotDataSource(dataset_providers.DataSource):
   def supports_arbitrary_sharding(self) -> bool:
     return False
 
+  @functools.lru_cache()
   def list_shards(self, split: str) -> Sequence[str]:
     return self._original_source.list_shards(split)
 
