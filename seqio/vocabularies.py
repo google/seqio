@@ -50,6 +50,10 @@ class Vocabulary(metaclass=abc.ABCMeta):
     self._extra_ids = extra_ids or 0
 
   @property
+  def bos_id(self) -> Optional[int]:
+    raise NotImplementedError("need to implement bos_id")
+
+  @property
   @abc.abstractmethod
   def eos_id(self) -> Optional[int]:
     raise NotImplementedError("need to implement eos_id")
@@ -346,6 +350,10 @@ class SentencePieceVocabulary(Vocabulary):
             PAD_ID,
             self._tokenizer.pad_id(),
         )
+
+  @property
+  def bos_id(self) -> Optional[int]:
+    return self.tokenizer.bos_id()
 
   @property
   def eos_id(self) -> Optional[int]:
