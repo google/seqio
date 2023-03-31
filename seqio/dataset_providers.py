@@ -1879,7 +1879,12 @@ class PyGloveTunableMixture(Mixture):
       ):
         t = (t[0], hyper_ratio(t[0], t[1]))
       converted_tasks.append(t)
-    super().__init__(name, converted_tasks, default_rate, sample_fn)
+    super().__init__(
+        name=name,
+        tasks=converted_tasks,
+        default_rate=default_rate,
+        sample_fn=sample_fn,
+    )
 
   def _get_submixture_rate(self, mix: "Mixture") -> float:
     """Overrides this method to make submixture ratio tunable."""
