@@ -39,6 +39,7 @@ from seqio import metrics as metrics_lib
 from seqio import preprocessors as seqio_preprocessors
 from seqio import task_registry_provenance_tracking
 from seqio import utils
+from seqio.feature_converters import EncDecFeatureConverter
 from seqio.feature_converters import FeatureConverter
 from seqio.vocabularies import PassThroughVocabulary
 from seqio.vocabularies import Vocabulary
@@ -1559,6 +1560,58 @@ class Task(DatasetProviderBase):
     return decoded_model_output
 
 
+
+          if converter_transformations is not None:
+            transformations += converter_transformations
+          else:
+            raise tf.errors.FailedPreconditionError(
+                "Could not get Grain transforms for FeatureConverter"
+                f" {feature_converter}. Please implement 'get_grain_transforms'"
+                " or disable 'strict_transformations'."
+            )
+      else:
+        logging.warning(
+            "`strict_transformations` is disabled. Please make sure this is"
+            " intended."
+        )
+        transformations.append(
+            functools.partial(
+                feature_converter, task_feature_lengths=sequence_length
+            )
+        )
+        if batch_size is not None:
+          transformations.append(grain.TfBatch(batch_size, drop_remainder=True))
+        else:
+          logging.warning(
+              "`batch_size` is not provided. Please make sure this is intended."
+          )
+    else:
+      logging.warning(
+          "FeatureConverter is not provided. Please make sure this is intended."
+      )
+    extra_args = {
+        "sequence_length": sequence_length,
+        "output_features": self.output_features,
+    }
+    transformations = [
+        utils.add_kwargs_to_transform(t, **extra_args) for t in transformations
+    ]
+
+    sampler = grain.TfDefaultIndexSampler(
+        len(source),
+        shard_options=shard_options,
+        shuffle=shuffle,
+        seed=seed,
+        num_epochs=num_epochs,
+    )
+    data_loader = grain.TfDataLoader(
+        source=source,
+        sampler=sampler,
+        transformations=transformations,
+        iterator_options=grain.IteratorOptions(drop_grain_meta_features=True),
+        strict_transformations=strict_transformations,
+    )
+    return iter(data_loader)  # pytype: disable=bad-return-type
 
 
 
