@@ -92,7 +92,7 @@ class Generic(MetricValue):
   metadata: tf.compat.v1.SummaryMetadata
 
 
-class ModelOutputType(enum.Enum):
+class ModelOutputType(enum.IntEnum):
   """Model output types."""
 
   PREDICTION = 1
@@ -125,7 +125,7 @@ class Metric(clu.metrics.Metric):
       model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
       features: Mapping[str, utils.Feature],
       target_field_name: str = "targets",
-  ) -> "Metric":
+      mask: Optional[np.ndarray] = None) -> "Metric":
     """Creates a `seqio.Metric` from model outputs.
 
     Args:
@@ -133,6 +133,8 @@ class Metric(clu.metrics.Metric):
       model_output: Model output computed by model functions.
       features: Output features defined in seqio.Task.
       target_field_name: Field name of the target sequence.
+      mask: A boolean array to indicate which examples in the inputs are
+        included for metric evaluation.
 
     Returns:
       An instance of Metric.
@@ -159,8 +161,7 @@ class LegacyMetric(Metric):
         key
         for key, param in inspect.signature(metric_fn).parameters.items()
         if param.default == inspect.Parameter.empty
-        and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
-    )
+        and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
     if pos_args == ("targets", "scores"):
       model_output_type = ModelOutputType.SCORE
     elif pos_args == ("targets", "predictions"):
@@ -172,8 +173,7 @@ class LegacyMetric(Metric):
           "Metric functions must have positional arguments matching either "
           "('targets', 'scores'), ('targets', 'predictions') or "
           "('targets', 'predictions', 'aux_values'). "
-          f"Got: {pos_args}"
-      )
+          f"Got: {pos_args}")
 
     return cls(
         _metric_fn=metric_fn,
@@ -197,6 +197,7 @@ class LegacyMetric(Metric):
       model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
       features: Mapping[str, utils.Feature],
       target_field_name: str = "targets",
+      mask: Optional[np.ndarray] = None,
   ) -> "LegacyMetric":
     if not self.metric_fn_kwargs.get("targets"):
       # Postprocesses the targets here.
