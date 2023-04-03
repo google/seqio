@@ -16,7 +16,7 @@
 
 Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 """
-
+from __future__ import annotations
 
 import abc
 import collections
@@ -71,6 +71,37 @@ class ShardInfo:
 
   index: int
   num_shards: int
+
+
+@dataclasses.dataclass(frozen=True)
+class SourceInfo:
+  """Information about the source location of a class or function.
+
+  Attributes:
+    file_path: where on disk the source code is located.
+    line_number: the line number in the file where the class/function/etc is
+      defined.
+  """
+
+  file_path: Optional[str] = None
+  line_number: Optional[int] = None
+
+  @classmethod
+  def for_class(cls, klass) -> SourceInfo:
+    """Returns info about where the given class was defined."""
+    try:
+      source_file = inspect.getsourcefile(klass)
+    except TypeError:
+      source_file = None
+    try:
+      _, line_number = inspect.getsourcelines(klass)
+    except TypeError:
+      line_number = None
+    return SourceInfo(
+        file_path=source_file,
+        line_number=line_number,
+    )
+
 
 
 class DatasetProviderBase(metaclass=abc.ABCMeta):
@@ -905,6 +936,7 @@ class Task(DatasetProviderBase):
       metric_fns: Optional[Sequence[MetricFnCallable]] = None,
       metric_objs: Optional[Sequence[metrics_lib.Metric]] = None,
       shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE,
+      source_info: Optional[SourceInfo] = None,
   ):
     """Task constructor.
 
@@ -935,6 +967,7 @@ class Task(DatasetProviderBase):
         objects.
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
+      source_info: optional metadata about where this `Task` was defined.
     """
     if not _VALID_TASK_NAME_REGEX.match(name):
       raise ValueError(
@@ -949,6 +982,7 @@ class Task(DatasetProviderBase):
 
     self._name = name
     self._source = source
+    self._source_info = source_info
 
     # Capture constructor arguments and use them lazily to speed up
     # Task initialization in case many Tasks are being created that are unused.
@@ -987,6 +1021,10 @@ class Task(DatasetProviderBase):
   @property
   def name(self) -> str:
     return self._name
+
+  @property
+  def source_info(self) -> Optional[SourceInfo]:
+    return self._source_info
 
   @functools.cached_property
   def metric_objs(self) -> Sequence[metrics_lib.Metric]:
@@ -1585,6 +1623,7 @@ class Mixture(DatasetProviderBase):
       sample_fn: SampleFn = functools.partial(
           tf.data.Dataset.sample_from_datasets, stop_on_empty_dataset=True
       ),
+      source_info: Optional[SourceInfo] = None,
   ):
     """Mixture constructor.
 
@@ -1611,6 +1650,7 @@ class Mixture(DatasetProviderBase):
         default rate if rates are not provided in the `tasks` argument.
       sample_fn: SampleFn callable that implements sampling logic to interleave
         multiple datasets into a single dataset.
+      source_info: optional metadata about where this `Mixture` was defined.
     """
     self._task_to_rate = {}
     self._task_map = {}
@@ -1618,6 +1658,7 @@ class Mixture(DatasetProviderBase):
     self._sub_mixtures = []
     self._name = name
     self._sample_fn = sample_fn
+    self._source_info = source_info
     for t in tasks:
       if isinstance(t, (str, Task, Mixture)):
         task_or_name = t
@@ -1661,6 +1702,10 @@ class Mixture(DatasetProviderBase):
   @property
   def name(self) -> str:
     return self._name
+
+  @property
+  def source_info(self) -> Optional[SourceInfo]:
+    return self._source_info
 
   @property
   def tasks(self) -> Sequence[Task]:
