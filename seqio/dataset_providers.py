@@ -164,6 +164,7 @@ class DatasetProviderRegistry(object):
     task_registry_provenance_tracking.maybe_record_provenance(
         frame=inspect.currentframe(),
         name=name,
+        provider_type=provider.__class__.__name__,
     )
 
   @classmethod

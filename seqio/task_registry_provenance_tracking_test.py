@@ -54,11 +54,15 @@ class TestRegistryProvenanceTrackingTest(absltest.TestCase):
       # pyformat: enable
       return expected_registration_provenance
 
+    expected_provider_type = dataset_providers.Task.__name__
     expected_registration_provenance = _closure_containing_task_init()
 
-    actual_registration_provenance = (
+    actual_provider_type, actual_registration_provenance = (
         task_registry_provenance_tracking.view_provenances()[input_task_name]
     )
+
+    self.assertEqual(actual_provider_type, expected_provider_type)
+
     self.assertEqual(
         actual_registration_provenance,
         expected_registration_provenance,
