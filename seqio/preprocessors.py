@@ -84,7 +84,12 @@ def tokenize(
       copy_pretokenized=copy_pretokenized,
       with_eos=with_eos,
   )
-  return utils.map_over_dataset(fn=tokenize_fn)(dataset)
+  # Set a high parallelism to mitigate head-of-line blocking due to occasional
+  # long tokenizer execution times. This value has been experimentally
+  # determined to work well. Setting it higher could potentially help
+  # performance but will also require extra memory.
+  # TODO(b/277349572) Switch back to autotune when the linked issue is resolved.
+  return utils.map_over_dataset(fn=tokenize_fn, num_parallel_calls=256)(dataset)
 
 
 def tokenize_impl(
