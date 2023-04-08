@@ -14,6 +14,7 @@
 
 """Utilities for the class-based evaluation."""
 
+import collections
 import concurrent
 import functools
 import inspect
@@ -22,17 +23,21 @@ import time
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
+import clu.metrics
 import jax
+from jax.experimental import multihost_utils
 import numpy as np
 from seqio import dataset_providers
 from seqio import feature_converters
 from seqio import loggers as loggers_lib
 from seqio import metrics as metrics_lib
+from seqio import utils
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 import typing_extensions
 
 Task = dataset_providers.Task
+ModelOutputType = metrics_lib.ModelOutputType
 EncDecFeatureConverter = feature_converters.EncDecFeatureConverter
 FeatureConverter = feature_converters.FeatureConverter
 
@@ -766,3 +771,118 @@ class Evaluator:
   @property
   def loggers(self) -> Tuple[loggers_lib.Logger]:
     return tuple(self._loggers)
+
+
+class MetricManager:
+  """A class to manage metrics update and report for evaluation."""
+
+  def __init__(self, tasks: Sequence[Task]):
+
+    # metric_registry stores `Collection` (of metrics) class per task and
+    # model_output_type.
+    self.metric_registry = collections.defaultdict(dict)
+    # output_metrics_collections stores `Collection` (of metrics) instance per
+    # task and model_output_type.
+    self.output_metrics_collections = collections.defaultdict(dict)
+    for task in tasks:
+      metric_objs = task.metric_objs
+
+      metrics_per_output_type = collections.defaultdict(list)
+      for metric_obj in metric_objs:
+        model_output_type = metric_obj.model_output_type
+        metrics_per_output_type[model_output_type].append(metric_obj)
+
+      for model_output_type in metrics_per_output_type:
+        metric_objs = metrics_per_output_type[model_output_type]
+        metrics_collection = clu.metrics.Collection.create(
+            **{type(metric).__name__ + f"_{idx}": type(metric)
+               for idx, metric in enumerate(metric_objs)})
+        self.metric_registry[task.name][model_output_type] = metrics_collection
+
+  def initialize_metrics(self, task_name: str,
+                         model_output_type: ModelOutputType):
+    """Initializes metrics associated with the task name and model_output_type.
+
+    This happens at the start of metric evaluation.
+
+    Args:
+      task_name: string name of the seqio task that we'd like to evlauate
+        metrics on.
+      model_output_type: we initialize metrics by the same model output type.
+    """
+    metrics_collection = self.metric_registry[task_name][model_output_type]
+    self.output_metrics_collections[task_name][model_output_type] = (
+        metrics_collection.empty()
+    )
+
+  def from_model_output(self,
+                        task_name: str,
+                        model_output_type: ModelOutputType,
+                        inputs: Sequence[Mapping[str, Any]],
+                        model_output: Union[np.ndarray,
+                                            Tuple[np.ndarray, np.ndarray]],
+                        features: Mapping[str, utils.Feature],
+                        target_field_name: str = "targets",
+                        mask: Optional[np.ndarray] = None):
+    """Calculates the metrics associated with the given task name and model output type.
+
+    Args:
+      task_name: string name of the seqio task that we'd like to evlauate
+        metrics on.
+      model_output_type: we evaluate metrics by the same model output type.
+      inputs: Examples in dataset.
+      model_output: Model output computed by model functions.
+      features: Output features defined in seqio.Task.
+      target_field_name: Field name of the target sequence.
+      mask: An array of booleans, same length as inputs. Each element indicates
+        whether to include the corresponding element in the inputs for metric
+        evaluation.
+
+    Returns:
+
+    """
+    metrics_collection = self.metric_registry[task_name][model_output_type]
+    metric_batch = metrics_collection.single_from_model_output(
+        inputs=inputs,
+        model_output=model_output,
+        features=features,
+        target_field_name=target_field_name,
+        mask=mask)
+
+    return metric_batch
+
+  def merge(self, metrics_collection: clu.metrics.Collection,
+            task_name: str, model_output_type: ModelOutputType):
+    """Updates the metrics for the given task and model output type.
+
+    Args:
+      metrics_collection: A clu metric Collection object. Usually it is
+        evaluated on a batch.
+      task_name: string name of the seqio task that we'd like to evlauate
+        metrics on.
+      model_output_type: we evaluate metrics by the same model output type.
+    """
+    curr_metrics_collection = self.output_metrics_collections[task_name][
+        model_output_type
+    ]
+    new_metrics_collection = curr_metrics_collection.merge(metrics_collection)
+    self.output_metrics_collections[task_name][
+        model_output_type
+    ] = new_metrics_collection
+
+  def host_gather_and_reduce(
+      self, task_name: str, model_output_type: ModelOutputType
+  ):
+    """Gathers metrics across hosts for the given task and model output type.
+
+    Args:
+      task_name: string name of the seqio task that we'd like to evlauate
+        metrics on.
+      model_output_type: we evaluate metrics by the same model output type.
+    """
+    curr_metrics_collection = self.output_metrics_collections[task_name][
+        model_output_type
+    ]
+    gathered = multihost_utils.process_allgather(curr_metrics_collection)
+    self.output_metrics_collections[task_name][
+        model_output_type] = gathered.reduce()
