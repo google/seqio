@@ -102,6 +102,9 @@ class SourceInfo:
         line_number=line_number,
     )
 
+  def has_meaningful_info(self) -> bool:
+    return bool(self.file_path)
+
 
 
 class DatasetProviderBase(metaclass=abc.ABCMeta):
