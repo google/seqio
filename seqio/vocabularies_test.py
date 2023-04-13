@@ -20,7 +20,7 @@ from seqio import test_utils
 from seqio import vocabularies
 import tensorflow.compat.v2 as tf
 
-from sentencepiece import sentencepiece_model_pb2
+from sentencepiece.python.src.sentencepiece import sentencepiece_model_pb2
 
 tf.compat.v1.enable_eager_execution()
 

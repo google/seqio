@@ -22,7 +22,7 @@ from absl import logging
 import tensorflow.compat.v2 as tf
 import tensorflow_text as tf_text
 
-from sentencepiece import sentencepiece_model_pb2
+from sentencepiece.python.src.sentencepiece import sentencepiece_model_pb2
 import sentencepiece as sentencepiece_processor
 
 PAD_ID = 0

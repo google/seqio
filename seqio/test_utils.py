@@ -35,7 +35,7 @@ from seqio import vocabularies
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
-from sentencepiece import sentencepiece_model_pb2
+from sentencepiece.python.src.sentencepiece import sentencepiece_model_pb2
 
 TaskRegistry = dataset_providers.TaskRegistry
 MixtureRegistry = dataset_providers.MixtureRegistry
