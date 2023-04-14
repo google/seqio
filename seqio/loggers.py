@@ -445,10 +445,15 @@ class JSONLogger(Logger):
       return
 
     if not inferences or not targets or not dataset:
+      unset = list()
+      if not inferences:
+        unset.append("inferences is None or empty")
+      if not targets:
+        unset.append("targets is None or empty")
+      if not dataset:
+        unset.append("dataset is None or empty")
       logging.info(
-          "Skipping inference logging as one or more of inferences, "
-          "targets or dataset is unset"
-      )
+          "Skipping inference logging as %s", ", and ".join(unset))
       return
 
     write_tick = time.time()
