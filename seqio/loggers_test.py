@@ -308,7 +308,7 @@ class JSONLoggerTest(tf.test.TestCase):
     }]
     self.assertEqual(actual, expected)
 
-  def test_predicitions_only(self):
+  def test_predictions_only(self):
     inferences = {"prediction": ["pred0", "pred1"]}
     targets = ["target0", "target1"]
     tmp_dir = self.create_tempdir().full_path
