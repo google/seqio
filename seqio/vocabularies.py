@@ -316,10 +316,14 @@ class SentencePieceVocabulary(Vocabulary):
     # sentencepiece::ModelInterface::pad_piece when using the vocabulary in
     # SeqIO preprocessors.
     with self._load_model_lock:
+      # Check if another thread has already finished initializing the tokenizer.
+      if self._tokenizer and self._sp_model:
+        return
+
       # Handle cases where SP can't load the file, but gfile can.
       with tf.io.gfile.GFile(self._sentencepiece_model_file, "rb") as f:
-        self._sp_model = f.read()
-        model = sentencepiece_model_pb2.ModelProto.FromString(self._sp_model)
+        sp_model = f.read()
+        model = sentencepiece_model_pb2.ModelProto.FromString(sp_model)
         # Add placeholder strings for extra IDs.
         if self._extra_ids:
           # By default, we them in reverse order to match span corruption.
@@ -337,19 +341,26 @@ class SentencePieceVocabulary(Vocabulary):
         if self._normalizer_spec_overrides is not None:
           model.normalizer_spec.MergeFrom(self._normalizer_spec_overrides)
           model.denormalizer_spec.MergeFrom(self._normalizer_spec_overrides)
-        self._sp_model = model.SerializeToString()
+        sp_model = model.SerializeToString()
       # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
-      self._tokenizer = sentencepiece_processor.SentencePieceProcessor()
-      self._tokenizer.LoadFromSerializedProto(self._sp_model)
-      if self._tokenizer.pad_id() != PAD_ID:
+      tokenizer = sentencepiece_processor.SentencePieceProcessor()
+      tokenizer.LoadFromSerializedProto(sp_model)
+      if tokenizer.pad_id() != PAD_ID:
         logging.warning(
             (
                 "T5 library uses PAD_ID=%s, which is different from the "
                 "sentencepiece vocabulary, which defines pad_id=%s"
             ),
             PAD_ID,
-            self._tokenizer.pad_id(),
+            tokenizer.pad_id(),
         )
+
+      # NOTE: We need to use an intermediate variable tokenizer here, otherwise
+      # the threads that are checking for self._tokenizer/_sp_model could start
+      # using them sooner than they are fully initialized. The assignment below
+      # is atomic.
+      self._tokenizer = tokenizer
+      self._sp_model = sp_model
 
   @property
   def bos_id(self) -> Optional[int]:
