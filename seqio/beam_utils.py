@@ -76,6 +76,9 @@ class PreprocessTask(beam.PTransform):
       add_provenance: If True, provenance is added to each example.
       tfds_data_dir: (Optional) str, directory where the TFDS datasets are
         stored.
+
+    Raises:
+      FileNotFoundError: raised when no shards are found for the task.
     """
     self._task = task
     self._split = split
@@ -85,6 +88,8 @@ class PreprocessTask(beam.PTransform):
     self._tfds_data_dir = tfds_data_dir
     self._int64_max = 2**63 - 1
     self.shards = list(enumerate(task.source.list_shards(split)))
+    if not self.shards:
+      raise FileNotFoundError(f"No shards found for {task.name} {split}")
     logging.info(
         "%s %s %s shards: %d %s",
         task.name,
