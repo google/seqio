@@ -785,6 +785,7 @@ class ProtoDataSource(FileDataSource):
           decode_proto_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE
       )
 
+    self.reader_cls = reader_cls
     self.decode_proto_fn = decode_proto_fn
     super().__init__(
         read_file_fn=read_file_fn,
