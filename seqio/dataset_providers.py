@@ -563,6 +563,7 @@ class FileDataSource(DataSource):
       num_input_examples: Optional[Mapping[str, int]] = None,
       caching_permitted: bool = True,
       file_shuffle_buffer_size: Optional[int] = None,
+      cycle_length: int = 16,
   ):
     """FileDataSource constructor.
 
@@ -580,10 +581,12 @@ class FileDataSource(DataSource):
         None, the number of files is used as buffer size for a perfect shuffle
         (default and recommended). A value of 16 may be explicitly set to
         replicate earlier behavior.
+      cycle_length: The cycle_length to pass to tf.data.Dataset.interleave.
     """
     self._split_to_filepattern = split_to_filepattern
     self._reader = read_file_fn
     self._file_shuffle_buffer_size = file_shuffle_buffer_size
+    self._cycle_length = cycle_length
     super().__init__(
         splits=split_to_filepattern.keys(),
         num_input_examples=num_input_examples,
@@ -639,7 +642,7 @@ class FileDataSource(DataSource):
 
     return files_ds.interleave(
         self._reader,
-        cycle_length=16,
+        cycle_length=self._cycle_length,
         block_length=16,
         num_parallel_calls=tf.data.experimental.AUTOTUNE,
     )
