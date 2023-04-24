@@ -454,7 +454,7 @@ class EvaluationTest(tf.test.TestCase):
       ) -> evaluation.PredictFnReturnType:
         del ds, model_feature_shapes
         return (
-            [(0, [5, 6]), (1, [7]), (2, [7])]
+            [(0, [5, 6]), (1, [7, 5]), (2, [7, 5])]
             if task.predict_metric_fns
             else self.uncalled_fn
         )
@@ -466,7 +466,7 @@ class EvaluationTest(tf.test.TestCase):
         del ds, model_feature_shapes
 
         indices_and_predictions = (
-            [(0, [5, 6]), (1, [7]), (2, [7])]
+            [(0, [5, 6]), (1, [7, 5]), (2, [7, 5])]
             if task.predict_with_aux_metric_fns
             else self.uncalled_fn
         )
@@ -508,7 +508,7 @@ class EvaluationTest(tf.test.TestCase):
     )
     all_metrics, _ = self._evaluate_single_task(task)
     self.assertDictClose(
-        {"sequence_accuracy": 2.0 / 3 * 100}, all_metrics[task.name]
+        {"sequence_accuracy": 1.0 / 3 * 100}, all_metrics[task.name]
     )
 
   def test_evaluate_single_task_score(self):
@@ -524,7 +524,7 @@ class EvaluationTest(tf.test.TestCase):
         score_metric_fns=[_sum_scores_metric],
     )
     all_metrics, _ = self._evaluate_single_task(task)
-    expected = {"sequence_accuracy": 2.0 / 3 * 100, "total_score": 1305}
+    expected = {"sequence_accuracy": 1.0 / 3 * 100, "total_score": 1305}
     self.assertDictClose(expected, all_metrics[task.name])
 
   def test_evaluate_using_aux_score(self):
@@ -610,7 +610,7 @@ class EvaluationTest(tf.test.TestCase):
     )
     all_metrics, _ = self._evaluate_single_task(task, target_field_name="foo")
     self.assertDictClose(
-        {"sequence_accuracy": 2.0 / 3 * 100}, all_metrics[task.name]
+        {"sequence_accuracy": 1.0 / 3 * 100}, all_metrics[task.name]
     )
 
   def test_evaluate_single_task_with_loggers(self):
@@ -630,7 +630,7 @@ class EvaluationTest(tf.test.TestCase):
 
     _, evaluator = self._evaluate_single_task(task, loggers=loggers)
     metrics = {
-        "sequence_accuracy": metrics_lib.Scalar(1 / 3 * 100),
+        "sequence_accuracy": metrics_lib.Scalar(0.0 / 3 * 100),
         "total_score": metrics_lib.Scalar(1305),
     }
     for logger in loggers:
@@ -641,9 +641,9 @@ class EvaluationTest(tf.test.TestCase):
           dataset=evaluator._cached_task_datasets[task.name],
           targets=["e5 e6", "e6", "e7"],
           inferences={
-              "prediction": ["e5 e7", "e7", "e7"],
+              "prediction": ["e5 e7", "e7 e5", "e7 e5"],
               "score": [2, 1, 3],
-              "output": ["e5 e6", "e7", "e7"],
+              "output": ["e5 e6", "e7 e5", "e7 e5"],
           },
       )
 
@@ -831,7 +831,7 @@ class EvaluationTest(tf.test.TestCase):
       ) -> Optional[evaluation.PredictFnReturnType]:
         del model_feature_shapes
         if ds == mock_ds1:
-          return [(0, [5, 6]), (1, [7])]
+          return [(0, [5, 6]), (1, [7, 5])]
         elif ds == mock_ds2:
           return [(0, [5]), (1, [6]), (2, [7])]
 

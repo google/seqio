@@ -199,7 +199,6 @@ def _extract_model_output(cached_model_dataset, model_fn):
     return [x[sorted_order[i]] for i in range(len(sorted_order))]
 
   model_fn_result = model_fn(cached_model_dataset)  # pytype: disable=missing-parameter  # always-use-return-annotations
-
   if isinstance(model_fn_result, tuple):
     # Some of model functions return a tuple of two outputs per example.
     # e.g., ModelOutputType.PREDICTION_WITH_AUX,
@@ -707,25 +706,48 @@ class Evaluator:
       inferences = {}
       for metric_obj in task.metric_objs:
         model_output = all_output[task.name][metric_obj.model_output_type]
+        # When model output type is PREDICTION_WITH_AUX or
+        # SCORE_WITH_INTERMEDIATES, model output is a tuple of two arrays/lists.
+        if isinstance(model_output, tuple):
+          prediction_or_score, aux_value = model_output
+          aux_value = jax.tree_map(
+              np.array, aux_value,
+              is_leaf=lambda x: isinstance(x, list),
+          )
+          model_output = (np.array(prediction_or_score), aux_value)
+        else:
+          model_output = np.array(model_output)
         metric_instance = metric_obj.from_model_output(
             tfds.as_numpy(task_dataset),
             model_output,
             task.output_features,
             self._target_field_name,
         )
-        task_metrics.append(metric_instance.compute())
+        if isinstance(metric_instance, metrics_lib.CollectingMetric):
+          metric_value, targets_and_inferences = metric_instance.actual_compute(
+              tfds.as_numpy(task_dataset),
+              task.output_features,
+              self._target_field_name)
+        else:
+          metric_value = metric_instance.compute()
+          targets_and_inferences = None
+          if hasattr(metric_instance, "targets_and_inferences"):
+            targets_and_inferences = metric_instance.targets_and_inferences
+        task_metrics.append(metric_value)
         # Records inferences for legacy logging compatibility.
-        inferences.update(
-            {
-                key: val
-                for key, val in metric_instance.targets_and_inferences.items()
-                if key != "targets"
-            }
-        )
+        # common ones are score, output, prediction.
+        if targets_and_inferences:
+          for key, val in targets_and_inferences.items():
+            if key == "targets": continue
+            inferences[key] = (val.tolist()
+                               if isinstance(val, np.ndarray) else val)
       # Records targets for legacy logging compatibility.
-      # Each metric_instance should have identical targets.
-      # Chooses the last metric_instance for this recording purpose.
-      targets = metric_instance.targets_and_inferences["targets"]
+      # Each targets_and_inferences should have identical targets.
+      # Chooses the last targets_and_inferences for this recording purpose.
+      if targets_and_inferences:
+        targets = targets_and_inferences["targets"]
+      else:
+        targets = None
 
       all_metrics[task.name] = {}
       for k, v in itertools.chain(*[m.items() for m in task_metrics]):
@@ -823,7 +845,8 @@ class MetricManager:
                                             Tuple[np.ndarray, np.ndarray]],
                         features: Mapping[str, utils.Feature],
                         target_field_name: str = "targets",
-                        mask: Optional[np.ndarray] = None):
+                        mask: Optional[np.ndarray] = None,
+                        indices_2d: Optional[np.ndarray] = None):
     """Calculates the metrics associated with the given task name and model output type.
 
     Args:
@@ -837,6 +860,8 @@ class MetricManager:
       mask: An array of booleans, same length as inputs. Each element indicates
         whether to include the corresponding element in the inputs for metric
         evaluation.
+      indices_2d: 2d-indices of examples in the inputs/model_output. First
+        dimension is shard id, the second is the example id within that shard.
 
     Returns:
 
@@ -845,6 +870,7 @@ class MetricManager:
     metric_batch = metrics_collection.single_from_model_output(
         inputs=inputs,
         model_output=model_output,
+        indices_2d=indices_2d,
         features=features,
         target_field_name=target_field_name,
         mask=mask)

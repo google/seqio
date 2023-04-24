@@ -1068,8 +1068,8 @@ class Task(DatasetProviderBase):
     to_return = list(x for x in self._metric_objs_constructor_args)
     if self.metric_fns:
       to_return += [
-          metrics_lib.LegacyMetric.empty(mf, self._postprocess_fn)
-          for mf in self.metric_fns
+          metrics_lib.PassthroughLegacyMetric.from_metric_fn(
+              mf, self._postprocess_fn).empty() for mf in self.metric_fns
       ]
     return to_return
 

@@ -48,6 +48,7 @@ class Count(metrics_lib.Metric):
       features: Mapping[str, utils.Feature],
       target_field_name: str = "targets",
       mask: Optional[np.ndarray] = None,
+      indices_2d: Optional[np.ndarray] = None,
     ) -> "Count":
 
     if mask is None:
@@ -82,7 +83,11 @@ class MetricManagerTest(absltest.TestCase):
 
     self.task = mock.Mock()
     self.task.name = "dummy_task"
+    mf0 = lambda targets, predictions: {"accuracy": 1.0}
+    mf1 = lambda targets, predictions: {"loss": 0.3}
     self.task.metric_objs = [
+        metrics_lib.PassthroughLegacyMetric.from_metric_fn(mf0, None).empty(),
+        metrics_lib.PassthroughLegacyMetric.from_metric_fn(mf1, None).empty(),
         Count.empty(),
     ]
 
@@ -114,7 +119,9 @@ class MetricManagerTest(absltest.TestCase):
     metrics = self.metric_manager.output_metrics_collections["dummy_task"][
         model_output_type
     ]
-    self.assertEqual(metrics.Count_0.count, 0)
+    self.assertEqual(metrics.FromMetricFun_0.values, {})
+    self.assertEqual(metrics.FromMetricFun_1.values, {})
+    self.assertEqual(metrics.Count_2.count, 0)
 
   def test_from_model_output(self):
     task_batch = [
@@ -123,16 +130,23 @@ class MetricManagerTest(absltest.TestCase):
     ]
 
     batch_result = np.array([[0, 1, 2, 3], [1, 2, 3, 4]])
+
+    batch_indices_2d = np.array([
+        [0, 0],  # 1st example is from shard 0 and index 0
+        [0, 1],  # 1st example is from shard 0 and index 1
+    ])
     model_output_type = metrics_lib.ModelOutputType.PREDICTION
     metrics_batch = self.metric_manager.from_model_output(
         inputs=task_batch,
         model_output=batch_result,
         features=self.task.output_features,
+        mask=(batch_indices_2d[:, 1] >= 0),
+        indices_2d=batch_indices_2d,
         task_name=self.task.name,
         model_output_type=model_output_type,
     )
 
-    self.assertEqual(metrics_batch.Count_0.count, 2)
+    self.assertEqual(metrics_batch.Count_2.count, 2)
 
   def test_merge(self):
     model_output_type = metrics_lib.ModelOutputType.PREDICTION
@@ -143,10 +157,16 @@ class MetricManagerTest(absltest.TestCase):
         {"targets": [1, 2, 3, 4]},
     ]
     batch_result = np.array([[0, 1, 2, 3], [1, 2, 3, 4]])
+    batch_indices_2d = np.array([
+        [0, 0],  # 1st example is from shard 0 and index 0
+        [0, 1],  # 1st example is from shard 0 and index 1
+    ])
     metrics_batch = self.metric_manager.from_model_output(
         inputs=task_batch,
         model_output=batch_result,
         features=self.task.output_features,
+        mask=(batch_indices_2d[:, 1] >= 0),
+        indices_2d=batch_indices_2d,
         task_name=self.task.name,
         model_output_type=model_output_type,
     )
@@ -159,7 +179,22 @@ class MetricManagerTest(absltest.TestCase):
     metrics = self.metric_manager.output_metrics_collections["dummy_task"][
         model_output_type
     ]
-    self.assertEqual(metrics.Count_0.count, 2)
+    # The first two metrics are CollectingMetric's, so they are just passing
+    # through model outputs.
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_0.values["indices_2d"], batch_indices_2d)
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_0.values["mask"], np.array([True, True]))
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_0.values["model_output"], batch_result)
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_1.values["indices_2d"], batch_indices_2d)
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_1.values["mask"], np.array([True, True]))
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_1.values["model_output"], batch_result)
+    # The last metric is batch-update enabled metric.
+    self.assertEqual(metrics.Count_2.count, 2)
 
     # Merge a second time, so that everything in the metric objects should be
     # doubled in terms of the number of items for CollectingMetric or scalar
@@ -173,7 +208,28 @@ class MetricManagerTest(absltest.TestCase):
         model_output_type
     ]
 
-    self.assertEqual(metrics.Count_0.count, 4)
+    # The first two metrics are CollectingMetric's, so they are just passing
+    # through model outputs.
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_0.values["indices_2d"],
+        np.concatenate([batch_indices_2d, batch_indices_2d], axis=0))
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_0.values["mask"],
+        np.array([True, True, True, True]))
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_0.values["model_output"],
+        np.concatenate([batch_result, batch_result], axis=0))
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_1.values["indices_2d"],
+        np.concatenate([batch_indices_2d, batch_indices_2d], axis=0))
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_1.values["mask"],
+        np.array([True, True, True, True]))
+    np.testing.assert_array_equal(
+        metrics.FromMetricFun_1.values["model_output"],
+        np.concatenate([batch_result, batch_result], axis=0))
+    # The last metric is batch-update enabled metric.
+    self.assertEqual(metrics.Count_2.count, 4)
 
 
 if __name__ == "__main__":

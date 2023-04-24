@@ -21,6 +21,8 @@ from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Unio
 
 import clu.metrics
 import flax
+import jax
+import jax.numpy as jnp
 import numpy as np
 from seqio import utils
 import tensorflow.compat.v2 as tf
@@ -119,13 +121,15 @@ class Metric(clu.metrics.Metric):
 
   model_output_type: ModelOutputType
 
+  @classmethod
   def from_model_output(
-      self,
+      cls,
       inputs: Sequence[Mapping[str, Any]],
       model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
       features: Mapping[str, utils.Feature],
       target_field_name: str = "targets",
-      mask: Optional[np.ndarray] = None) -> "Metric":
+      mask: Optional[np.ndarray] = None,
+      indices_2d: Optional[np.ndarray] = None) -> "Metric":
     """Creates a `seqio.Metric` from model outputs.
 
     Args:
@@ -135,9 +139,62 @@ class Metric(clu.metrics.Metric):
       target_field_name: Field name of the target sequence.
       mask: A boolean array to indicate which examples in the inputs are
         included for metric evaluation.
+      indices_2d: 2d-indices of examples in the inputs/model_output. First
+        dimension is shard id, the second is the example id within that shard.
 
     Returns:
       An instance of Metric.
+    Raises:
+      NotImplementedError: Must override from_model_output()
+    """
+
+    raise NotImplementedError("Must override from_model_output()")
+
+
+class CollectingMetric(clu.metrics.CollectingMetric):
+  """CollectingMetric interface for seqio evaluation."""
+
+  @classmethod
+  def from_model_output(  # pylint:disable=missing-function-docstring
+      cls,
+      inputs: Sequence[Mapping[str, Any]],
+      model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
+      features: Mapping[str, utils.Feature],
+      target_field_name: str = "targets",
+      mask: Optional[np.ndarray] = None,
+      indices_2d: Optional[np.ndarray] = None):
+
+    del inputs, features, target_field_name
+    num_examples = len(model_output[0]) if isinstance(
+        model_output, tuple) else len(model_output)
+
+    if mask is None:
+      mask = jnp.ones((num_examples,), jnp.int32)
+
+    if indices_2d is None:
+      indices_2d = jnp.transpose(
+          jnp.stack([
+              jnp.zeros((num_examples,), jnp.int32),
+              jnp.arange(num_examples, dtype=jnp.int32)
+          ]))
+    return cls(values={
+        "model_output": model_output,
+        "indices_2d": indices_2d,
+        "mask": mask
+    })
+
+  def actual_compute(self, task_dataset_as_numpy, task_output_features,
+                     target_field_name: str = "targets"):
+    """Implements the metric computation logics for CollectingMetric.
+
+    Args:
+      task_dataset_as_numpy: Examples in dataset.
+      task_output_features: Output features defined in the seqio.Task.
+      target_field_name: Field name of the target sequence.
+
+    Returns:
+      A tuple of two items, first item is a dict of metric results, the second
+        item is targets_and_inferences.
     Raises:
       NotImplementedError: Must override from_model_output()
     """
@@ -191,7 +248,7 @@ class LegacyMetric(Metric):
       return self._postprocess_fn(targets_or_predictions, **postprocess_kwargs)
     return targets_or_predictions
 
-  def from_model_output(
+  def from_model_output(  # pylint:disable=arguments-renamed
       self,
       inputs: Sequence[Mapping[str, Any]],
       model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
@@ -229,20 +286,14 @@ class LegacyMetric(Metric):
         self.targets_and_inferences["aux_value"] = model_output[1]
         predictions = [vocab.decode(tokens) for tokens in model_output[0]]
       elif self.model_output_type == ModelOutputType.PREDICTION:
-        # Default behavior for top-1 decoding, model_output is a list of lists.
-        # Also check empty outputs so that we don't attempt to access
-        # non-existent elements.
-        if (
-            not model_output
-            or not isinstance(model_output[0], list)
-            or not model_output[0]
-            or not isinstance(model_output[0][0], list)
-        ):
+        # Default behavior for top-1 decoding, model_output is a 2d array.
+        # first dim is for batch, second is for sequence length.
+        if isinstance(model_output, np.ndarray) and model_output.ndim == 2:
           predictions = [vocab.decode(tokens) for tokens in model_output]
         else:
-          # In case of top-k decoding, model_output will be a list of list of
-          # lists. For instance, a top-2 output looks like: [[t11, t12, t13],
-          # [t21, t22]], with tij the j-th token of the i-th output
+          # In case of top-k decoding, model_output will be a 3d array
+          # first dim is for batch, second is for num_decodes, third is for
+          # sequence length.
           predictions = []
           for sequences in model_output:
             predictions_for_one_example = []
@@ -264,3 +315,195 @@ class LegacyMetric(Metric):
 
   def compute(self):
     return self._metric_fn(**self.metric_fn_kwargs)
+
+
+def remove_padding_examples(model_output, indices_2d, mask):
+  """Removes padding examples indicated by the mask array.
+
+  Args:
+    model_output: model outputs of all the examples (including the padding
+      ones). The padding examples are used to make sure during inference, the
+      inference function receives full batch if the last batch does not enough
+      examples.
+    indices_2d: 2d indices of all the examples.
+    mask: an array of booleans. 1 indicates valid example, 0 indicates padded
+      example that needs to be removed.
+
+  Returns:
+    2d-indices and model outputs of all the non-padding examples.
+  """
+  indices_2d = indices_2d[mask == 1]
+  model_output = jax.tree_map(lambda x: x[mask == 1], model_output)
+
+  return indices_2d, model_output
+
+
+def globally_sort_model_output(model_output, indices_2d):
+  """Globally sorts model ouputs by the 2d indices of the examples.
+
+  The sorting is done first by shard id (first index of the 2d-index) and then
+  by example id (second index of the 2d-index).
+
+  Args:
+    model_output: model outputs of all the examples.
+    indices_2d: 2d indices of all the examples.
+
+  Returns:
+    sorted model outputs.
+  """
+  permutation = np.lexsort((indices_2d[:, 1], indices_2d[:, 0]))
+
+  def _sort_by_permutation(x):
+    return np.array([x[permutation[i]]for i in range(len(permutation))])
+
+  model_output = jax.tree_map(_sort_by_permutation, model_output)
+
+  return model_output
+
+
+@flax.struct.dataclass
+class PassthroughLegacyMetric(CollectingMetric):
+  """Makes PassthroughLegacyMetric from metric functions."""
+
+  @classmethod
+  def from_metric_fn(cls,
+                     metric_fn: MetricFnCallable,
+                     postprocess_fn: Optional[Callable[..., Any]] = None):
+    """Creates `PassthroughLegacyMetric` from `metric_fn` and `postprocess_fn`.
+
+    Example:
+
+    ```
+    squad_cls = PassthroughLegacyMetric.from_metric_fn(
+        metric_fn=t5_metrics.squd, postprocess_fn=t5_postprocessors.qa)
+    ```
+
+    Args:
+      metric_fn: Function used to compute metric.
+      postprocess_fn: Function used to process targets (vocab decoded) and
+        predictions (vocab decoded) before feeding into metric_fn.
+
+    Returns:
+      A `Metric` that calls `metric_fn` and `postprocess_fn` in its
+      `.from_model_output()`.
+    """
+
+    def _get_model_output_type() -> ModelOutputType:
+      pos_args = tuple(
+          key
+          for key, param in inspect.signature(metric_fn).parameters.items()
+          if param.default == inspect.Parameter.empty
+          and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
+      if pos_args == ("targets", "scores"):
+        model_output_type = ModelOutputType.SCORE
+      elif pos_args == ("targets", "predictions"):
+        model_output_type = ModelOutputType.PREDICTION
+      elif pos_args == ("targets", "predictions", "aux_values"):
+        model_output_type = ModelOutputType.PREDICTION_WITH_AUX
+      else:
+        raise ValueError(
+            "Metric functions must have positional arguments matching either "
+            "('targets', 'scores'), ('targets', 'predictions') or "
+            "('targets', 'predictions', 'aux_values'). "
+            f"Got: {pos_args}")
+
+      return model_output_type
+
+    @flax.struct.dataclass
+    class FromMetricFun(cls):
+      """Wrapper PassthroughLegacyMetric class that runs metric_fn."""
+
+      model_output_type: ModelOutputType = _get_model_output_type()
+
+      @classmethod
+      def postprocess(cls, targets_or_predictions: Any,
+                      **postprocess_kwargs) -> Any:
+        """Applies the postprocessing to targets or predictions."""
+        if postprocess_fn:
+          return postprocess_fn(targets_or_predictions, **postprocess_kwargs)
+        return targets_or_predictions
+
+      def postprocess_targets(self, task_dataset_as_numpy, task_output_features,
+                              target_field_name: str = "targets"):
+        """Applies the postprocessing to targets."""
+        # Postprocesses the targets here.
+        postprocessed_targets = []
+        for ex in task_dataset_as_numpy:
+          pretokenized_target_field_name = target_field_name + "_pretokenized"
+          if pretokenized_target_field_name in ex:
+            target = ex[pretokenized_target_field_name]
+          else:
+            target = task_output_features[
+                target_field_name
+            ].vocabulary.decode(list(ex[target_field_name]))
+          if isinstance(target, bytes):
+            target = target.decode("utf-8")
+
+          postprocessed_targets.append(
+              type(self).postprocess(target, example=ex, is_target=True)
+          )
+        return postprocessed_targets
+
+      def actual_compute(self, task_dataset_as_numpy, task_output_features,
+                         target_field_name: str = "targets"):
+        # Postprocesses the targets here.
+        postprocessed_targets = self.postprocess_targets(
+            task_dataset_as_numpy, task_output_features, target_field_name)
+
+        metric_fn_kwargs, targets_and_inferences = {}, {}
+        metric_fn_kwargs["targets"] = postprocessed_targets
+        targets_and_inferences["targets"] = postprocessed_targets
+
+        # We process the model outputs here by the steps below.
+        # Step 1: removes padded examples using mask.
+        indices_2d, model_output = remove_padding_examples(
+            self.values["model_output"],
+            self.values["indices_2d"],
+            self.values["mask"],
+        )
+
+        assert len(postprocessed_targets) == len(indices_2d)
+
+        # Step 2: sorts the model outputs by 2d-indices, namely (shard_id,
+        # index_within_shard) to align with targets.
+        model_output = globally_sort_model_output(model_output, indices_2d)
+
+        if type(self).model_output_type == ModelOutputType.SCORE:
+          metric_fn_kwargs["scores"] = model_output
+          targets_and_inferences["score"] = model_output
+        else:
+          vocab = task_output_features[target_field_name].vocabulary
+          if type(
+              self).model_output_type == ModelOutputType.PREDICTION_WITH_AUX:
+            metric_fn_kwargs["aux_values"] = model_output[1]
+            targets_and_inferences["aux_value"] = model_output[1]
+            predictions = [vocab.decode(tokens) for tokens in model_output[0]]
+          elif type(self).model_output_type == ModelOutputType.PREDICTION:
+            # Default behavior for top-1 decoding, model_output is a 2d array.
+            # first dim is for batch, second is for sequence length.
+            if isinstance(model_output, np.ndarray) and model_output.ndim == 2:
+              predictions = [vocab.decode(tokens) for tokens in model_output]
+            else:
+              # In case of top-k decoding, model_output will be a 3d array
+              # first dim is for batch, second is for num_decodes, third is for
+              # sequence length.
+              predictions = []
+              for sequences in model_output:
+                predictions_for_one_example = []
+                for sequence in sequences:
+                  predictions_for_one_example.append(vocab.decode(sequence))
+                predictions.append(predictions_for_one_example)
+          targets_and_inferences["output"] = predictions
+
+          # Postprocesses the predictions here.
+          postprocessed_predictions = [
+              type(self).postprocess(p, example=ex, is_target=False)
+              for ex, p in zip(task_dataset_as_numpy, predictions)
+          ]
+
+          metric_fn_kwargs["predictions"] = postprocessed_predictions
+          targets_and_inferences["prediction"] = postprocessed_predictions
+
+        return metric_fn(**metric_fn_kwargs), targets_and_inferences
+
+    return FromMetricFun
