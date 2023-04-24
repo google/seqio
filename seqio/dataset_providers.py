@@ -564,6 +564,7 @@ class FileDataSource(DataSource):
       caching_permitted: bool = True,
       file_shuffle_buffer_size: Optional[int] = None,
       cycle_length: int = 16,
+      block_length: int = 16,
   ):
     """FileDataSource constructor.
 
@@ -582,11 +583,13 @@ class FileDataSource(DataSource):
         (default and recommended). A value of 16 may be explicitly set to
         replicate earlier behavior.
       cycle_length: The cycle_length to pass to tf.data.Dataset.interleave.
+      block_length: The block_length to pass to tf.data.Dataset.interleave.
     """
     self._split_to_filepattern = split_to_filepattern
     self._reader = read_file_fn
     self._file_shuffle_buffer_size = file_shuffle_buffer_size
     self._cycle_length = cycle_length
+    self._block_length = block_length
     super().__init__(
         splits=split_to_filepattern.keys(),
         num_input_examples=num_input_examples,
@@ -643,7 +646,7 @@ class FileDataSource(DataSource):
     return files_ds.interleave(
         self._reader,
         cycle_length=self._cycle_length,
-        block_length=16,
+        block_length=self._block_length,
         num_parallel_calls=tf.data.experimental.AUTOTUNE,
     )
 
@@ -664,6 +667,7 @@ class TextLineDataSource(FileDataSource):
       caching_permitted: bool = True,
       file_shuffle_buffer_size: Optional[int] = None,
       cycle_length: int = 16,
+      block_length: int = 16,
   ):
     """TextLineDataSource constructor.
 
@@ -682,6 +686,7 @@ class TextLineDataSource(FileDataSource):
         (default and recommended). A value of 16 may be explicitly set to
         replicate earlier behavior.
       cycle_length: The cycle_length to pass to tf.data.Dataset.interleave.
+      block_length: The block_length to pass to tf.data.Dataset.interleave.
     """
     # Used during caching.
     self._skip_header_lines = skip_header_lines
@@ -696,6 +701,7 @@ class TextLineDataSource(FileDataSource):
         caching_permitted=caching_permitted,
         file_shuffle_buffer_size=file_shuffle_buffer_size,
         cycle_length=cycle_length,
+        block_length=block_length,
     )
 
 
@@ -713,6 +719,7 @@ class TFExampleDataSource(FileDataSource):
       caching_permitted: bool = True,
       file_shuffle_buffer_size: Optional[int] = None,
       cycle_length: int = 16,
+      block_length: int = 16,
   ):
     """TFExampleDataSource constructor.
 
@@ -733,6 +740,7 @@ class TFExampleDataSource(FileDataSource):
         (default and recommended). A value of 16 may be explicitly set to
         replicate earlier behavior.
       cycle_length: The cycle_length to pass to tf.data.Dataset.interleave.
+      block_length: The block_length to pass to tf.data.Dataset.interleave.
     """
 
     def parse_fn(*args):
@@ -754,6 +762,7 @@ class TFExampleDataSource(FileDataSource):
         caching_permitted=caching_permitted,
         file_shuffle_buffer_size=file_shuffle_buffer_size,
         cycle_length=cycle_length,
+        block_length=block_length,
     )
 
 
@@ -770,6 +779,7 @@ class ProtoDataSource(FileDataSource):
       caching_permitted: bool = True,
       file_shuffle_buffer_size: Optional[int] = None,
       cycle_length: int = 16,
+      block_length: int = 16,
   ):
     """ProtoDataSource constructor.
 
@@ -789,6 +799,7 @@ class ProtoDataSource(FileDataSource):
         (default and recommended). A value of 16 may be explicitly set to
         replicate earlier behavior.
       cycle_length: The cycle_length to pass to tf.data.Dataset.interleave.
+      block_length: The block_length to pass to tf.data.Dataset.interleave.
     """
 
     def read_file_fn(filepattern: Union[str, Iterable[str]]):
@@ -805,6 +816,7 @@ class ProtoDataSource(FileDataSource):
         caching_permitted=caching_permitted,
         file_shuffle_buffer_size=file_shuffle_buffer_size,
         cycle_length=cycle_length,
+        block_length=block_length,
     )
 
 
@@ -837,6 +849,7 @@ class _CachedDataSource(FileDataSource):
       split: str,
       file_shuffle_buffer_size: Optional[int] = None,
       cycle_length: int = 16,
+      block_length: int = 16,
   ):
     with tf.io.gfile.GFile(utils.get_cached_info_path(cache_dir, split)) as f:
       split_info = json.load(f)
@@ -902,6 +915,7 @@ class _CachedDataSource(FileDataSource):
         num_input_examples={split: stats["examples"]},
         file_shuffle_buffer_size=file_shuffle_buffer_size,
         cycle_length=cycle_length,
+        block_length=block_length,
     )
 
 
