@@ -705,6 +705,7 @@ class TextLineDataSource(FileDataSource):
     )
 
 
+
 class TFExampleDataSource(FileDataSource):
   """A `FileDataSource` that reads files of tf.train.Example protos as input."""
 
@@ -1069,7 +1070,9 @@ class Task(DatasetProviderBase):
     if self.metric_fns:
       to_return += [
           metrics_lib.PassthroughLegacyMetric.from_metric_fn(
-              mf, self._postprocess_fn).empty() for mf in self.metric_fns
+              mf, self._postprocess_fn
+          ).empty()
+          for mf in self.metric_fns
       ]
     return to_return
 
