@@ -126,8 +126,9 @@ class Vocabulary(metaclass=abc.ABCMeta):
     clean_ids = ids
 
     if self.unk_id is not None:
+      base_vocab_size = self._base_vocab_size
       clean_ids = tf.where(
-          tf.less(clean_ids, self._base_vocab_size), clean_ids, self.unk_id
+          tf.less(clean_ids, base_vocab_size), clean_ids, self.unk_id
       )
 
     if self.eos_id is not None:
