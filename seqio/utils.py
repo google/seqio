@@ -22,7 +22,7 @@ import inspect
 import os
 import re
 import types
-from typing import Any, Callable, Dict, Mapping, Optional, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
 
 from absl import logging
 import numpy as np
@@ -127,20 +127,27 @@ class LazyTfdsLoader(object):
       return _TFDS_DATA_READ_CONFIG_OVERRIDE
     return tfds.ReadConfig()
 
+  @functools.cached_property
+  def _builder_key(self) -> Tuple[str, str]:
+    return (self.name, self.data_dir)
+
+  @property
+  def is_memoized(self) -> bool:
+    return self._builder_key in LazyTfdsLoader._MEMOIZED_BUILDERS
+
   @property
   def builder(self):
     """Returns the DatasetBuilder for this TFDS dataset."""
-    builder_key = (self.name, self.data_dir)
-    if builder_key not in LazyTfdsLoader._MEMOIZED_BUILDERS:
+    if not self.is_memoized:
       if self.name:
-        LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = tfds.builder(
+        LazyTfdsLoader._MEMOIZED_BUILDERS[self._builder_key] = tfds.builder(
             self.name, data_dir=self.data_dir
         )
       else:
-        LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = (
+        LazyTfdsLoader._MEMOIZED_BUILDERS[self._builder_key] = (
             tfds.builder_from_directory(self.data_dir)
         )
-    return LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key]
+    return LazyTfdsLoader._MEMOIZED_BUILDERS[self._builder_key]
 
   @property
   def info(self):
