@@ -29,12 +29,14 @@ import operator
 import os
 import re
 from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple, Type, Union
+
 from absl import logging
 import clu.metrics
 import editdistance
 import numpy as np
 from packaging import version as version_lib
 import pyglove as pg
+from seqio import deterministic
 from seqio import metrics as metrics_lib
 from seqio import preprocessors as seqio_preprocessors
 from seqio import task_registry_provenance_tracking
@@ -45,6 +47,7 @@ from seqio.vocabularies import Vocabulary
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 import typing_extensions
+
 
 _DEFAULT_FEATURE_KEYS = ["inputs", "targets"]
 
@@ -2229,6 +2232,12 @@ def maybe_get_mixture_or_task(
 
 def get_subtasks(task_or_mixture):
   """Returns all the Tasks in a Mixture as a list or the Task itself."""
+  if deterministic.is_deterministic_mixture(task_or_mixture):
+    logging.warning(
+        "Calling get_subtasks on a DeterministicMixture (%s) returns a list"
+        " containing the mixture itself, which may be unintended behavior.",
+        task_or_mixture,
+    )
   if isinstance(task_or_mixture, Task):
     return [task_or_mixture]
   else:
