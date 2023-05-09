@@ -1506,7 +1506,7 @@ class Task(DatasetProviderBase):
       logging.info(
           "Sharding at the %s: %d of %d",
           "data source" if shard_data_source else "examples",
-          shard_info.index,
+          shard_info.index + 1,
           shard_info.num_shards,
       )
     else:
