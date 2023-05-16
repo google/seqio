@@ -461,21 +461,21 @@ class TfdsDataSource(DataSource):
 
   def __init__(
       self,
-      tfds_name: str,
+      name: str,
       tfds_data_dir: Optional[str] = None,
       splits: Optional[Union[Iterable[str], Mapping[str, str]]] = None,
       caching_permitted: bool = True,
       decoders: Optional[tfds.typing.TreeDict[tfds.decode.Decoder]] = None,
   ):
-    """TfdsTask constructor.
+    """TfdsDataSource constructor.
 
     Args:
-      tfds_name: The name and version number of a TFDS dataset, optionally with
-        a config.
+      name: The name and version number of a TFDS dataset, optionally with a
+        config.
       tfds_data_dir: An optional path to a specific TFDS data directory to use.
-        If provided `tfds_name` must be a valid dataset in the directory. If
-        `tfds_name` is empty `tfds_dara_dir` must point to the directory with
-        one dataset.
+        If provided `name` must be a valid TFDS dataset in the directory. If
+        `name` is empty `tfds_dara_dir` must point to the directory with one
+        dataset.
       splits: an iterable of allowable string split names, a dict mapping
         allowable canonical splits (e.g., 'validation') to TFDS splits or slices
         (e.g., 'train[':1%']), or None. The default, None, uses all available
@@ -485,16 +485,17 @@ class TfdsDataSource(DataSource):
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
         such as tfds.decode.SkipDecoding() for skipping image byte decoding
     """
-    if tfds_name and ":" not in tfds_name:
-      raise ValueError(
-          f"TFDS name must contain a version number, got: {tfds_name}"
-      )
+    if (
+        name
+        and ":" not in name
+    ):
+      raise ValueError(f"TFDS name must contain a version number, got: {name}")
 
     if splits and not isinstance(splits, dict):
       splits = {k: k for k in splits}
 
     self._tfds_dataset = utils.LazyTfdsLoader(
-        tfds_name,
+        name,
         data_dir=tfds_data_dir,
         split_map=splits if isinstance(splits, dict) else None,
         decoders=decoders,
@@ -532,7 +533,7 @@ class TfdsDataSource(DataSource):
         split, shuffle_files=shuffle, seed=seed, shard_info=shard_info
     )
 
-  def num_input_examples(self, split: str) -> int:
+  def num_input_examples(self, split: str) -> Optional[int]:
     """Overrides since we can't call `info.splits` until after init."""
     return self.tfds_dataset.size(split)
 

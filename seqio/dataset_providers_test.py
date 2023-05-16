@@ -1941,43 +1941,49 @@ def register_dummy_task(
   )
 
 
-class TfdsDataSourceTest(test_utils.FakeTaskTest):
+class TfdsDataSourceTest(parameterized.TestCase, test_utils.FakeTaskTest):
 
-  def test_no_tfds_version(self):
+  def test_bad_dataset_name(self):
     with self.assertRaisesWithLiteralMatch(
         ValueError, "TFDS name must contain a version number, got: fake"
     ):
-      dataset_providers.TfdsDataSource(tfds_name="fake")
+      dataset_providers.TfdsDataSource(name="fake")
 
-  def test_tfds_splits(self):
+  @parameterized.parameters([
+      "fake:0.0.0",
+  ])
+  def test_tfds_splits(self, name):
     self.assertSameElements(
         ["train", "validation"],
-        dataset_providers.TfdsDataSource(tfds_name="fake:0.0.0").splits,
+        dataset_providers.TfdsDataSource(name=name).splits,
     )
     self.assertSameElements(
         ["validation"],
         dataset_providers.TfdsDataSource(
-            tfds_name="fake:0.0.0", splits=["validation"]
+            name=name, splits=["validation"]
         ).splits,
     )
     self.assertSameElements(
         ["validation"],
         dataset_providers.TfdsDataSource(
-            tfds_name="fake:0.0.0", splits={"validation": "train"}
+            name=name, splits={"validation": "train"}
         ).splits,
     )
 
-  def test_tfds_source_splits(self):
-    default_splits_src = dataset_providers.TfdsDataSource("fake:0.0.0")
+  @parameterized.parameters([
+      "fake:0.0.0",
+  ])
+  def test_tfds_source_splits(self, name):
+    default_splits_src = dataset_providers.TfdsDataSource(name)
     self.assertSameElements(["train", "validation"], default_splits_src.splits)
 
     validation_split_src = dataset_providers.TfdsDataSource(
-        "fake:0.0.0", splits=["validation"]
+        name, splits=["validation"]
     )
     self.assertSameElements(["validation"], validation_split_src.splits)
 
     sliced_split_src = dataset_providers.TfdsDataSource(
-        "fake:0.0.0", splits={"validation": "train[0:1%]"}
+        name, splits={"validation": "train[0:1%]"}
     )
     self.assertSameElements(["validation"], sliced_split_src.splits)
 

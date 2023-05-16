@@ -1183,25 +1183,28 @@ class FakeTaskTest(absltest.TestCase):
       else:
         return get_fake_dataset("validation")
 
-    fake_tfds = FakeLazyTfds(
-        name="fake:0.0.0",
-        data_dir="/tfds",
-        load=get_fake_dataset,
-        load_shard=_load_shard,
-        info=FakeTfdsInfo(
-            splits={"train": None, "validation": None},
-            description="This is a fake TFDS dataset.",
-            version="0.0.0",
-            config_name=None,
-            homepage="http://data.org/fake",
-            file_format=tfds.core.file_adapters.FileFormat.TFRECORD,
-            features={},
-        ),
-        files=fake_tfds_paths.get,
-        size=lambda x: 30 if x == "train" else 10,
-    )
+    def _get_fake_tfds(name, *args, **kwargs):
+      del args, kwargs
+      return FakeLazyTfds(
+          name=name,
+          data_dir="/tfds",
+          load=get_fake_dataset,
+          load_shard=_load_shard,
+          info=FakeTfdsInfo(
+              splits={"train": None, "validation": None},
+              description="This is a fake TFDS dataset.",
+              version="0.0.0",
+              config_name=None,
+              homepage="http://data.org/fake",
+              file_format=tfds.core.file_adapters.FileFormat.TFRECORD,
+              features={},
+          ),
+          files=fake_tfds_paths.get,
+          size=lambda x: 30 if x == "train" else 10,
+      )
+
     self._tfds_patcher = mock.patch(
-        "seqio.utils.LazyTfdsLoader", new=mock.Mock(return_value=fake_tfds)
+        "seqio.utils.LazyTfdsLoader", new=mock.Mock(side_effect=_get_fake_tfds)
     )
     self._tfds_patcher.start()
 
@@ -1215,7 +1218,7 @@ class FakeTaskTest(absltest.TestCase):
 
     # Prepare uncached TFDS task.
     self.tfds_source = dataset_providers.TfdsDataSource(
-        tfds_name="fake:0.0.0", splits=("train", "validation")
+        name="fake:0.0.0", splits=("train", "validation")
     )
     self.add_task("tfds_task", source=self.tfds_source)
 
