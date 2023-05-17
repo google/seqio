@@ -55,6 +55,9 @@ setuptools.setup(
         'sentencepiece',
         'tensorflow-text',
         'tfds-nightly',
+        # remove this when sentencepiece_model_pb2 is re-generated in the
+        # sentencepiece package.
+        'protobuf==3.20.3',
     ],
     extras_require={
         'gcp': [
