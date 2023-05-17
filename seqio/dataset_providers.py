@@ -1843,6 +1843,9 @@ class Mixture(DatasetProviderBase):
         trim_output_features=trim_output_features,
     ).map(filter_features, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
+  def _get_all_mixing_rates(self, tasks):
+    return [self.get_rate(task) for task in tasks]
+
   def get_dataset(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
       self,
       sequence_length: Optional[Mapping[str, int]] = None,
@@ -1932,7 +1935,7 @@ class Mixture(DatasetProviderBase):
         # Re-raise the same exception, same stack-trace.
         raise
 
-    rates = [self.get_rate(task) for task in tasks]
+    rates = self._get_all_mixing_rates(tasks)
     # Sample from the dataset with the rates rates
     if seed is not None:
       sample_seed = seed
@@ -1943,6 +1946,7 @@ class Mixture(DatasetProviderBase):
     dataset = self._sample_fn(datasets, rates, sample_seed)
     if (
         log_mixing_proportions
+        and not isinstance(rates, tf.data.Dataset)
         and split == "train"
         and use_cached
         and all(t.supports_caching for t in tasks)
