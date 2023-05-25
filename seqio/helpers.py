@@ -252,6 +252,7 @@ class TruncatedDatasetProvider(dp.DataSource):
     return min(max_items, child_num_inputs)
 
 
+
 def mixture_or_task_with_truncated_data(
     mixture_or_task: Union[dp.Task, dp.Mixture, str],
     new_mixture_or_task_name: str,
