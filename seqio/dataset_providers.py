@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import abc
 import collections
+import concurrent.futures
 import dataclasses
 import functools
 import inspect
@@ -51,6 +52,9 @@ _DEFAULT_FEATURE_KEYS = ["inputs", "targets"]
 _VALID_TASK_NAME_REGEX = re.compile(r"^[\w\d\.\:_]+$")
 _MAX_EXAMPLES_TO_MEM_CACHE = 10000
 SHUFFLE_BUFFER_SIZE = 1000
+# Max number of workers when doing concurrent reads, e.g. reading all tasks of a
+# mixture.
+MAX_WORKERS = 8
 
 DatasetReaderType = Callable[[Union[str, Iterable[str]]], tf.data.Dataset]
 DecodeFnType = Callable[..., Mapping[str, tf.train.Feature]]
@@ -1915,23 +1919,21 @@ class Mixture(DatasetProviderBase):
     if passthrough_features:
       output_feature_keys.update(passthrough_features)
 
-    datasets: List[tf.data.Dataset] = []
-    for task in tasks:
+    def _get_dataset(task):
       try:
-        ds = self.get_task_dataset(
+        return self.get_task_dataset(
             task,
             output_feature_keys,
             sequence_length,
-            split,
-            use_cached,
-            shuffle,
-            seed,
-            shard_info,
-            num_epochs,
-            trim_output_features,
-            try_in_mem_cache,
+            split=split,
+            use_cached=use_cached,
+            shuffle=shuffle,
+            seed=seed,
+            shard_info=shard_info,
+            num_epochs=num_epochs,
+            trim_output_features=trim_output_features,
+            try_in_mem_cache=try_in_mem_cache,
         )
-        datasets.append(ds)
       except:
         logging.error(
             "Failed to load task '%s' as part of mixture '%s'",
@@ -1941,6 +1943,14 @@ class Mixture(DatasetProviderBase):
         # Re-raise the same exception, same stack-trace.
         raise
 
+    datasets: List[tf.data.Dataset] = []
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=MAX_WORKERS
+    ) as executor:
+      dataset_futures = [executor.submit(_get_dataset, task) for task in tasks]
+      for future in dataset_futures:
+        datasets.append(future.result())
+
     rates = self._get_all_mixing_rates(tasks)
     # Sample from the dataset with the rates rates
     if seed is not None:
@@ -1949,6 +1959,7 @@ class Mixture(DatasetProviderBase):
       sample_seed = None
     else:
       sample_seed = 42
+
     dataset = self._sample_fn(datasets, rates, sample_seed)
     if (
         log_mixing_proportions
