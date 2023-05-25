@@ -1826,6 +1826,7 @@ class Mixture(DatasetProviderBase):
       shard_info: Optional[ShardInfo] = None,
       num_epochs: Optional[int] = None,
       trim_output_features: bool = True,
+      try_in_mem_cache: bool = True,
   ) -> tf.data.Dataset:
     """."""
 
@@ -1841,6 +1842,7 @@ class Mixture(DatasetProviderBase):
         shard_info=shard_info,
         num_epochs=num_epochs,
         trim_output_features=trim_output_features,
+        try_in_mem_cache=try_in_mem_cache,
     ).map(filter_features, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
   def _get_all_mixing_rates(self, tasks):
@@ -1860,6 +1862,7 @@ class Mixture(DatasetProviderBase):
       log_mixing_proportions: bool = True,
       passthrough_features: Optional[Sequence[str]] = None,
       trim_output_features: bool = True,
+      try_in_mem_cache: bool = True,
   ) -> tf.data.Dataset:
     """Returns the dataset of mixed tasks using the object-specified rates.
 
@@ -1888,6 +1891,8 @@ class Mixture(DatasetProviderBase):
         output_features defined for the mixture will be kept.
       trim_output_features: If True, it trims output features to be less than
         the length given by `sequence_length`.
+      try_in_mem_cache: If True, caches sufficiently small datasets in memory
+        for efficiency.
     """
     self._check_compatible_features()
     tasks = []
@@ -1924,6 +1929,7 @@ class Mixture(DatasetProviderBase):
             shard_info,
             num_epochs,
             trim_output_features,
+            try_in_mem_cache,
         )
         datasets.append(ds)
       except:
