@@ -256,7 +256,7 @@ class SentencePieceVocabulary(Vocabulary):
   IMPORTANT NOTE: these placeholders only work properly when they are used at
   word starts (e.g., "I like peanut butter and <extra_id_0> sandwiches." or
   "I like peanut butter and <extra_id_0>ly sandwiches" are both okay, but
-  "I like peanut butter and jel<extra_id_0> sandwiches is not.").
+  "I like peanut butter and jel<extra_id_0> sandwiches" is not.).
   """
 
   def __init__(
