@@ -83,8 +83,8 @@ import abc
 import dataclasses
 import functools
 from typing import Mapping, Sequence
-from absl import logging
 
+from absl import logging
 from seqio import utils
 import tensorflow.compat.v2 as tf
 
@@ -657,6 +657,7 @@ class EncDecFeatureConverter(FeatureConverter):
       model_feature_lengths["decoder_positions"] = decoder_length
 
     return model_feature_lengths
+
 
 
 class PrePackedEncDecFeatureConverter(EncDecFeatureConverter):
@@ -1430,20 +1431,20 @@ class EncoderFeatureConverter(FeatureConverter):
     super().__init__(**kwargs)
 
   def _convert_features(
-      self, ds: tf.data.Dataset, input_lengths: Mapping[str, int]
+      self, ds: tf.data.Dataset, task_feature_lengths: Mapping[str, int]
   ) -> tf.data.Dataset:
     """Convert the input dataset to an output dataset to be fed to the model.
 
     The conversion process involves three steps
 
-    1. Each feature in the `input_lengths` is packed.
+    1. Each feature in the `task_feature_lengths` is packed.
     2. "inputs" fields are mapped to the encoder input and "targets" are mapped
        to encoder target. Loss is taken only on the masked positions just as in
        Masked Language Modeling objective.
 
     Args:
       ds: an input tf.data.Dataset to be converted.
-      input_lengths: a mapping from a feature to its length
+      task_feature_lengths: a mapping from a feature to its length
 
     Returns:
       ds: the converted dataset.
@@ -1468,7 +1469,7 @@ class EncoderFeatureConverter(FeatureConverter):
 
       return d
 
-    ds = self._pack_or_pad(ds, input_lengths)
+    ds = self._pack_or_pad(ds, task_feature_lengths)
     return convert_example(ds)
 
   def get_model_feature_lengths(
