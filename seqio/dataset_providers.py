@@ -61,7 +61,9 @@ Feature = utils.Feature
 class ContinuousFeature(Feature):
   """A container for multi-modal output features of data providers."""
 
-  vocabulary: Vocabulary = PassThroughVocabulary(size=0)
+  vocabulary: Vocabulary = dataclasses.field(
+      default_factory=lambda: PassThroughVocabulary(size=0)
+  )
   add_eos: bool = False
 
 
