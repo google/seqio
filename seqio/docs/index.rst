@@ -10,7 +10,8 @@ Welcome to SeqIO's documentation!
    :maxdepth: 2
    :caption: Contents:
    
-   overview.md
+   Overview <overview.md>
+   api_reference
 
 Indices and tables
 ==================
@@ -18,3 +19,4 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
