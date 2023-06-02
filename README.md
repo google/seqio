@@ -1,6 +1,8 @@
 # SeqIO: Task-based datasets, preprocessing, and evaluation for sequence models.
 
 
+## Overview
+
 **SeqIO** is a library for processing sequential data to be fed into downstream
 sequence models. It uses [`tf.data.Dataset`](https://www.tensorflow.org/api_docs/python/tf/data/Dataset)
 to create scalable data pipelines but requires minimal use of TensorFlow. In
@@ -9,20 +11,21 @@ numpy iterator and hence it is fully compatible with other frameworks such as
 [JAX](https://github.com/google/jax) or
 [PyTorch](https://pytorch.org/).
 
-Currently, SeqIO assumes that the dataset is a sequence, i.e., each feature is
-one-dimensional array. Modalities such as text or audio are naturally supported.
-Images are supported as long as they are represented as sequences (e.g.,
-[Image GPT](http://proceedings.mlr.press/v119/chen20s.html)). We will release this constraint
-in the future in order to support higher dimensional data.
+SeqIO assumes that the dataset is a sequence. Modalities such as text or audio
+are naturally supported. Images are supported as long as they are represented as
+sequences (e.g., [Image GPT](http://proceedings.mlr.press/v119/chen20s.html)).
 
-SeqIO is a refactor of the [`t5.data`](https://github.com/google-research/text-to-text-transfer-transformer/)
-library used (in conjunction with the [Mesh Tensorflow](https://github.com/tensorflow/mesh)
-Transformer implementation) to train the T5 models introduced in
-[_Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer_](https://arxiv.org/abs/1910.10683).
+SeqIO is a refactor of the
+[`t5.data`](https://github.com/google-research/text-to-text-transfer-transformer/)
+library used (in conjunction with the
+[Mesh Tensorflow](https://github.com/tensorflow/mesh) Transformer
+implementation) to train the T5 models introduced in [*Exploring the Limits of
+Transfer Learning with a Unified Text-to-Text
+Transformer*](https://arxiv.org/abs/1910.10683).
 
-If you have used `t5.data` in the past and want to know how SeqIO differs, please read [this section](#differences-from-t5data).
+If you have used `t5.data` in the past and want to know how SeqIO differs,
+please read [this section](#differences-from-t5data).
 
-<!--Uncomment once forked.
 ## Installation
 
 ### From Pypi
@@ -37,18 +40,19 @@ pip install seqio
 git clone https://github.com/google/seqio.git
 cd seqio
 pip install -e .
--->
+```
 
 ## Usage Tutorial
 
 At a high level, we use SeqIO with the following steps.
 
-  1. Define a `Task` (and optionally a `Mixture`).
+1.  Define a `Task` (and optionally a `Mixture`).
 
-  1. Define (or use an existing) a `FeatureConverter` based on the model architecture.
+1.  Define (or use an existing) a `FeatureConverter` based on the model
+    architecture.
 
-  1. Use the top-level function `seqio.get_dataset` to obtain the
-     `tf.data.Dataset` instance.
+1.  Use the top-level function `seqio.get_dataset` to obtain the
+    `tf.data.Dataset` instance.
 
 We will look at each of these steps in detail.
 
@@ -124,24 +128,35 @@ in its output examples. The output examples *may* contain additional fields, but
 they *must* contain these fields in the specified format or exceptions will be
 raised.
 
-
 Each `Feature` includes:
 
-  * A `vocabulary`, which must subclass [`seqio.Vocabulary`](https://github.com/google/seqio/tree/main/seqio/vocabularies.py), to specify how the feature can be tokenized and detokenized. You may use `seqio.PassThroughVocabulary` if tokenization is not necessary.
-  * `add_eos`, which specifies whether the feature should end with the vocabulary's EOS token.
-  * The output `dtype` which must be a `tf.dtypes.DType`.
+*   A `vocabulary`, which must subclass
+    [`seqio.Vocabulary`](https://github.com/google/seqio/tree/main/seqio/vocabularies.py),
+    to specify how the feature can be tokenized and detokenized. You may use
+    `seqio.PassThroughVocabulary` if tokenization is not necessary.
+*   `add_eos`, which specifies whether the feature should end with the
+    vocabulary's EOS token.
+*   The output `dtype` which must be a `tf.dtypes.DType`.
 
-**Note:** specifying these options on `Feature` does not by itself ensure the proper transformations are applied -- you must also include the necessary preprocessors.
+**Note:** specifying these options on `Feature` does not by itself ensure the
+proper transformations are applied -- you must also include the necessary
+preprocessors.
 
-The [tasks used in T5](TODO) all produce "inputs" and "targets" features to be consumed by the text-to-text model. For a decoder-only language model, only a single feature (e.g., "targets") would be necessary.
-Nevertheless, SeqIO is flexible enough to generate arbitrary output features what will be converted into model features by the [`FeatureConverter`](#featureconverter) later in the pipeline.
+The [tasks used in T5](TODO) all produce "inputs" and "targets" features to be
+consumed by the text-to-text model. For a decoder-only language model, only a
+single feature (e.g., "targets") would be necessary. Nevertheless, SeqIO is
+flexible enough to generate arbitrary output features what will be converted
+into model features by the [`FeatureConverter`](#featureconverter) later in the
+pipeline.
 
 #### Preprocessors
 
-Preprocessors are functions that transform one `tf.data.Dataset` into a new `tf.data.Dataset`. Typically this involves executing a `map` over the given dataset. The preprocessors provided to the `Task` will be executed sequentially.
+Preprocessors are functions that transform one `tf.data.Dataset` into a new
+`tf.data.Dataset`. Typically this involves executing a `map` over the given
+dataset. The preprocessors provided to the `Task` will be executed sequentially.
 
-
-As an example, let's look at the previously undefined `translate` from the "wmt19_ende" example above.
+As an example, let's look at the previously undefined `translate` from the
+"wmt19_ende" example above.
 
 ```py
 def translate(dataset: tf.data.Dataset,
@@ -183,104 +198,154 @@ The TFDS dataset provides the dataset where each example has the form: `{'de':
 
 A few **important** notes:
 
-  1. When instantiating a `Task`, the preprocessor functions can have the following arguments: `dataset`, `output_features`, and `sequence_length`. The first (positional) dataset argument is always required. If an argument named `output_features` is provided, the [output feature mapping](#output-features) will be passed to the preprocessor. If `sequence_length` is provided, a mapping from feature name to its *maximum* final sequence length ([provided by the caller](#getting-a-preprocessed-dataset)) will be passed -- any sequences that are too long after preprocessing will be automatically truncated. If a preprocessor function does have other arguments, they must have default values or be bound (e.g., with `functools.partial` as used in `translate`) before instantiating the `Task`.
+1.  When instantiating a `Task`, the preprocessor functions can have the
+    following arguments: `dataset`, `output_features`, and `sequence_length`.
+    The first (positional) dataset argument is always required. If an argument
+    named `output_features` is provided, the
+    [output feature mapping](#output-features) will be passed to the
+    preprocessor. If `sequence_length` is provided, a mapping from feature name
+    to its *maximum* final sequence length
+    ([provided by the caller](#getting-a-preprocessed-dataset)) will be
+    passed -- any sequences that are too long after preprocessing will be
+    automatically truncated. If a preprocessor function does have other
+    arguments, they must have default values or be bound (e.g., with
+    `functools.partial` as used in `translate`) before instantiating the `Task`.
 
-  1. Mapping functions operate on and return `tf.Tensor`s using TensorFlow operations. This is more flexible than it may sound:
+1.  Mapping functions operate on and return `tf.Tensor`s using TensorFlow
+    operations. This is more flexible than it may sound:
 
-    *  Automatic [AutoGraph](https://www.tensorflow.org/guide/function#autograph_transformations) conversion allow you to write python control flow in your transformations.
-    * [tf.experimental.numpy](https://www.tensorflow.org/guide/tf_numpy) provides a numpy interface.
-    * [`tf.py_function`](https://www.tensorflow.org/api_docs/python/tf/py_function) allows you to wrap arbitrary Python code. Note: `tf.data` pipelines using this function can only be run in the python process where they were defined, and performance is limited by the python GIL.
+    *   Automatic
+        [AutoGraph](https://www.tensorflow.org/guide/function#autograph_transformations)
+        conversion allow you to write python control flow in your
+        transformations.
+    *   [tf.experimental.numpy](https://www.tensorflow.org/guide/tf_numpy)
+        provides a numpy interface.
+    *   [`tf.py_function`](https://www.tensorflow.org/api_docs/python/tf/py_function)
+        allows you to wrap arbitrary Python code. Note: `tf.data` pipelines
+        using this function can only be run in the python process where they
+        were defined, and performance is limited by the python GIL.
 
-   See `tf.data.Dataset` [documentation](https://www.tensorflow.org/api_docs/python/tf/data/Dataset) for more details.
+    See `tf.data.Dataset`
+    [documentation](https://www.tensorflow.org/api_docs/python/tf/data/Dataset)
+    for more details.
 
-  1. When calling `map`, it is important to **always** set `num_parallel_calls=tf.data.experimental.AUTOTUNE` to avoid creating a bottleneck. The `seqio.map_over_dataset` decorator helps enforce this as follows.
+1.  When calling `map`, it is important to **always** set
+    `num_parallel_calls=tf.data.experimental.AUTOTUNE` to avoid creating a
+    bottleneck. The `seqio.map_over_dataset` decorator helps enforce this as
+    follows.
 
-  ```py
-  @seqio.map_over_dataset
-  def translate(ex: Mapping[str, tf.Tensor],
-                source_language: str,
-                target_language: str) -> Mapping[str, tf.Tensor]:
-    """Convert a translation dataset to a text2text pair.
+    ```py
+    @seqio.map_over_dataset
+    def translate(ex: Mapping[str, tf.Tensor],
+                  source_language: str,
+                  target_language: str) -> Mapping[str, tf.Tensor]:
+      """Convert a translation dataset to a text2text pair.
 
-    For example, say the dataset returns examples of this format:
-      {'de': 'Das ist gut.', 'en': 'That is good.'}
-    If source_language = 'de', target_language = 'en', then the outputs will have
-    the format:
-      {'inputs': 'translate German to English: Das ist gut.',
-      'targets': 'That is good.'}
+      For example, say the dataset returns examples of this format:
+        {'de': 'Das ist gut.', 'en': 'That is good.'}
+      If source_language = 'de', target_language = 'en', then the outputs will have
+      the format:
+        {'inputs': 'translate German to English: Das ist gut.',
+        'targets': 'That is good.'}
 
-    Args:
-      ex: an example to process.
-      source_language: source language code (e.g. 'en') to translate from.
-      target_language: target language code (e.g. 'de') to translate to.
+      Args:
+        ex: an example to process.
+        source_language: source language code (e.g. 'en') to translate from.
+        target_language: target language code (e.g. 'de') to translate to.
 
-    Returns:
-      A preprocessed example with the format listed above.
-    """
-    src_str = f'translate {source_language}'
-    tgt_str = f' to {target_language}: '
-    return {
-        'inputs': tf.strings.join([src_str, tgt_str, ex[source_language]]),
-        'targets': ex[target_language],
-    }
-  ```
+      Returns:
+        A preprocessed example with the format listed above.
+      """
+      src_str = f'translate {source_language}'
+      tgt_str = f' to {target_language}: '
+      return {
+          'inputs': tf.strings.join([src_str, tgt_str, ex[source_language]]),
+          'targets': ex[target_language],
+      }
+    ```
 
-  Note that `translate` takes as input an individual example. Then
-  `seqio.map_over_dataset` decorates it to a function that takes in a
-  `tf.data.Dataset` instance.
+    Note that `translate` takes as input an individual example. Then
+    `seqio.map_over_dataset` decorates it to a function that takes in a
+    `tf.data.Dataset` instance.
 
-  1. Stochastic operations must be [stateless](https://www.tensorflow.org/guide/random_numbers#stateless_rngs) if deterministic pipelines are needed. To get (optionally deterministic) seeds for these operations, use the `seqio.map_over_dataset(num_seeds=n)` decorator. For example:
+1.  Stochastic operations must be
+    [stateless](https://www.tensorflow.org/guide/random_numbers#stateless_rngs)
+    if deterministic pipelines are needed. To get (optionally deterministic)
+    seeds for these operations, use the `seqio.map_over_dataset(num_seeds=n)`
+    decorator. For example:
 
-  ```py
-  def random_chunk(
-    dataset: tf.data.Dataset,
-    sequence_length: Mapping[str, int]
-  ) -> tf.data.Dataset:
-  """Takes a random chunk out of each feature the size of `sequence_length`."""
+    ```py
+    def random_chunk(
+      dataset: tf.data.Dataset,
+      sequence_length: Mapping[str, int]
+    ) -> tf.data.Dataset:
+    """Takes a random chunk out of each feature the size of `sequence_length`."""
 
-    @seqio.map_over_dataset(num_seeds=1)
-    def take_chunk(
-        ex: Mapping[str, tf.Tensor],
-        seed
-    ) -> Mapping[str, tf.Tensor]:
-      new_ex = {}
-      for k, v in ex.items():
-        if k in sequence_length:
-          length = sequence_length[k]
-          start_idx = tf.random.stateless_uniform(
-             (), seed, 0, tf.size(v) - (length + 1))
-          new_ex[k] = v[start_idx:start_idx+length]
-        else:
-          new_ex[k] = v
-      return new_ex
+      @seqio.map_over_dataset(num_seeds=1)
+      def take_chunk(
+          ex: Mapping[str, tf.Tensor],
+          seed
+      ) -> Mapping[str, tf.Tensor]:
+        new_ex = {}
+        for k, v in ex.items():
+          if k in sequence_length:
+            length = sequence_length[k]
+            start_idx = tf.random.stateless_uniform(
+               (), seed, 0, tf.size(v) - (length + 1))
+            new_ex[k] = v[start_idx:start_idx+length]
+          else:
+            new_ex[k] = v
+        return new_ex
 
-  return take_chunk(dataset)
-  ```
+    return take_chunk(dataset)
+    ```
 
-  If `num_seeds > 1`, the arg will instead be called `seeds` and will contain a sequence of seeds.
+    If `num_seeds > 1`, the arg will instead be called `seeds` and will contain
+    a sequence of seeds.
 
-In our "wmt_19_ende" task, we also use the predefined preprocessors `seqio.preprocessors.tokenize` and `seqio.preprocessors.append_eos`. The former uses each `Feature.vocabulary` to tokenize it, and the the latter appends `Feature.vocabulary.eos_id` to the feature if the `Feaure.add_eos` is True. See [preprocessors.py](https://github.com/google/seqio/tree/main/seqio/preprocessors.py) for their implementations and other useful preprocessors.
+In our "wmt_19_ende" task, we also use the predefined preprocessors
+`seqio.preprocessors.tokenize` and `seqio.preprocessors.append_eos`. The former
+uses each `Feature.vocabulary` to tokenize it, and the the latter appends
+`Feature.vocabulary.eos_id` to the feature if the `Feaure.add_eos` is True. See
+[preprocessors.py](https://github.com/google/seqio/tree/main/seqio/preprocessors.py) for
+their implementations and other useful preprocessors.
 
 #### Postprocessor
 
-During evaluation, the model outputs are first detokenized using the output feature vocabulary. Before passing these predictions to the metric functions, they can be run through a Python postprocessing function, alongside the full input example. Similarly, the raw targets are run through this function before being passed to the metrics.
-Since the postprocess function is used on both the model output and the targets, it is passed an `is_target` boolean in case the behavior should be different. It is also passed the fully preprocessed example, including fields that were excluded from `output_features`.
+During evaluation, the model outputs are first detokenized using the output
+feature vocabulary. Before passing these predictions to the metric functions,
+they can be run through a Python postprocessing function, alongside the full
+input example. Similarly, the raw targets are run through this function before
+being passed to the metrics. Since the postprocess function is used on both the
+model output and the targets, it is passed an `is_target` boolean in case the
+behavior should be different. It is also passed the fully preprocessed example,
+including fields that were excluded from `output_features`.
 
 For the "wmt19_ende", we don't need any postprocessors. See "trivia_qa_open"
-task in the [Advanced Postprocessing `Task`](#advanced-postprocessing-task) for an example postprocessor.
+task in the [Advanced Postprocessing `Task`](#advanced-postprocessing-task) for
+an example postprocessor.
 
 #### Metrics
 
-Metrics are functions that are passed (by the [Evaluator](#evaluator)) the fully-materialized list of postprocessed model outputs (or scores) and targets and return a mapping from string names to `MetricValue` objects containing their values. These are most commonly floating-point scalars, but may also be text, images, audio, histograms, etc (see [metrics.py](https://github.com/google/seqio/tree/main/seqio/metrics.py) for the full list).
+Metrics are functions that are passed (by the [Evaluator](#evaluator)) the
+fully-materialized list of postprocessed model outputs (or scores) and targets
+and return a mapping from string names to `MetricValue` objects containing their
+values. These are most commonly floating-point scalars, but may also be text,
+images, audio, histograms, etc (see
+[metrics.py](https://github.com/google/seqio/tree/main/seqio/metrics.py) for the full list).
 
-The first argument of a metric function must always be called `targets`. If the second argument of a metric function is called `predictions`, it will be passed the decoded and detokenized model prediction. If it is called `scores`, it will be passed a list of log-likelihood scores for each example.
+The first argument of a metric function must always be called `targets`. If the
+second argument of a metric function is called `predictions`, it will be passed
+the decoded and detokenized model prediction. If it is called `scores`, it will
+be passed a list of log-likelihood scores for each example.
 
-If multiple metric functions are provided, they will all be used and their returned mappings merged.
+If multiple metric functions are provided, they will all be used and their
+returned mappings merged.
 
 ##### Prediction Metrics
 
-Prediction metrics are computed using the postprocessed targets and model outputs (predictions).
-The args must be named `targets` and `predictions`.
+Prediction metrics are computed using the postprocessed targets and model
+outputs (predictions). The args must be named `targets` and `predictions`.
 
 Let's look at the metric function used for "wmt19_ende" task. A standard metric
 for the translation task is BLEU and we use `sacrebleu` implementation.
@@ -316,8 +381,9 @@ def bleu(targets: Sequence[str], predictions: Sequence[str]):
 
 ##### Score Metrics
 
-Score metrics are computed using the postprocessed targets and their log-likelihood scores according to the model.
-The args must be named `targets` and `scores`.
+Score metrics are computed using the postprocessed targets and their
+log-likelihood scores according to the model. The args must be named `targets`
+and `scores`.
 
 ```py
 def perplexity(targets: Sequence[str], scores: Sequence[int]):
@@ -328,46 +394,56 @@ def perplexity(targets: Sequence[str], scores: Sequence[int]):
 
 ### Defining a `Mixture`
 
-Once you have multiple `Task`s added to the `TaskRegistry`, you can define `Mixture`s that will combine the examples from them according to some specified rate.
-Examples will then be sampled from each task in proportion to its rate.
+Once you have multiple `Task`s added to the `TaskRegistry`, you can define
+`Mixture`s that will combine the examples from them according to some specified
+rate. Examples will then be sampled from each task in proportion to its rate.
 
 As an example, [Multilingual T5](goo.gle/mt5) uses a `Mixture` of per-language
 `Task`s with tail languages up-weighted in the mixture.
 
 There are 3 ways to specify the tasks and their rates:
 
-  1. Provide a rate along with each task's name (rates are normalized before sampling). In this example, the rates provided are units of the final mixture that come from the component tasks. Here, 1/(1+7) of the final mixture will come from "task1".
+1.  Provide a rate along with each task's name (rates are normalized before
+    sampling). In this example, the rates provided are units of the final
+    mixture that come from the component tasks. Here, 1/(1+7) of the final
+    mixture will come from "task1".
 
-  ```py
-  seqio.MixtureRegistry.add(
-    "mix1",
-    [("task1", 1), ("task2", 7)]
-  )
-  ```
+    ```py
+    seqio.MixtureRegistry.add(
+      "mix1",
+      [("task1", 1), ("task2", 7)]
+    )
+    ```
 
-  1. Provide a constant default rate for some or all tasks, which will be used when only the name is provided.
-  The example below will produce identical mixing rates as the previous one.
+1.  Provide a constant default rate for some or all tasks, which will be used
+    when only the name is provided. The example below will produce identical
+    mixing rates as the previous one.
 
-  ```py
-  seqio.MixtureRegistry.add(
-    "mix1",
-    [("task1", 0.5), "task2"],
-    default_rate=3.5
-  )
-  ```
+    ```py
+    seqio.MixtureRegistry.add(
+      "mix1",
+      [("task1", 0.5), "task2"],
+      default_rate=3.5
+    )
+    ```
 
-  1. Provide a function that generates the rate for each task at runtime.
-  The example below uses the provided [`seqio.mixing_rate_num_examples`](https://github.com/google/seqio/tree/main/seqio/utils.py), which uses the number of examples (computed during [offline caching](#optional-offline-caching)) as the rate for each task.
+1.  Provide a function that generates the rate for each task at runtime. The
+    example below uses the provided
+    [`seqio.mixing_rate_num_examples`](https://github.com/google/seqio/tree/main/seqio/utils.py),
+    which uses the number of examples (computed during
+    [offline caching](#optional-offline-caching)) as the rate for each task.
 
-  ```py
-  seqio.MixtureRegistry.add(
-    "mix2",
-    ["task1", "task2"],
-    default_rate=seqio.mixing_rate_num_examples
-  )
-  ```
+    ```py
+    seqio.MixtureRegistry.add(
+      "mix2",
+      ["task1", "task2"],
+      default_rate=seqio.mixing_rate_num_examples
+    )
+    ```
 
-You can also include `Mixture`s in your `Mixture`! For example, the following task would contain 1/24 (from "mix1") + 1/3 "task1", 7/24 (from "mix1") of "task2", and 1/3 "task3".
+You can also include `Mixture`s in your `Mixture`! For example, the following
+task would contain 1/24 (from "mix1") + 1/3 "task1", 7/24 (from "mix1") of
+"task2", and 1/3 "task3".
 
 ```py
 seqio.MixtureRegistry.add(
@@ -377,15 +453,21 @@ seqio.MixtureRegistry.add(
 )
 ```
 
-If sampling without replacement is important for your task, you can achieve that by using either deterministic tasks or using dataset checkpointing (and not running more than an epoch) for a non-deterministic task. Otherwise, the mixture may sample with replacement.
+If sampling without replacement is important for your task, you can achieve that
+by using either deterministic tasks or using dataset checkpointing (and not
+running more than an epoch) for a non-deterministic task. Otherwise, the mixture
+may sample with replacement.
 
 ### Getting a Preprocessed Dataset
 
-Now that your `Task` (and/or `Mixture`) is defined, its primary functionality is to use it to generate a dataset.
+Now that your `Task` (and/or `Mixture`) is defined, its primary functionality is
+to use it to generate a dataset.
 
-You may first need to use `seqio.get_mixture_or_task(mixture_or_task_name)` to access your dataset provider from the registry.
+You may first need to use `seqio.get_mixture_or_task(mixture_or_task_name)` to
+access your dataset provider from the registry.
 
-After that, you can call `get_dataset` to build the `tf.data.Dataset`. For example:
+After that, you can call `get_dataset` to build the `tf.data.Dataset`. For
+example:
 
 ```py
 dataset = seqio.get_mixture_or_task("mix1").get_dataset(
@@ -405,26 +487,64 @@ for _, ex in zip(range(5), dataset.as_numpy_iterator()):
 
 Some notes on a few the arguments:
 
-  * `sequence_length`: An *optional* mapping from feature name to *maximum* length. Will be passed to the preprocessors with a `sequence_length` argument. If not `None`, the final example features will be truncated if they exceed the specified length. Note that this value may be required to be set if any of the preprocessors use the `sequence_length` argument and do not handle the `None` case.
-  * `num_epochs`: The number of times to repeat the source dataset. Preprocessing will be re-applied with new seeds to enable new samples from stochastic steps. Note that if the `CacheDatasetPlaceholder` is included (see below) preprocessing is only re-applied after that step.
-  * `shard_info`: An optional sharding specification for loading a deterministic subset of the dataset. Loading will be most efficient if the number of shards evenly divides the number of shards in the raw data source.
-  * `use_cached`: Specifies whether to load from a pre-cached task for increased performance or to do the preprocessing on-the-fly. See the [following section](#optional-offline-caching) for details on how to cache your task, which must be done before this can be set to `True`.
-  * `seed`: An optional seed to use for deterministic shuffling and (stateless) stochastic ops. These operations will still be pseudorandom but will be reproducible with the same seed. Set to `None` if determinism is not desired.
+*   `sequence_length`: An *optional* mapping from feature name to *maximum*
+    length. Will be passed to the preprocessors with a `sequence_length`
+    argument. If not `None`, the final example features will be truncated if
+    they exceed the specified length. Note that this value may be required to be
+    set if any of the preprocessors use the `sequence_length` argument and do
+    not handle the `None` case.
+*   `num_epochs`: The number of times to repeat the source dataset.
+    Preprocessing will be re-applied with new seeds to enable new samples from
+    stochastic steps. Note that if the `CacheDatasetPlaceholder` is included
+    (see below) preprocessing is only re-applied after that step.
+*   `shard_info`: An optional sharding specification for loading a deterministic
+    subset of the dataset. Loading will be most efficient if the number of
+    shards evenly divides the number of shards in the raw data source.
+*   `use_cached`: Specifies whether to load from a pre-cached task for increased
+    performance or to do the preprocessing on-the-fly. See the
+    [following section](#optional-offline-caching) for details on how to cache
+    your task, which must be done before this can be set to `True`.
+*   `seed`: An optional seed to use for deterministic shuffling and (stateless)
+    stochastic ops. These operations will still be pseudorandom but will be
+    reproducible with the same seed. Set to `None` if determinism is not
+    desired.
 
 ### (Optional) Offline Caching
 
-For improved performance at load time and avoid redundant computations for commonly used tasks, you can pre-cache your `Task` with all or part of the preprocessing done in advance of training.
+For improved performance at load time and avoid redundant computations for
+commonly used tasks, you can pre-cache your `Task` with all or part of the
+preprocessing done in advance of training.
 
-The first step to doing so is to add a `seqio.CacheDatasetPlaceholder(required=False)` as one of the steps in your preprocessing pipeline. All steps before the placeholder will be cached offline and all steps after will be executed on the fly at load time. You may set `required=True` if you want `get_dataset` to fail unless `use_cached=True`.
+The first step to doing so is to add a
+`seqio.CacheDatasetPlaceholder(required=False)` as one of the steps in your
+preprocessing pipeline. All steps before the placeholder will be cached offline
+and all steps after will be executed on the fly at load time. You may set
+`required=True` if you want `get_dataset` to fail unless `use_cached=True`.
 
 Caveats:
 
-* Any stochastic operations that you wish to be re-run when `num_epochs > 1` or with a different `seed` *should* go after the placeholder since only a single sample will be cached.
-* Any preprocessing steps that use the `sequence_length` argument *must* come after the `seqio.CacheDatasetPlaceholder` preprocessor since this is only known at runtime, or an exception will be raised. If you wish to cache for a specific sequence length, you can use [`seqio.experimental.add_fully_cached_task`](https://github.com/google/seqio/tree/main/seqio/experimental.py).
+*   Any stochastic operations that you wish to be re-run when `num_epochs > 1`
+    or with a different `seed` *should* go after the placeholder since only a
+    single sample will be cached.
+*   Any preprocessing steps that use the `sequence_length` argument *must* come
+    after the `seqio.CacheDatasetPlaceholder` preprocessor since this is only
+    known at runtime, or an exception will be raised. If you wish to cache for a
+    specific sequence length, you can use
+    [`seqio.experimental.add_fully_cached_task`](https://github.com/google/seqio/tree/main/seqio/experimental.py).
 
-Once your `Task` is registered, you can run [`cache_tasks_main`](https://github.com/google/seqio/tree/main/seqio/scripts/cache_tasks_main.py) to execute the offline preprocessing, providing it with the module containing your task definitions via the `--module_import` flag. For very large datasets, it's recommended you run this [Apache Beam](https://beam.apache.org/) script on a distributed framework like [Google Cloud DataFlow](https://beam.apache.org/documentation/runners/dataflow/).
+Once your `Task` is registered, you can run
+[`cache_tasks_main`](https://github.com/google/seqio/tree/main/seqio/scripts/cache_tasks_main.py)
+to execute the offline preprocessing, providing it with the module containing
+your task definitions via the `--module_import` flag. For very large datasets,
+it's recommended you run this [Apache Beam](https://beam.apache.org/) script on
+a distributed framework like
+[Google Cloud DataFlow](https://beam.apache.org/documentation/runners/dataflow/).
 
-Finally, you are ready to load the cached version of your `Task` (or `Mixture`) containing it. You will need to add the path to the directory you passed to `--output_cache_dir` via `seqio.add_global_cache_dirs(["/my/cache/dir"])`. Now when you call `task_or_mixture.get_dataset(..., use_cached=True)`, the data will be loaded from the cache directory instead of the raw data source.
+Finally, you are ready to load the cached version of your `Task` (or `Mixture`)
+containing it. You will need to add the path to the directory you passed to
+`--output_cache_dir` via `seqio.add_global_cache_dirs(["/my/cache/dir"])`. Now
+when you call `task_or_mixture.get_dataset(..., use_cached=True)`, the data will
+be loaded from the cache directory instead of the raw data source.
 
 ### Feature Converters
 
@@ -433,7 +553,6 @@ model-specific features (e.g., generic "inputs" and "targets") while the Feature
 Converters transform the model-agnostic features to model-specific features
 (e.g., "encoder_input_tokens"). We refer to the former as "task features" and
 the latter as "model features".
-
 
 Let's use machine translation (English to German) as a running example.
 
@@ -455,7 +574,7 @@ One of the internal representations looks like
 ```
 
 The final output from the `Task` is a tokenized version of the parallel
-sentences.  In the following toy example (the token ids do not correspond to the
+sentences. In the following toy example (the token ids do not correspond to the
 above string example), the dataset consists of 2 examples.
 
 ```python
@@ -499,15 +618,14 @@ We will look at the details of this example in Encoder-decoder architecture:
 
 We provide feature converters for three common architectures: encoder-decoder,
 decoder-only and encoder-only. Here we describe how users can use the feature
-converters for each of these architectures out of the box as a part of the
-SeqIO library.
+converters for each of these architectures out of the box as a part of the SeqIO
+library.
 
 In the SeqIO library, each architecture has a class defining how the task
 features are converted to model features. Since these feature converters are
-already implemented, it is straightforward to use them by providing the class as a
-`feature_converter` argument of the `seqio.get_dataset` function. The
+already implemented, it is straightforward to use them by providing the class as
+a `feature_converter` argument of the `seqio.get_dataset` function. The
 following sections will show the example usage of `seqio.get_dataset`.
-
 
 ##### Encoder-decoder architecture: `seqio.EncDecFeatureConverter`
 This is the architecture of the original Transformer paper. For the
@@ -536,7 +654,6 @@ The resulting dataset object has the following 7 fields
 |`decoder_loss_weights` | A weight on each position that can be used as a mask. |
 |`decoder_positions`    | Position index in the sequence before packing. |
 |`decoder_segment_ids`  | Same as `encoder_segment_ids` but for decoder.|
-
 
 ##### Decoder-only architecture
 
@@ -650,8 +767,8 @@ does not take into account the word "good", which is unnecessarily limiting.
 
 For Prefix LM, this issue is resolved by having the fully visible masking
 pattern for the inputs portion only. For example, when computing `u2`, `v1`,
-`v2`, `v3`, `v4` and `v5` are all visible and taken into account. For the tokens in
-the "targets" of the `Task` dataset, we use the causal masking. For example,
+`v2`, `v3`, `v4` and `v5` are all visible and taken into account. For the tokens
+in the "targets" of the `Task` dataset, we use the causal masking. For example,
 when computing `u6`, all `vi` for `i <= 6` are taken into account but not `v7`.
 
 <details>
@@ -719,9 +836,6 @@ additional feature is `decoder_causal_attention`.
 |`decoder_segment_ids`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
 |`decoder_causal_attention`| Binary mask denoting which tokens are in the non-causal masking region.|
 
-
-
-
 ###### Encoder-only architecture
 Like decoder-only architecture, this one is a single stack, but not
 autoregressive.
@@ -787,8 +901,7 @@ The resulting dataset object has the following 5 fields
 |`encoder_positions`    | Position index in the sequence before packing|
 |`encoder_segment_ids`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
 |`encoder_target_tokens`| Output tokens from the encoder |
-|`encoder_loss_weights` | Binary mask to indicate where the loss should be taken |
-
+|`encoder_loss_weights` | Binary mask to indicate where the loss should be taken |                                          :
 
 ###### Custom architectures
 For a model architectures, you would need to create a subclass of
@@ -805,17 +918,26 @@ TODO(hwchung)
 
 ## Differences from `t5.data`
 
-The original `t5` library introduced and implemented the `t5.data.Task` abstraction for specifying preprocessing and evaluation metrics for text-to-text tasks. When creating a task, users specify a source dataset of raw text, some preprocessing steps, a vocabulary for tokenization, and evaluation metrics. The fully-specified Task can then be used to pre-train or fine-tune a encoder-decoder transformer model. However, the design included many baked-in assumptions about the types of tasks users could specify.
+The original `t5` library introduced and implemented the `t5.data.Task`
+abstraction for specifying preprocessing and evaluation metrics for text-to-text
+tasks. When creating a task, users specify a source dataset of raw text, some
+preprocessing steps, a vocabulary for tokenization, and evaluation metrics. The
+fully-specified Task can then be used to pre-train or fine-tune a
+encoder-decoder transformer model. However, the design included many baked-in
+assumptions about the types of tasks users could specify.
 
 SeqIO removes some of the constraints of this abstraction:
 
-* Inputs and outputs are no longer required to be strings (e.g., it may be images or audio).
-* Architectures other than the original encoder-decoder are supported (e.g., decoder-only languaged models like GPT or encoder-only models like BERT).
-* Users can control at which stage of the pipeline offline caching occurs.
-* Users can control when and where EOS tokens are added.
+*   Inputs and outputs are no longer required to be strings (e.g., it may be
+    images or audio).
+*   Architectures other than the original encoder-decoder are supported (e.g.,
+    decoder-only languaged models like GPT or encoder-only models like BERT).
+*   Users can control at which stage of the pipeline offline caching occurs.
+*   Users can control when and where EOS tokens are added.
 
-Furthermore, SeqIO has been made more modular with respect to the Mesh TensorFlow Transformer. This allows it to be used with other model implementations with more consistency and much less code duplication.
-
+Furthermore, SeqIO has been made more modular with respect to the Mesh
+TensorFlow Transformer. This allows it to be used with other model
+implementations with more consistency and much less code duplication.
 
 ## Advanced Postprocessing `Task`
 
@@ -853,7 +975,15 @@ seqio.TaskRegistry.add(
     metric_fns=[tqa_metric])
 ```
 
-In this example, we are using the `TfdsDataSource`. We specify the name of the TriviaQA dataset in TFDS ([`"trivia_qa"`](https://www.tensorflow.org/datasets/catalog/trivia_qa)), the specific config that excludes the context for the open domain setting (`"unfiltered.nocontext"`), and the version number (`"1.1.0"`). We also override the default splits to match what is commonly used for the open domain setting. Specifically, we set our "test" split to be the TFDS "validation" split, and create a small pseudo-"validation" set by taking examples out of the TFDS "train" split.
+In this example, we are using the `TfdsDataSource`. We specify the name of the
+TriviaQA dataset in TFDS
+([`"trivia_qa"`](https://www.tensorflow.org/datasets/catalog/trivia_qa)), the
+specific config that excludes the context for the open domain setting
+(`"unfiltered.nocontext"`), and the version number (`"1.1.0"`). We also override
+the default splits to match what is commonly used for the open domain setting.
+Specifically, we set our "test" split to be the TFDS "validation" split, and
+create a small pseudo-"validation" set by taking examples out of the TFDS
+"train" split.
 
 The preprocessor `tqa_open_preprocessor` is defined as follows.
 
@@ -927,7 +1057,11 @@ def tqa_open_postprocessor(output_or_target, example=None, is_target=False):
     return output_or_target.decode("utf-8")
 ```
 
-When processing the target, we ignore `output_or_target` (equivalent to `example["targets"]`) since it is just selecting a single answer in `trivia_qa_open`. Instead, we extract the full list of answers from the example and convert them from bytes to text. When handling the model output, we simply convert it to text from detokenized bytes.
+When processing the target, we ignore `output_or_target` (equivalent to
+`example["targets"]`) since it is just selecting a single answer in
+`trivia_qa_open`. Instead, we extract the full list of answers from the example
+and convert them from bytes to text. When handling the model output, we simply
+convert it to text from detokenized bytes.
 
 The metric function `tqa_metric` is defined as:
 
@@ -985,3 +1119,4 @@ Please use the following bibtex entry to cite SeqIO.
   year = {2022},
 }
 ```
+
