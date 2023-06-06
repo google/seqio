@@ -1,4 +1,6 @@
-# SeqIO: Task-based datasets, preprocessing, and evaluation for sequence models.
+# SeqIO
+
+*Task-based datasets, preprocessing, and evaluation for sequence models*
 
 
 ## Overview
