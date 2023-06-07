@@ -374,6 +374,7 @@ class Evaluator:
     )
     self._metrics_future = None
     self._target_field_name = target_field_name
+    self._cached_targets = collections.defaultdict(list)
 
     if not self._eval_tasks:
       logging.warning(
@@ -727,7 +728,9 @@ class Evaluator:
           metric_value, targets_and_inferences = metric_instance.actual_compute(
               tfds.as_numpy(task_dataset),
               task.output_features,
-              self._target_field_name)
+              self._target_field_name,
+              self._cached_targets[task.name])
+          self._cached_targets[task.name] = targets_and_inferences["targets"]
         else:
           metric_value = metric_instance.compute()
           targets_and_inferences = None

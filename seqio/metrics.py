@@ -17,7 +17,7 @@
 import dataclasses
 import enum
 import inspect
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union, List
 
 import clu.metrics
 import flax
@@ -184,13 +184,16 @@ class CollectingMetric(clu.metrics.CollectingMetric):
     })
 
   def actual_compute(self, task_dataset_as_numpy, task_output_features,
-                     target_field_name: str = "targets"):
+                     target_field_name: str = "targets",
+                     cached_targets: Optional[List[str]] = None):
     """Implements the metric computation logics for CollectingMetric.
 
     Args:
       task_dataset_as_numpy: Examples in dataset.
       task_output_features: Output features defined in the seqio.Task.
       target_field_name: Field name of the target sequence.
+      cached_targets: targets that have been cached by Evaluator and can be
+        supplied here to save time of post-processing targets.
 
     Returns:
       A tuple of two items, first item is a dict of metric results, the second
@@ -445,10 +448,14 @@ class PassthroughLegacyMetric(CollectingMetric):
         return postprocessed_targets
 
       def actual_compute(self, task_dataset_as_numpy, task_output_features,
-                         target_field_name: str = "targets"):
+                         target_field_name: str = "targets",
+                         cached_targets: Optional[List[str]] = None):
         # Postprocesses the targets here.
-        postprocessed_targets = self.postprocess_targets(
-            task_dataset_as_numpy, task_output_features, target_field_name)
+        if not cached_targets:
+          postprocessed_targets = self.postprocess_targets(
+              task_dataset_as_numpy, task_output_features, target_field_name)
+        else:
+          postprocessed_targets = cached_targets
 
         metric_fn_kwargs, targets_and_inferences = {}, {}
         metric_fn_kwargs["targets"] = postprocessed_targets
