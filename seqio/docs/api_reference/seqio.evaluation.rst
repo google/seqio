@@ -3,5 +3,5 @@ seqio.evaluation package
 
 .. currentmodule:: seqio.evaluation
 
-.. automodule:: seqio.evaluation
-  :members:
+.. autoclass:: Evaluator
+    :members:  

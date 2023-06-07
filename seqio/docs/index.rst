@@ -24,19 +24,9 @@ numpy iterator and hence it is fully compatible with other frameworks such as
 Installation
 ^^^^^^^^^^^^
 
-From Pypi:
-
 .. code-block:: python
 
    pip install seqio
-
-From Source:
-
-.. code-block:: python
-
-   git clone https://github.com/google/seqio.git
-   cd seqio
-   pip install -e .
 
 Quick Start
 ^^^^^^^^^^^

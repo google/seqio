@@ -1,17 +1,35 @@
 API Reference
 =============
 
+Core APIs
+---------
+
 .. toctree::
    :maxdepth: 3
 
-   seqio.beam_utils
    seqio.dataset_providers
    seqio.evaluation
-   seqio.experimental
    seqio.feature_converters
-   seqio.helpers
-   seqio.loggers
-   seqio.metrics
+
+Components
+----------
+
+.. toctree::
+   :maxdepth: 3
+   
    seqio.preprocessors
-   seqio.test_utils
+   seqio.metrics
+   seqio.loggers
+   seqio.experimental
+ 
+Helpers
+-------
+
+.. toctree::
+   :maxdepth: 3
+
    seqio.utils
+   seqio.helpers
+   seqio.beam_utils
+   seqio.test_utils
+ 
