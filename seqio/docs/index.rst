@@ -77,3 +77,4 @@ Please use the following bibtex entry to cite SeqIO.
    Quick Start <overview>
    Tutorials <tutorials>
    api_reference/index
+   contributions

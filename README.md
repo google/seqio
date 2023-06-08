@@ -2,6 +2,8 @@
 
 *Task-based datasets, preprocessing, and evaluation for sequence models*
 
+*Go to [SeqIO ReadTheDocs Documentation Page](https://seqio.readthedocs.io/).*
+
 
 ## Overview
 
