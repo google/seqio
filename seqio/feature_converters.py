@@ -150,7 +150,23 @@ def _check_lengths(
 
     expected_length = tf.constant(expected_lengths[feat], dtype=tf.int64)
     sequence_axis = sequence_axis_mapping[feat]
-    actual_length = tf.shape(v, out_type=tf.int64)[sequence_axis]
+    if isinstance(v, tf.RaggedTensor):
+      if strict:
+        # For strict mode we require all sequence dim lengths be equal.
+        # We multiply by [1] to (potentially) broadcast to 1d since non-ragged
+        # dimensions will return scalar rather than vector row_lengths.
+        lengths = v.row_lengths(sequence_axis) * tf.constant(
+            [1], dtype=tf.int64
+        )
+        tf.debugging.assert_equal(
+            len(tf.unique(lengths)[0]),
+            1,
+            "Strict length check requires all RaggedTensor dimensions to be"
+            f" equal, got {v.row_lengths()}",
+        )
+      actual_length = v.bounding_shape(axis=sequence_axis, out_type=tf.int64)
+    else:
+      actual_length = tf.shape(v, out_type=tf.int64)[sequence_axis]
     assertion_op(actual_length, expected_length)
     return v
 
@@ -334,6 +350,12 @@ class FeatureConverter(abc.ABC):
 
     sequence_axis_mapping = {
         feat: expected_features[feat].sequence_dim for feat in expected_features
+    }
+    # Remove rank-0 features from expected lengths to bypass the length check.
+    expected_lengths = {
+        k: v
+        for k, v in expected_lengths.items()
+        if expected_features[k].rank != 0
     }
     if self._apply_length_check:
       ds = _check_lengths(
@@ -1335,6 +1357,8 @@ class DecoderFeatureConverter(FeatureConverter):
   def __call__(
       self, ds: tf.data.Dataset, task_feature_lengths: Mapping[str, int]
   ) -> tf.data.Dataset:
+    # NOTE: __call__ can safely be overridden here because it is delegated to
+    # other FeatureConverters - invoking their __call__ and associated checks.
     if "suffixes" in task_feature_lengths:
       return self.prefixsuffixlm_feature_converter(ds, task_feature_lengths)
     if "inputs" in task_feature_lengths:

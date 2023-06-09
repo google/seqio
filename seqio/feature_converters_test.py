@@ -103,6 +103,86 @@ class HelperFunctionsTest(tf.test.TestCase):
       )
       list(ds.as_numpy_iterator())
 
+  def test_check_lengths_ragged_not_strict(self):
+    x = tf.RaggedTensor.from_row_limits([1, 2, 3, 4, 5, 6, 7], [2, 4, 7])
+    ds = tf.data.Dataset.from_tensors({"inputs": x, "targets": x})
+    task_feature_lengths = {"inputs": 4, "targets": 4}
+    sequence_axis_mapping = {"inputs": 1, "targets": 1}
+    ds = feature_converters._check_lengths(
+        ds,
+        task_feature_lengths,
+        sequence_axis_mapping,
+        strict=False,
+        error_label="initial",
+    )
+    next(iter(ds))
+
+  def test_check_lengths_nonragged_dim_strict(self):
+    x = tf.RaggedTensor.from_row_limits([1, 2, 3, 4, 5, 6, 7], [3, 7])
+    ds = tf.data.Dataset.from_tensors({"inputs": x})
+    task_feature_lengths = {"inputs": 2}
+    sequence_axis_mapping = {"inputs": 0}
+    ds = feature_converters._check_lengths(
+        ds,
+        task_feature_lengths,
+        sequence_axis_mapping,
+        strict=True,
+        error_label="initial",
+    )
+    next(iter(ds))
+
+  def test_check_lengths_ragged_strict(self):
+    x = tf.RaggedTensor.from_row_limits([1, 2, 3, 4, 5, 6], [2, 4, 6])
+    ds = tf.data.Dataset.from_tensors({"inputs": x})
+    task_feature_lengths = {"inputs": 2}
+    sequence_axis_mapping = {"inputs": 1}
+    ds = feature_converters._check_lengths(
+        ds,
+        task_feature_lengths,
+        sequence_axis_mapping,
+        strict=True,
+        error_label="initial",
+    )
+    next(iter(ds))
+
+  def test_check_lengths_ragged_strict_exception(self):
+    x = tf.RaggedTensor.from_row_limits([1, 2, 3, 4, 5, 6, 7], [2, 4, 7])
+    ds = tf.data.Dataset.from_tensors({"inputs": x})
+    task_feature_lengths = {"inputs": 3}
+    sequence_axis_mapping = {"inputs": 1}
+    expected_msg = (
+        r".*Strict length check requires all RaggedTensor dimensions to be"
+        r" equal, got.*"
+    )
+    with self.assertRaisesRegex(tf.errors.InvalidArgumentError, expected_msg):
+      ds = feature_converters._check_lengths(
+          ds,
+          task_feature_lengths,
+          sequence_axis_mapping,
+          strict=True,
+          error_label="initial",
+      )
+      next(iter(ds))
+
+  def test_check_lengths_ragged_not_strict_exception(self):
+    x = tf.RaggedTensor.from_row_limits([1, 2, 3, 4, 5, 6, 7], [2, 7])
+    ds = tf.data.Dataset.from_tensors({"inputs": x})
+    task_feature_lengths = {"inputs": 4}
+    sequence_axis_mapping = {"inputs": 1}
+    expected_msg = (
+        r".*Feature \\'inputs\\' has length not less than or equal to the "
+        r"expected length of 4 during initial validation.*"
+    )
+    with self.assertRaisesRegex(tf.errors.InvalidArgumentError, expected_msg):
+      ds = feature_converters._check_lengths(
+          ds,
+          task_feature_lengths,
+          sequence_axis_mapping,
+          strict=False,
+          error_label="initial",
+      )
+      next(iter(ds))
+
   def test_check_lengths_extra_features(self):
     x = [{"targets": [3, 9, 4, 5], "targets_pretokenized": "some text"}]
     output_types = {"targets": tf.int64, "targets_pretokenized": tf.string}
@@ -271,6 +351,37 @@ class FeatureConvertersTest(tf.test.TestCase):
             strict=False,
             error_label="initial",
         )
+
+  def test_validate_dataset_rank_0(self):
+    x = [{"inputs": 1, "targets": [3, 4, 5]}]
+    ds = tf.data.Dataset.from_generator(
+        lambda: x,
+        output_types={"inputs": tf.int64, "targets": tf.int64},
+        output_shapes={"inputs": [], "targets": [None]},
+    )
+    task_feature_lengths = {"inputs": 0, "targets": 3}
+    with mock.patch.object(
+        feature_converters.FeatureConverter, "__abstractmethods__", set()
+    ), mock.patch.object(
+        feature_converters.FeatureConverter,
+        "_convert_features",
+        return_value=ds,
+    ), mock.patch.object(
+        feature_converters.FeatureConverter,
+        "get_model_feature_lengths",
+        return_value={"inputs": 0, "targets": 3},
+    ):
+      feature_converters.FeatureConverter.TASK_FEATURES = {
+          "inputs": FeatureSpec(dtype=tf.int64, rank=0, sequence_dim=0),
+          "targets": FeatureSpec(dtype=tf.int64),
+      }
+      feature_converters.FeatureConverter.MODEL_FEATURES = {
+          "inputs": FeatureSpec(dtype=tf.int64, rank=0, sequence_dim=0),
+          "targets": FeatureSpec(dtype=tf.int64),
+      }
+      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
+      converter._pack = False
+      converter(ds, task_feature_lengths)
 
   def test_validate_dataset_rank_2(self):
     x = [{"inputs": [[9, 4, 3, 8, 6]], "targets": [3, 9, 4, 5]}]
