@@ -355,7 +355,7 @@ class FeatureConverter(abc.ABC):
     expected_lengths = {
         k: v
         for k, v in expected_lengths.items()
-        if expected_features[k].rank != 0
+        if k in expected_features and expected_features[k].rank != 0
     }
     if self._apply_length_check:
       ds = _check_lengths(
