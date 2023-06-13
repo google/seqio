@@ -15,9 +15,11 @@
 """Vocabularies."""
 
 import abc
+import dataclasses
 import hashlib
 import threading
-from typing import Any, Dict, Iterable, Optional, Sequence, Union
+from typing import Any, ClassVar, Dict, Iterable, Optional, Sequence, Tuple, Union
+
 from absl import logging
 import tensorflow.compat.v2 as tf
 import tensorflow_text as tf_text
@@ -243,6 +245,74 @@ class UnigramVocabulary(Vocabulary):
     return self._base_vocab_size - 1
 
 
+@dataclasses.dataclass(frozen=True, eq=True)
+class _SentencePieceVocabularyConfig:
+  """Configuration for the sentence piece vocabulary.
+
+  Attributes:
+    sentencepiece_model_file: path of the sentence piece model.
+    extra_ids: number of extra ids to include.
+    normalizer_spec_overrides_serialized: If not None, this serialized
+      `NormalizerSpec` proto will be merged into the model's normalizer and
+      denormalizer specs. Thus, any options set on this object will override the
+      values of those options in the loaded model.
+    reverse_extra_ids: if True, extra_ids are numbered in descending order, so
+      the first extra_id has the highest number. This is done for compatibility
+      with span_corruption mask generation in T5.
+  """
+
+  sentencepiece_model_file: str
+  extra_ids: int
+  normalizer_spec_overrides_serialized: Optional[bytes] = None
+  reverse_extra_ids: bool = True
+
+  def load(
+      self,
+  ) -> Tuple[bytes, sentencepiece_processor.SentencePieceProcessor]:
+    """Loads and returns the SPM and Python tokenizer."""
+    with tf.io.gfile.GFile(self.sentencepiece_model_file, "rb") as f:
+      sp_model = f.read()
+
+    model = sentencepiece_model_pb2.ModelProto.FromString(sp_model)
+    # Add placeholder strings for extra IDs.
+    if self.extra_ids:
+      # By default, we them in reverse order to match span corruption.
+      if self.reverse_extra_ids:
+        extra_id_tokens = reversed(range(self.extra_ids))
+      else:
+        extra_id_tokens = range(self.extra_ids)
+
+      for i in extra_id_tokens:
+        model.pieces.add(
+            piece=f"▁<extra_id_{i}>",
+            score=0.0,
+            type=sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED,
+        )
+    if self.normalizer_spec_overrides_serialized is not None:
+      normalizer_spec_overrides = (
+          sentencepiece_model_pb2.NormalizerSpec.FromString(
+              self.normalizer_spec_overrides_serialized
+          )
+      )
+      model.normalizer_spec.MergeFrom(normalizer_spec_overrides)
+      model.denormalizer_spec.MergeFrom(normalizer_spec_overrides)
+    sp_model = model.SerializeToString()
+
+    # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
+    tokenizer = sentencepiece_processor.SentencePieceProcessor()
+    tokenizer.LoadFromSerializedProto(sp_model)
+    if tokenizer.pad_id() != PAD_ID:
+      logging.warning(
+          (
+              "T5 library uses PAD_ID=%s, which is different from the "
+              "sentencepiece vocabulary, which defines pad_id=%s"
+          ),
+          PAD_ID,
+          tokenizer.pad_id(),
+      )
+    return sp_model, tokenizer
+
+
 class SentencePieceVocabulary(Vocabulary):
   """Wrapper for nlp/sentencepiece encoder.
 
@@ -259,10 +329,17 @@ class SentencePieceVocabulary(Vocabulary):
   "I like peanut butter and jel<extra_id_0> sandwiches" is not.).
   """
 
+  _SPM_CACHE: ClassVar[
+      Dict[
+          _SentencePieceVocabularyConfig,
+          Tuple[bytes, sentencepiece_processor.SentencePieceProcessor],
+      ]
+  ] = {}
+
   def __init__(
       self,
-      sentencepiece_model_file,
-      extra_ids=None,
+      sentencepiece_model_file: str,
+      extra_ids: int = 0,
       normalizer_spec_overrides: Optional[
           sentencepiece_model_pb2.NormalizerSpec
       ] = None,
@@ -274,8 +351,8 @@ class SentencePieceVocabulary(Vocabulary):
     vocabulary for use as sentinels.
 
     Args:
-      sentencepiece_model_file: a string
-      extra_ids: an optional integer
+      sentencepiece_model_file: path of the sentence piece model.
+      extra_ids: number of extra ids to include.
       normalizer_spec_overrides: If not None, this proto will be merged into the
         model's normalizer and denormalizer specs. Thus, any options set on this
         object will override the values of those options in the loaded model.
@@ -283,9 +360,18 @@ class SentencePieceVocabulary(Vocabulary):
         the first extra_id has the highest number. This is done for
         compatibility with span_corruption mask generation in T5.
     """
-    self._sentencepiece_model_file = sentencepiece_model_file
-    self._normalizer_spec_overrides = normalizer_spec_overrides
-    self._reverse_extra_ids = reverse_extra_ids
+    if normalizer_spec_overrides is None:
+      normalizer_spec_overrides_serialized = None
+    else:
+      normalizer_spec_overrides_serialized = (
+          normalizer_spec_overrides.SerializeToString(deterministic=True)
+      )
+    self._config = _SentencePieceVocabularyConfig(
+        sentencepiece_model_file=sentencepiece_model_file,
+        extra_ids=extra_ids,
+        normalizer_spec_overrides_serialized=normalizer_spec_overrides_serialized,
+        reverse_extra_ids=reverse_extra_ids,
+    )
     self._tokenizer = None
     self._sp_model = None
     self._load_model_lock = threading.Lock()
@@ -321,40 +407,10 @@ class SentencePieceVocabulary(Vocabulary):
       if self._tokenizer and self._sp_model:
         return
 
-      # Handle cases where SP can't load the file, but gfile can.
-      with tf.io.gfile.GFile(self._sentencepiece_model_file, "rb") as f:
-        sp_model = f.read()
-        model = sentencepiece_model_pb2.ModelProto.FromString(sp_model)
-        # Add placeholder strings for extra IDs.
-        if self._extra_ids:
-          # By default, we them in reverse order to match span corruption.
-          if self._reverse_extra_ids:
-            extra_id_tokens = reversed(range(self._extra_ids))
-          else:
-            extra_id_tokens = range(self._extra_ids)
-
-          for i in extra_id_tokens:
-            model.pieces.add(
-                piece=f"▁<extra_id_{i}>",
-                score=0.0,
-                type=sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED,
-            )
-        if self._normalizer_spec_overrides is not None:
-          model.normalizer_spec.MergeFrom(self._normalizer_spec_overrides)
-          model.denormalizer_spec.MergeFrom(self._normalizer_spec_overrides)
-        sp_model = model.SerializeToString()
-      # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
-      tokenizer = sentencepiece_processor.SentencePieceProcessor()
-      tokenizer.LoadFromSerializedProto(sp_model)
-      if tokenizer.pad_id() != PAD_ID:
-        logging.warning(
-            (
-                "T5 library uses PAD_ID=%s, which is different from the "
-                "sentencepiece vocabulary, which defines pad_id=%s"
-            ),
-            PAD_ID,
-            tokenizer.pad_id(),
-        )
+      if self._config not in self._SPM_CACHE:
+        sp_model, tokenizer = self._config.load()
+        self._SPM_CACHE[self._config] = (sp_model, tokenizer)
+      sp_model, tokenizer = self._SPM_CACHE[self._config]
 
       # NOTE: We need to use an intermediate variable tokenizer here, otherwise
       # the threads that are checking for self._tokenizer/_sp_model could start
@@ -376,7 +432,7 @@ class SentencePieceVocabulary(Vocabulary):
     return self.tokenizer.unk_id()
 
   @property
-  def sp_model(self):
+  def sp_model(self) -> Optional[bytes]:
     """Retrieve the SPM."""
     if self._sp_model is None:
       self._load_model()
@@ -384,7 +440,7 @@ class SentencePieceVocabulary(Vocabulary):
 
   @property
   def sentencepiece_model_file(self):
-    return self._sentencepiece_model_file
+    return self._config.sentencepiece_model_file
 
   @property
   def tokenizer(self):
@@ -469,13 +525,15 @@ class SentencePieceVocabulary(Vocabulary):
     # If other has no sp_model attribute, we can't test for equality
     except AttributeError:
       return False
+    if self.sp_model is None:
+      return False
     our_md5 = hashlib.md5(self.sp_model).hexdigest()
     return our_md5 == their_md5
 
   def __str__(self) -> str:
     return (
-        f"SentencePieceVocabulary(file={self._sentencepiece_model_file}, "
-        f"extra_ids={self.extra_ids}, "
+        f"SentencePieceVocabulary(file={self.sentencepiece_model_file}, "
+        f"extra_ids={self._config.extra_ids}, "
         f"spm_md5={hashlib.md5(self.sp_model).hexdigest()})"
     )
 

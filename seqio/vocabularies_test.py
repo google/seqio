@@ -338,6 +338,15 @@ class SentencepieceVocabularyTest(absltest.TestCase):
 
     self.assertNotEqual(vocab, reversed_vocab)
 
+  def test_cache(self):
+    vocab1 = test_utils.sentencepiece_vocab()
+    vocab2 = test_utils.sentencepiece_vocab()
+    assert vocab1.sp_model == vocab2.sp_model
+    assert vocab1.tokenizer == vocab2.tokenizer
+    vocab3 = test_utils.sentencepiece_vocab(extra_ids=1)
+    assert vocab1.sp_model != vocab3.sp_model
+    assert vocab1.tokenizer != vocab3.tokenizer
+
 
 
 class ByteVocabularyTest(absltest.TestCase):
