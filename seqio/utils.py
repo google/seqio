@@ -1355,7 +1355,10 @@ def fully_qualified_class_name(instance: Any) -> str:
 
 def function_name(function) -> str:
   """Returns the name of a (possibly partially applied) function."""
-  if isinstance(function, functools.partial):
+  if inspect.isclass(function):
+    # function can be a protocol.
+    return function.__class__.__name__
+  elif isinstance(function, functools.partial):
     # functools.partial can be applied multiple times.
     return function_name(function.func)
   else:

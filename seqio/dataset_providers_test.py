@@ -2012,11 +2012,18 @@ class FunctionDataSourceTest(test_utils.FakeTaskTest):
 
     dataset_providers.FunctionDataSource(extra_kwarg_good_fn, splits=("train",))
 
+    class GoodProtocol(dataset_providers.DatasetFnCallable):
+
+      def __call__(self, split, shuffle_files, seed=None):
+        del split, shuffle_files, seed
+
+    dataset_providers.FunctionDataSource(GoodProtocol(), splits=("train",))
+
     # Bad signatures.
     with self.assertRaisesWithLiteralMatch(
         ValueError,
         (
-            "'missing_shuff' must have positional args ('split',"
+            "'missing_shuff' must have initial args ('split',"
             " 'shuffle_files'), got: ('split',)"
         ),
     ):
@@ -2029,7 +2036,7 @@ class FunctionDataSourceTest(test_utils.FakeTaskTest):
     with self.assertRaisesWithLiteralMatch(
         ValueError,
         (
-            "'missing_split' must have positional args ('split',"
+            "'missing_split' must have initial args ('split',"
             " 'shuffle_files'), got: ('shuffle_files',)"
         ),
     ):

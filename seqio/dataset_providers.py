@@ -350,25 +350,22 @@ class DataSource(DatasetProviderBase):
 
 
 
-def _validate_args(fn, expected_pos_args):
-  """Ensure function has exactly expected positional args."""
-  argspec = inspect.getfullargspec(fn)
-  expected_pos_args = tuple(expected_pos_args)
-  actual_args = tuple(argspec.args)
-  if actual_args[: len(expected_pos_args)] != expected_pos_args:
+def _validate_args(fn, expected_args: Sequence[str]):
+  """Ensure function/protocol is callable with exactly expected args."""
+  params = tuple(inspect.signature(fn).parameters.values())
+  actual_args = tuple(p.name for p in params)
+  expected_args = tuple(expected_args)
+
+  if actual_args[: len(expected_args)] != expected_args:
     raise ValueError(
-        "'%s' must have positional args %s, got: %s"
-        % (utils.function_name(fn), expected_pos_args, actual_args)
+        "'%s' must have initial args %s, got: %s"
+        % (utils.function_name(fn), expected_args, actual_args)
     )
-  actual_pos_args = tuple(
-      argspec.args[: -len(argspec.defaults)]
-      if argspec.defaults
-      else argspec.args
-  )
-  if actual_pos_args != expected_pos_args[: len(actual_pos_args)]:
+  actual_nondefault_args = tuple(p.name for p in params if p.default == p.empty)
+  if actual_nondefault_args != expected_args[: len(actual_nondefault_args)]:
     raise ValueError(
         "'%s' may only have positional args %s, got: %s"
-        % (utils.function_name(fn), expected_pos_args, actual_pos_args)
+        % (utils.function_name(fn), expected_args, actual_nondefault_args)
     )
 
 
@@ -1204,11 +1201,11 @@ class Task(DatasetProviderBase):
     return self._preprocessor_constructor_args
 
   @property
-  def postprocessor(self) -> Callable[..., Any]:
+  def postprocessor(self) -> Optional[Callable[..., Any]]:
     return self._postprocess_fn
 
   @property
-  def shuffle_buffer_size(self) -> int:
+  def shuffle_buffer_size(self) -> Optional[int]:
     return self._shuffle_buffer_size
 
   def replace(self, **kwargs):
