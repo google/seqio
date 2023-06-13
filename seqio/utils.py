@@ -58,6 +58,8 @@ def set_tfds_data_dir_override(tfds_data_dir):
   _TFDS_DATA_DIR_OVERRIDE = tfds_data_dir
 
 
+
+
 def set_tfds_read_config_override(tfds_read_config):
   global _TFDS_DATA_READ_CONFIG_OVERRIDE
   _TFDS_DATA_READ_CONFIG_OVERRIDE = tfds_read_config
@@ -110,10 +112,14 @@ class LazyTfdsLoader(object):
 
   @property
   def data_dir(self):
-    if _TFDS_DATA_DIR_OVERRIDE:
+    """Returns the data directory fot this TFDS dataset."""
+
+
+    if _TFDS_DATA_DIR_OVERRIDE and not _TFDS_DATASETS_OVERRIDE:
       if self._data_dir:
         logging.warning(
-            "Overriding TFDS data directory '%s' with '%s' for dataset '%s'.",
+            "Overriding TFDS data directory '%s' with '%s'"
+            " for dataset '%s'.",
             self._data_dir,
             _TFDS_DATA_DIR_OVERRIDE,
             self.name,
