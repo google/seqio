@@ -401,3 +401,46 @@ def hash_and_tile_subtask_id(ex, num_buckets=1e9):
   return ex
 
 
+@utils.map_over_dataset
+def preprocess_tensorflow_examples(example, inputs_format, targets_format):
+  """Parse dict of tf.tensors into inputs and targets.
+
+  This function takes a tf.data.Dataset of strings. The function returns a
+  tf.data.Dataset of feature dictionaries of the form {"inputs": string,
+  "targets": string}.
+
+  inputs_format contains a template string used to produce the "inputs" string.
+  targets_format contains a template string used to produce the "targets"
+  string.
+
+  Args:
+    example (Dict[str, tf.Tensor]): The example to preprocess, represented as a
+      dictionary where the keys are the feature names and the values are
+      TensorFlow tensors.
+    inputs_format (str): A format string specifying how to preprocess the
+      inputs. The format string can include placeholder fields surrounded by
+      curly braces, which will be replaced by the corresponding values from the
+      example dictionary. For example, if the inputs_format is "Summarize this
+      {text}", the format string "{text}" will be replaced by the actual
+      tensor value.
+    targets_format (str): A format string specifying how to preprocess the
+      targets. It follows the same rules as the `inputs_format`.
+
+  Returns:
+    Dict[str, tf.Tensor]: The preprocessed example, where the inputs and targets
+    have been formatted according to the provided format strings.
+  """
+
+  def _format(format_string, ex):
+    ret = format_string
+    for part in ex.keys():
+      ret = tf.strings.regex_replace(ret, '{{{}}}'.format(part), ex[part])
+
+    return ret
+
+  return {
+      'inputs': _format(inputs_format, example),
+      'targets': _format(targets_format, example),
+  }
+
+
