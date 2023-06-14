@@ -15,7 +15,7 @@
 """Vocabularies."""
 
 import abc
-import dataclasses
+import functools
 import hashlib
 import threading
 from typing import Any, ClassVar, Dict, Iterable, Optional, Sequence, Tuple, Union
@@ -245,74 +245,6 @@ class UnigramVocabulary(Vocabulary):
     return self._base_vocab_size - 1
 
 
-@dataclasses.dataclass(frozen=True, eq=True)
-class _SentencePieceVocabularyConfig:
-  """Configuration for the sentence piece vocabulary.
-
-  Attributes:
-    sentencepiece_model_file: path of the sentence piece model.
-    extra_ids: number of extra ids to include.
-    normalizer_spec_overrides_serialized: If not None, this serialized
-      `NormalizerSpec` proto will be merged into the model's normalizer and
-      denormalizer specs. Thus, any options set on this object will override the
-      values of those options in the loaded model.
-    reverse_extra_ids: if True, extra_ids are numbered in descending order, so
-      the first extra_id has the highest number. This is done for compatibility
-      with span_corruption mask generation in T5.
-  """
-
-  sentencepiece_model_file: str
-  extra_ids: int
-  normalizer_spec_overrides_serialized: Optional[bytes] = None
-  reverse_extra_ids: bool = True
-
-  def load(
-      self,
-  ) -> Tuple[bytes, sentencepiece_processor.SentencePieceProcessor]:
-    """Loads and returns the SPM and Python tokenizer."""
-    with tf.io.gfile.GFile(self.sentencepiece_model_file, "rb") as f:
-      sp_model = f.read()
-
-    model = sentencepiece_model_pb2.ModelProto.FromString(sp_model)
-    # Add placeholder strings for extra IDs.
-    if self.extra_ids:
-      # By default, we them in reverse order to match span corruption.
-      if self.reverse_extra_ids:
-        extra_id_tokens = reversed(range(self.extra_ids))
-      else:
-        extra_id_tokens = range(self.extra_ids)
-
-      for i in extra_id_tokens:
-        model.pieces.add(
-            piece=f"▁<extra_id_{i}>",
-            score=0.0,
-            type=sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED,
-        )
-    if self.normalizer_spec_overrides_serialized is not None:
-      normalizer_spec_overrides = (
-          sentencepiece_model_pb2.NormalizerSpec.FromString(
-              self.normalizer_spec_overrides_serialized
-          )
-      )
-      model.normalizer_spec.MergeFrom(normalizer_spec_overrides)
-      model.denormalizer_spec.MergeFrom(normalizer_spec_overrides)
-    sp_model = model.SerializeToString()
-
-    # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
-    tokenizer = sentencepiece_processor.SentencePieceProcessor()
-    tokenizer.LoadFromSerializedProto(sp_model)
-    if tokenizer.pad_id() != PAD_ID:
-      logging.warning(
-          (
-              "T5 library uses PAD_ID=%s, which is different from the "
-              "sentencepiece vocabulary, which defines pad_id=%s"
-          ),
-          PAD_ID,
-          tokenizer.pad_id(),
-      )
-    return sp_model, tokenizer
-
-
 class SentencePieceVocabulary(Vocabulary):
   """Wrapper for nlp/sentencepiece encoder.
 
@@ -329,12 +261,7 @@ class SentencePieceVocabulary(Vocabulary):
   "I like peanut butter and jel<extra_id_0> sandwiches" is not.).
   """
 
-  _SPM_CACHE: ClassVar[
-      Dict[
-          _SentencePieceVocabularyConfig,
-          Tuple[bytes, sentencepiece_processor.SentencePieceProcessor],
-      ]
-  ] = {}
+  _load_model_lock: ClassVar[threading.Lock] = threading.Lock()
 
   def __init__(
       self,
@@ -360,64 +287,103 @@ class SentencePieceVocabulary(Vocabulary):
         the first extra_id has the highest number. This is done for
         compatibility with span_corruption mask generation in T5.
     """
-    if normalizer_spec_overrides is None:
-      normalizer_spec_overrides_serialized = None
-    else:
-      normalizer_spec_overrides_serialized = (
-          normalizer_spec_overrides.SerializeToString(deterministic=True)
-      )
-    self._config = _SentencePieceVocabularyConfig(
-        sentencepiece_model_file=sentencepiece_model_file,
-        extra_ids=extra_ids,
-        normalizer_spec_overrides_serialized=normalizer_spec_overrides_serialized,
-        reverse_extra_ids=reverse_extra_ids,
-    )
+    self._sentencepiece_model_file = sentencepiece_model_file
+    self._normalizer_spec_overrides = normalizer_spec_overrides
+    self._reverse_extra_ids = reverse_extra_ids
     self._tokenizer = None
     self._sp_model = None
-    self._load_model_lock = threading.Lock()
+
     super().__init__(extra_ids=extra_ids)
 
   def __getstate__(self):
     state = self.__dict__.copy()
     # Gin config makes a deep copy of the keyword arguments of configurables.
     # When a SentencePieceVocabulary vocabulary is used as a keyword argument
-    # in a Gin configurable, it must be picklable. Lock is not picklable. We
-    # remove the lock when pickling the vocabulary and add it back afterwards.
-    # Also delete _tokenizer and _sp_model, these will be initialized lazily
-    # as needed.
-    del state["_load_model_lock"]
+    # in a Gin configurable, it must be picklable. We therefore remove
+    # _tokenizer and _sp_model; these will be initialized lazily as needed.
     del state["_tokenizer"]
     del state["_sp_model"]
     return state
 
   def __setstate__(self, state):
     self.__dict__.update(state)
-    self._load_model_lock = threading.Lock()
     self._tokenizer = None
     self._sp_model = None
 
-  def _load_model(self):
-    """Load SPM and Python tokenizer."""
+  def load_model(self) -> None:
+    if self._tokenizer and self._sp_model:
+      return
+
+    normalizer_spec_overrides_serialized = (
+        self._normalizer_spec_overrides.SerializeToString(deterministic=True)
+        if self._normalizer_spec_overrides
+        else None
+    )
+
+    self._tokenizer, self._sp_model = self._load_model(
+        self._sentencepiece_model_file,
+        self._extra_ids,
+        normalizer_spec_overrides_serialized,
+        self._reverse_extra_ids,
+    )
+
+  @classmethod
+  @functools.lru_cache(maxsize=None)
+  def _load_model(
+      cls,
+      sentencepiece_model_file: str,
+      extra_ids: int,
+      normalizer_spec_overrides_serialized: Optional[bytes] = None,
+      reverse_extra_ids: bool = True,
+  ) -> Tuple[sentencepiece_processor.SentencePieceProcessor, bytes]:
+    """Load SPM, Python tokenizer, and cache results to the class definition."""
     # SentencePieceProcessor::LoadFromSerializedProto is not thread-safe.
     # Without a lock, users may randomly see SIGSEGV on
     # sentencepiece::ModelInterface::pad_piece when using the vocabulary in
     # SeqIO preprocessors.
-    with self._load_model_lock:
-      # Check if another thread has already finished initializing the tokenizer.
-      if self._tokenizer and self._sp_model:
-        return
+    with cls._load_model_lock:
+      # Handle cases where SP can't load the file, but gfile can.
+      with tf.io.gfile.GFile(sentencepiece_model_file, "rb") as f:
+        sp_model = f.read()
+        model = sentencepiece_model_pb2.ModelProto.FromString(sp_model)
+        # Add placeholder strings for extra IDs.
+        if extra_ids:
+          # By default, we them in reverse order to match span corruption.
+          if reverse_extra_ids:
+            extra_id_tokens = reversed(range(extra_ids))
+          else:
+            extra_id_tokens = range(extra_ids)
 
-      if self._config not in self._SPM_CACHE:
-        sp_model, tokenizer = self._config.load()
-        self._SPM_CACHE[self._config] = (sp_model, tokenizer)
-      sp_model, tokenizer = self._SPM_CACHE[self._config]
+          for i in extra_id_tokens:
+            model.pieces.add(
+                piece=f"▁<extra_id_{i}>",
+                score=0.0,
+                type=sentencepiece_model_pb2.ModelProto.SentencePiece.USER_DEFINED,
+            )
+        if normalizer_spec_overrides_serialized is not None:
+          normalizer_spec_overrides = (
+              sentencepiece_model_pb2.NormalizerSpec.FromString(
+                  normalizer_spec_overrides_serialized
+              )
+          )
 
-      # NOTE: We need to use an intermediate variable tokenizer here, otherwise
-      # the threads that are checking for self._tokenizer/_sp_model could start
-      # using them sooner than they are fully initialized. The assignment below
-      # is atomic.
-      self._tokenizer = tokenizer
-      self._sp_model = sp_model
+          model.normalizer_spec.MergeFrom(normalizer_spec_overrides)
+          model.denormalizer_spec.MergeFrom(normalizer_spec_overrides)
+        sp_model = model.SerializeToString()
+      # Load Python tokenizer and ensure the EOS and PAD IDs are correct.
+      tokenizer = sentencepiece_processor.SentencePieceProcessor()
+      tokenizer.LoadFromSerializedProto(sp_model)
+      if tokenizer.pad_id() != PAD_ID:
+        logging.warning(
+            (
+                "T5 library uses PAD_ID=%s, which is different from the "
+                "sentencepiece vocabulary, which defines pad_id=%s"
+            ),
+            PAD_ID,
+            tokenizer.pad_id(),
+        )
+
+      return tokenizer, sp_model
 
   @property
   def bos_id(self) -> Optional[int]:
@@ -435,18 +401,18 @@ class SentencePieceVocabulary(Vocabulary):
   def sp_model(self) -> Optional[bytes]:
     """Retrieve the SPM."""
     if self._sp_model is None:
-      self._load_model()
+      self.load_model()
     return self._sp_model
 
   @property
-  def sentencepiece_model_file(self):
-    return self._config.sentencepiece_model_file
+  def sentencepiece_model_file(self) -> str:
+    return self._sentencepiece_model_file
 
   @property
   def tokenizer(self):
     """Returns the Python tokenizer."""
     if not self._tokenizer:
-      self._load_model()
+      self.load_model()
     return self._tokenizer
 
   @property
@@ -533,7 +499,7 @@ class SentencePieceVocabulary(Vocabulary):
   def __str__(self) -> str:
     return (
         f"SentencePieceVocabulary(file={self.sentencepiece_model_file}, "
-        f"extra_ids={self._config.extra_ids}, "
+        f"extra_ids={self._extra_ids}, "
         f"spm_md5={hashlib.md5(self.sp_model).hexdigest()})"
     )
 
