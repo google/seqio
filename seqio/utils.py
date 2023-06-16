@@ -90,7 +90,13 @@ class LazyTfdsLoader(object):
 
   _MEMOIZED_BUILDERS = {}
 
-  def __init__(self, name, data_dir=None, split_map=None, decoders=None):
+  def __init__(
+      self,
+      name: str,
+      data_dir: Optional[str] = None,
+      split_map=None,
+      decoders=None,
+  ):
     """LazyTfdsLoader constructor.
 
     Args:
@@ -101,6 +107,11 @@ class LazyTfdsLoader(object):
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
         such as tfds.decode.SkipDecoding() for skipping image byte decoding
     """
+    if (
+        name
+        and ":" not in name
+    ):
+      raise ValueError(f"TFDS name must contain a version number, got: {name}")
     self._name = name
     self._data_dir = data_dir
     self._split_map = split_map
@@ -110,16 +121,16 @@ class LazyTfdsLoader(object):
   def name(self):
     return self._name
 
+
   @property
-  def data_dir(self):
+  def data_dir(self) -> Optional[str]:
     """Returns the data directory fot this TFDS dataset."""
 
 
     if _TFDS_DATA_DIR_OVERRIDE and not _TFDS_DATASETS_OVERRIDE:
       if self._data_dir:
         logging.warning(
-            "Overriding TFDS data directory '%s' with '%s'"
-            " for dataset '%s'.",
+            "Overriding TFDS data directory '%s' with '%s' for dataset '%s'.",
             self._data_dir,
             _TFDS_DATA_DIR_OVERRIDE,
             self.name,
@@ -134,7 +145,7 @@ class LazyTfdsLoader(object):
     return tfds.ReadConfig()
 
   @functools.cached_property
-  def _builder_key(self) -> Tuple[str, str]:
+  def _builder_key(self) -> Tuple[str, Optional[str]]:
     return (self.name, self.data_dir)
 
   @property
@@ -159,10 +170,10 @@ class LazyTfdsLoader(object):
   def info(self):
     return self.builder.info
 
-  def _map_split(self, split):
+  def _map_split(self, split: str):
     return self._split_map[split] if self._split_map else split
 
-  def files(self, split):
+  def files(self, split: str):
     """Returns set of instructions for reading TFDS files for the dataset."""
     split = self._map_split(split)
 
@@ -178,7 +189,13 @@ class LazyTfdsLoader(object):
       logging.fatal("No TFRecord files found for dataset: %s", self.name)
     return files
 
-  def load(self, split, shuffle_files, seed=None, shard_info=None):
+  def load(
+      self,
+      split: str,
+      shuffle_files: bool,
+      seed: Optional[int] = None,
+      shard_info=None,
+  ):
     """Returns a tf.data.Dataset for the given split."""
     split = self._map_split(split)
     read_config = self.read_config
@@ -203,7 +220,12 @@ class LazyTfdsLoader(object):
         decoders=self._decoders,
     )
 
-  def load_shard(self, file_instruction, shuffle_files=False, seed=None):
+  def load_shard(
+      self,
+      file_instruction,
+      shuffle_files: bool = False,
+      seed: Optional[int] = None,
+  ):
     """Returns a dataset for a single shard of the TFDS TFRecord files."""
     # pytype:disable=attribute-error
     ds = self.builder._tfrecords_reader.read_files(  # pylint:disable=protected-access
@@ -214,7 +236,7 @@ class LazyTfdsLoader(object):
     # pytype:enable=attribute-error
     return ds
 
-  def size(self, split):
+  def size(self, split: str) -> Optional[int]:
     """Returns the number of examples in the split."""
     split = self._map_split(split)
     ds_splits = self.info.splits

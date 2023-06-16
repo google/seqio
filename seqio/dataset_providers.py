@@ -29,6 +29,7 @@ import operator
 import os
 import re
 from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple, Type, Union
+
 from absl import logging
 import clu.metrics
 import editdistance
@@ -45,6 +46,7 @@ from seqio.vocabularies import Vocabulary
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 import typing_extensions
+
 
 _DEFAULT_FEATURE_KEYS = ["inputs", "targets"]
 
@@ -484,11 +486,6 @@ class TfdsDataSource(DataSource):
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
         such as tfds.decode.SkipDecoding() for skipping image byte decoding
     """
-    if tfds_name and ":" not in tfds_name:
-      raise ValueError(
-          f"TFDS name must contain a version number, got: {tfds_name}"
-      )
-
     if splits and not isinstance(splits, dict):
       splits = {k: k for k in splits}
 
@@ -531,7 +528,7 @@ class TfdsDataSource(DataSource):
         split, shuffle_files=shuffle, seed=seed, shard_info=shard_info
     )
 
-  def num_input_examples(self, split: str) -> int:
+  def num_input_examples(self, split: str) -> Optional[int]:
     """Overrides since we can't call `info.splits` until after init."""
     return self.tfds_dataset.size(split)
 

@@ -48,48 +48,54 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     utils.LazyTfdsLoader._MEMOIZED_BUILDERS = {}
     super().setUp()
 
+  def test_no_tfds_version(self):
+    with self.assertRaisesWithLiteralMatch(
+        ValueError, "TFDS name must contain a version number, got: fake"
+    ):
+      utils.LazyTfdsLoader(name="fake")
+
   @mock.patch("tensorflow_datasets.builder")
   def test_builder_memoization(self, mock_tfds_builder):
     mock_tfds_builder.side_effect = lambda name, data_dir: ",".join(
         [name, data_dir or ""]
     )
 
-    ds1 = utils.LazyTfdsLoader("ds1")
-    self.assertEqual("ds1,", ds1.builder)
+    ds1 = utils.LazyTfdsLoader("ds1:1.0.0")
+    self.assertEqual("ds1:1.0.0,", ds1.builder)
     self.assertEqual(1, tfds.builder.call_count)
 
     # Builder should be cached with same name.
-    self.assertEqual("ds1,", ds1.builder)
+    self.assertEqual("ds1:1.0.0,", ds1.builder)
     self.assertEqual(1, tfds.builder.call_count)
 
     # Same name but different data dir is a cache miss.
-    ds1_dir1 = utils.LazyTfdsLoader("ds1", "dir1")
-    self.assertEqual("ds1,dir1", ds1_dir1.builder)
+    ds1_dir1 = utils.LazyTfdsLoader("ds1:1.0.0", "dir1")
+    self.assertEqual("ds1:1.0.0,dir1", ds1_dir1.builder)
     self.assertEqual(2, tfds.builder.call_count)
     # Same name and data dir is a cache hit.
-    self.assertEqual("ds1,dir1", ds1_dir1.builder)
+    self.assertEqual("ds1:1.0.0,dir1", ds1_dir1.builder)
     self.assertEqual(2, tfds.builder.call_count)
 
     # Different name is a cache miss.
-    ds2 = utils.LazyTfdsLoader("ds2")
-    self.assertEqual("ds2,", ds2.builder)
+    ds2 = utils.LazyTfdsLoader("ds2:1.0.0")
+    self.assertEqual("ds2:1.0.0,", ds2.builder)
     self.assertEqual(3, tfds.builder.call_count)
 
     # Different split map name is a cache hit.
-    ds2 = utils.LazyTfdsLoader("ds2", split_map={"train": "validation"})
-    self.assertEqual("ds2,", ds2.builder)
+    ds2 = utils.LazyTfdsLoader("ds2:1.0.0", split_map={"train": "validation"})
+    self.assertEqual("ds2:1.0.0,", ds2.builder)
     self.assertEqual(3, tfds.builder.call_count)
 
     # Try calling everything again, order shouldn't matter.
-    self.assertEqual("ds1,", ds1.builder)
-    self.assertEqual("ds1,dir1", ds1_dir1.builder)
-    self.assertEqual("ds2,", ds2.builder)
+    self.assertEqual("ds1:1.0.0,", ds1.builder)
+    self.assertEqual("ds1:1.0.0,dir1", ds1_dir1.builder)
+    self.assertEqual("ds2:1.0.0,", ds2.builder)
     self.assertEqual(3, tfds.builder.call_count)
 
   @mock.patch("tensorflow_datasets.load")
   def test_split_map(self, mock_tfds_load):
     seed = 0
-    utils.LazyTfdsLoader._MEMOIZED_BUILDERS[("ds/c1", None)] = mock.Mock(
+    utils.LazyTfdsLoader._MEMOIZED_BUILDERS[("ds/c1:1.0.0", None)] = mock.Mock(
         info=mock.Mock(
             splits={
                 "validation": mock.Mock(
@@ -101,13 +107,13 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     )
 
     ds = utils.LazyTfdsLoader(
-        "ds/c1", split_map={"train": "validation", "validation": "test"}
+        "ds/c1:1.0.0", split_map={"train": "validation", "validation": "test"}
     )
 
     # test .load()
     ds.load("train", shuffle_files=False, seed=seed)
     mock_tfds_load.assert_called_once_with(
-        "ds/c1",
+        "ds/c1:1.0.0",
         split="validation",
         data_dir=None,
         shuffle_files=False,
@@ -132,7 +138,7 @@ class LazyTfdsLoaderTest(absltest.TestCase):
   @mock.patch("tensorflow_datasets.load")
   def test_read_config_override_default(self, mock_tfds_load):
     ds = utils.LazyTfdsLoader(
-        "ds/c1", split_map={"train": "validation", "validation": "test"}
+        "ds/c1:1.0.0", split_map={"train": "validation", "validation": "test"}
     )
     ds.load("train", shuffle_files=False, seed=42)
     mock_tfds_load.assert_called_once()
@@ -148,7 +154,7 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     read_config.shuffle_reshuffle_each_iteration = True
     utils.set_tfds_read_config_override(read_config)
     ds = utils.LazyTfdsLoader(
-        "ds/c1", split_map={"train": "validation", "validation": "test"}
+        "ds/c1:1.0.0", split_map={"train": "validation", "validation": "test"}
     )
     ds.load("train", shuffle_files=False, seed=42)
     mock_tfds_load.assert_called_once()

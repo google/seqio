@@ -1943,12 +1943,6 @@ def register_dummy_task(
 
 class TfdsDataSourceTest(test_utils.FakeTaskTest):
 
-  def test_no_tfds_version(self):
-    with self.assertRaisesWithLiteralMatch(
-        ValueError, "TFDS name must contain a version number, got: fake"
-    ):
-      dataset_providers.TfdsDataSource(tfds_name="fake")
-
   def test_tfds_splits(self):
     self.assertSameElements(
         ["train", "validation"],
