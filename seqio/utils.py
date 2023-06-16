@@ -93,7 +93,7 @@ class LazyTfdsLoader(object):
   def __init__(
       self,
       name: str,
-      data_dir: Optional[str] = None,
+      data_dir=None,
       split_map=None,
       decoders=None,
   ):
@@ -123,7 +123,7 @@ class LazyTfdsLoader(object):
 
 
   @property
-  def data_dir(self) -> Optional[str]:
+  def data_dir(self):
     """Returns the data directory fot this TFDS dataset."""
 
 
