@@ -48,7 +48,7 @@ def rekey(x, key_map=None):
   """
   if key_map:
     return {
-        new_key: x[old_key] if old_key else ''
+        new_key: x.get(old_key, '')
         for new_key, old_key in key_map.items()
     }
   return x
