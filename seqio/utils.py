@@ -127,7 +127,9 @@ class LazyTfdsLoader(object):
     """Returns the data directory fot this TFDS dataset."""
 
 
-    if _TFDS_DATA_DIR_OVERRIDE and not _TFDS_DATASETS_OVERRIDE:
+    if (
+        _TFDS_DATA_DIR_OVERRIDE
+    ):
       if self._data_dir:
         logging.warning(
             "Overriding TFDS data directory '%s' with '%s' for dataset '%s'.",
