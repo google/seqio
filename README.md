@@ -310,7 +310,7 @@ A few **important** notes:
 In our "wmt_19_ende" task, we also use the predefined preprocessors
 `seqio.preprocessors.tokenize` and `seqio.preprocessors.append_eos`. The former
 uses each `Feature.vocabulary` to tokenize it, and the the latter appends
-`Feature.vocabulary.eos_id` to the feature if the `Feaure.add_eos` is True. See
+`Feature.vocabulary.eos_id` to the feature if the `Feature.add_eos` is True. See
 [preprocessors.py](https://github.com/google/seqio/tree/main/seqio/preprocessors.py) for
 their implementations and other useful preprocessors.
 
@@ -402,8 +402,8 @@ Once you have multiple `Task`s added to the `TaskRegistry`, you can define
 `Mixture`s that will combine the examples from them according to some specified
 rate. Examples will then be sampled from each task in proportion to its rate.
 
-As an example, [Multilingual T5](goo.gle/mt5) uses a `Mixture` of per-language
-`Task`s with tail languages up-weighted in the mixture.
+As an example, [Multilingual T5](http://goo.gle/mt5) uses a `Mixture` of
+per-language `Task`s with tail languages up-weighted in the mixture.
 
 There are 3 ways to specify the tasks and their rates:
 
@@ -489,7 +489,7 @@ for _, ex in zip(range(5), dataset.as_numpy_iterator()):
   print(ex)
 ```
 
-Some notes on a few the arguments:
+Some notes on a few of the arguments:
 
 *   `sequence_length`: An *optional* mapping from feature name to *maximum*
     length. Will be passed to the preprocessors with a `sequence_length`
@@ -515,7 +515,7 @@ Some notes on a few the arguments:
 
 ### (Optional) Offline Caching
 
-For improved performance at load time and avoid redundant computations for
+For improved performance at load time and to avoid redundant computations for
 commonly used tasks, you can pre-cache your `Task` with all or part of the
 preprocessing done in advance of training.
 
@@ -629,7 +629,7 @@ In the SeqIO library, each architecture has a class defining how the task
 features are converted to model features. Since these feature converters are
 already implemented, it is straightforward to use them by providing the class as
 a `feature_converter` argument of the `seqio.get_dataset` function. The
-following sections will show the example usage of `seqio.get_dataset`.
+following sections show example usage of `seqio.get_dataset`.
 
 ##### Encoder-decoder architecture: `seqio.EncDecFeatureConverter`
 This is the architecture of the original Transformer paper. For the
@@ -754,7 +754,7 @@ That  is  good <EOS> Das ist gut <EOS>
 
 ```
 
-Let's us denote the first layer's activation in the `i`th position as `vi`.
+Let us denote the first layer's activation in the `i`th position as `vi`.
 Similarly, let `ui` denote the activation of the second layer in the `i`th
 position.
 
@@ -765,7 +765,7 @@ sequence. At a given layer, each position's representation is computed as a
 function of the representations of the tokens *before* its position in the
 previous layer.
 
-Referring to the toy example, when computing `u2` with fully-causing masking, we
+Referring to the toy example, when computing `u2` with fully-causal masking, we
 do not use `v3`. This results in a representation `u2` of the word "is" that
 does not take into account the word "good", which is unnecessarily limiting.
 
@@ -776,7 +776,7 @@ in the "targets" of the `Task` dataset, we use the causal masking. For example,
 when computing `u6`, all `vi` for `i <= 6` are taken into account but not `v7`.
 
 <details>
-  <summary>Why `v5` is included in the inputs attention pattern</summary>
+  <summary>Why is `v5` included in the inputs attention pattern?</summary>
   In the same translation example, we note that when computing `u2`, the
   activation corresponding to the position where \<EOS\> token was input (i.e.,
   `v5`) was visible. This doesn't count as "cheating" because the model doesn't
@@ -908,19 +908,19 @@ The resulting dataset object has the following 5 fields
 |`encoder_loss_weights` | Binary mask to indicate where the loss should be taken |                                          :
 
 ###### Custom architectures
-For a model architectures, you would need to create a subclass of
+For a custom model architecture, you need to create a subclass of
 `FeatureConverter` and override two methods `_convert_features` and
 `get_model_feature_lengths` to define how task features are mapped to the model
-features including the length relationships. The existing feature converters
-(e.g., `seqio.EncDecFeatureConverter`) follows the same pattern. So this can be
+features, including the length relationships. The existing feature converters
+(e.g., `seqio.EncDecFeatureConverter`) follow the same pattern, which can be a
 useful starting point.
 
 ### Evaluation
 
 The SeqIO `Evaluator` class provides a way to evaluate models on SeqIO Tasks
-and Mixtures. For an interactive walkthrough of SeqIO evaluation, see the 
-[Evaluation Notebook](https://github.com/google/seqio/blob/main/seqio/docs/tutorials.md). 
-The following is a deep-dive into the Evaluator class.
+and Mixtures. For an interactive walkthrough of SeqIO evaluation, see the
+[Evaluation Notebook](https://github.com/google/seqio/blob/main/seqio/docs/tutorials.md).
+The following is a deep-dive into the `Evaluator` class.
 
 An Evaluator instance can be created by passing a SeqIO Task or
 Mixture, and additional eval params like feature converter, split, sequence
@@ -962,10 +962,9 @@ Corresponding to the model fns, users can configure three kinds of metric fns in
 their Tasks, which are differentiated by their function signature. Metrics
 computed on the outputs of `predict_fn` (and `predict_with_aux_fn`) have the
 signature `targets` and `predictions` (and optionally `aux_values`), while
-metrics computed on the outputs of `score_fn` have the have the signature
-`targets` and `predictions`. The `Evaluator` takes care of calling the correct
-model fns and metric fns during evaluation. Here is an example of a metric of
-each type.
+metrics computed on the outputs of `score_fn` have the signature `targets` and
+`predictions`. The `Evaluator` takes care of calling the correct model fns and
+metric fns during evaluation. Here is an example of a metric of each type.
 
 ```
 def sequence_accuracy(targets, predictions):
@@ -1014,7 +1013,7 @@ SeqIO removes some of the constraints of this abstraction:
 *   Inputs and outputs are no longer required to be strings (e.g., it may be
     images or audio).
 *   Architectures other than the original encoder-decoder are supported (e.g.,
-    decoder-only languaged models like GPT or encoder-only models like BERT).
+    decoder-only language models like GPT or encoder-only models like BERT).
 *   Users can control at which stage of the pipeline offline caching occurs.
 *   Users can control when and where EOS tokens are added.
 
