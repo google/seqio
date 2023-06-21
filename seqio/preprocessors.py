@@ -15,6 +15,7 @@
 """Preprocessors for SeqIO Tasks."""
 import dataclasses
 import functools
+import re
 from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
 
 from seqio import feature_converters
@@ -432,11 +433,18 @@ def preprocess_tensorflow_examples(example, inputs_format, targets_format):
   """
 
   def _format(format_string, ex):
-    ret = format_string
-    for part in ex.keys():
-      ret = tf.strings.regex_replace(ret, '{{{}}}'.format(part), ex[part])
-
-    return ret
+    field_names = ex.keys()
+    field_names_re = (
+        '(' + '|'.join(['{{{}}}'.format(x) for x in field_names]) + ')'
+    )
+    parts = []
+    for p in re.split(field_names_re, format_string):
+      p_name = p[1:-1]
+      if p_name in field_names:
+        parts.append(ex[p_name])
+      else:
+        parts.append(p)
+    return tf.strings.join(parts)
 
   return {
       'inputs': _format(inputs_format, example),
