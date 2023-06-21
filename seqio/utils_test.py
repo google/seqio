@@ -48,6 +48,24 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     utils.LazyTfdsLoader._MEMOIZED_BUILDERS = {}
     super().setUp()
 
+  def test_str(self):
+    loader = utils.LazyTfdsLoader(
+        name="a/b:1.0.0", data_dir="/data", split_map={"x": "y"}
+    )
+    self.assertEqual(
+        str(loader),
+        "LazyTfdsLoader(name=a/b:1.0.0, data_dir=/data)",
+    )
+
+  def test_repr(self):
+    loader = utils.LazyTfdsLoader(
+        name="a/b:1.0.0", data_dir="/data", split_map={"x": "y"}
+    )
+    self.assertEqual(
+        loader.__repr__(),
+        """LazyTfdsLoader(name=a/b:1.0.0, data_dir=/data, split_map={'x': 'y'}, decoders=None)""",
+    )
+
   def test_no_tfds_version(self):
     with self.assertRaisesWithLiteralMatch(
         ValueError, "TFDS name must contain a version number, got: fake"

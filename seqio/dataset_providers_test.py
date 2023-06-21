@@ -2058,6 +2058,33 @@ class FunctionDataSourceTest(test_utils.FakeTaskTest):
 
 class FileDataSourceTest(test_utils.FakeTaskTest):
 
+  def test_str(self):
+    fds = dataset_providers.FileDataSource(
+        read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
+        split_to_filepattern={"train": "filepattern"},
+        file_shuffle_buffer_size=2,
+        cycle_length=42,
+    )
+    self.assertEqual(str(fds), "FileDataSource({'train': 'filepattern'})")
+
+  def test_repr(self):
+    fds = dataset_providers.FileDataSource(
+        read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
+        split_to_filepattern={"train": "filepattern"},
+        file_shuffle_buffer_size=2,
+        cycle_length=42,
+    )
+    self.assertEqual(
+        fds.__repr__(),
+        "FileDataSource("
+        "split_to_filepattern={'train': 'filepattern'},"
+        " num_input_examples=None,"
+        " caching_permitted=True,"
+        " file_shuffle_buffer_size=2,"
+        " cycle_length=42,"
+        " block_length=16)",
+    )
+
   @mock.patch.object(dataset_providers, "_list_files")
   def test_file_data_source_shuffle_buffer_low(self, mock_list_files):
     mock_list_files.return_value = [f"{i}" for i in range(20)]
@@ -2141,6 +2168,37 @@ class FileDataSourceTest(test_utils.FakeTaskTest):
       )
 
 
+
+class ProtoDataSource(test_utils.FakeTaskTest):
+
+  def test_str(self):
+    self.assertEqual(
+        str(self.proto_source),
+        f"ProtoDataSource({{'train': '{self.test_data_dir}/train.tfrecord*'}})",
+    )
+
+  def test_repr(self):
+    expected = (
+        "ProtoDataSource(split_to_filepattern={'train':"
+        f" '{self.test_data_dir}/train.tfrecord*'}}, num_input_examples=None,"
+        " caching_permitted=True, file_shuffle_buffer_size=None,"
+        " cycle_length=16, block_length=16)"
+    )
+    self.assertEqual(self.proto_source.__repr__(), expected)
+
+
+
+class TFExampleDataSource(test_utils.FakeTaskTest):
+
+  def test_str(self):
+    expected = (
+        "TFExampleDataSource(split_to_filepattern="
+        f"{{'train': '{self.test_data_dir}/train.tfrecord*'}},"
+        " feature_description={'prefix': FixedLenFeature(shape=[],"
+        " dtype=tf.string, default_value=None), 'suffix':"
+        " FixedLenFeature(shape=[], dtype=tf.string, default_value=None)})"
+    )
+    self.assertEqual(str(self.tf_example_source), expected)
 
 
 

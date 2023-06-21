@@ -419,6 +419,15 @@ class FunctionDataSource(DataSource):
   def supports_arbitrary_sharding(self) -> bool:
     return False
 
+  def __repr__(self):
+    return (
+        f"{self.__class__.__name__}("
+        f"dataset_fn={utils.function_name(self._dataset_fn)},"
+        f" splits={self.splits},"
+        f" num_input_examples={self._num_input_examples},"
+        f" caching_permitted={self.caching_permitted})"
+    )
+
   def get_dataset(
       self,
       split: str = tfds.Split.TRAIN,
@@ -513,6 +522,15 @@ class TfdsDataSource(DataSource):
   def supports_arbitrary_sharding(self) -> bool:
     return False
 
+  def __str__(self):
+    return f"{self.__class__.__name__}(tfds_dataset={str(self.tfds_dataset)})"
+
+  def __repr__(self):
+    return (
+        f"{self.__class__.__name__}(tfds_dataset={str(self.tfds_dataset)},"
+        f" splits={self.splits}, caching_permitted={self.caching_permitted})"
+    )
+
   def get_dataset(
       self,
       split: str = tfds.Split.TRAIN,
@@ -595,6 +613,20 @@ class FileDataSource(DataSource):
   @property
   def supports_arbitrary_sharding(self) -> bool:
     return False
+
+  def __str__(self):
+    return f"{self.__class__.__name__}({self._split_to_filepattern})"
+
+  def __repr__(self):
+    return (
+        f"{self.__class__.__name__}("
+        f"split_to_filepattern={self._split_to_filepattern},"
+        f" num_input_examples={self._num_input_examples},"
+        f" caching_permitted={self._caching_permitted},"
+        f" file_shuffle_buffer_size={self._file_shuffle_buffer_size},"
+        f" cycle_length={self._cycle_length},"
+        f" block_length={self._block_length})"
+    )
 
   def get_dataset(
       self,
@@ -760,6 +792,26 @@ class TFExampleDataSource(FileDataSource):
         file_shuffle_buffer_size=file_shuffle_buffer_size,
         cycle_length=cycle_length,
         block_length=block_length,
+    )
+
+  def __str__(self):
+    return (
+        f"{self.__class__.__name__}("
+        f"split_to_filepattern={self._split_to_filepattern},"
+        f" feature_description={self.feature_description})"
+    )
+
+  def __repr__(self):
+    return (
+        f"{self.__class__.__name__}("
+        f"split_to_filepattern={self._split_to_filepattern},"
+        f" feature_description={self.feature_description},"
+        f" reader_cls={self.reader_cls},"
+        f" num_input_examples={self._num_input_examples},"
+        f" caching_permitted={self._caching_permitted},"
+        f" file_shuffle_buffer_size={self._file_shuffle_buffer_size},"
+        f" cycle_length={self._cycle_length},"
+        f" block_length={self._block_length})"
     )
 
 
@@ -1052,6 +1104,9 @@ class Task(DatasetProviderBase):
   @property
   def name(self) -> str:
     return self._name
+
+  def __str__(self):
+    return f"Task(name={self.name}, source={str(self.source)})"
 
   @property
   def source_info(self) -> Optional[SourceInfo]:

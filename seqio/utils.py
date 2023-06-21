@@ -121,6 +121,20 @@ class LazyTfdsLoader(object):
   def name(self):
     return self._name
 
+  def __str__(self):
+    return (
+        f"{self.__class__.__name__}(name={self.name}, data_dir={self.data_dir})"
+    )
+
+  def __repr__(self):
+    return (
+        f"{self.__class__.__name__}("
+        f"name={self.name},"
+        f" data_dir={self.data_dir},"
+        f" split_map={self._split_map},"
+        f" decoders={self._decoders})"
+    )
+
 
   @property
   def data_dir(self):
