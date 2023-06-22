@@ -1495,6 +1495,7 @@ class Task(DatasetProviderBase):
       num_epochs: Optional[int] = 1,
       trim_output_features: bool = True,  # Unique to Task
       try_in_mem_cache: bool = True,
+      write_to_tfrecord: bool = False,
   ) -> tf.data.Dataset:
     """Returns a tf.data.Dataset from cache or generated on the fly.
 
@@ -1523,6 +1524,8 @@ class Task(DatasetProviderBase):
         the length given by `sequence_length`.
       try_in_mem_cache: If True, caches sufficiently small datasets in memory
         for efficiency.
+      write_to_tfrecord: If True, then reads from TFRecords cache instead of
+        SSTable.
 
     Returns:
       A tf.data.Dataset.
@@ -1543,7 +1546,9 @@ class Task(DatasetProviderBase):
       )
 
     if use_cached:
-      source = self._get_cached_source(split)
+      source = self._get_cached_source(
+          split=split, write_to_tfrecord=write_to_tfrecord
+      )
     else:
       source = self.source
 
@@ -1567,10 +1572,17 @@ class Task(DatasetProviderBase):
 
     if shard_data_source:
       ds = source.get_dataset(
-          split=split, shuffle=shuffle, seed=seed, shard_info=shard_info
+          split=split,
+          shuffle=shuffle,
+          seed=seed,
+          shard_info=shard_info,
       )
     else:
-      ds = source.get_dataset(split=split, shuffle=shuffle, seed=seed)
+      ds = source.get_dataset(
+          split=split,
+          shuffle=shuffle,
+          seed=seed,
+      )
       ds = ds.shard(shard_info.num_shards, shard_info.index)
 
     if try_in_mem_cache and (
