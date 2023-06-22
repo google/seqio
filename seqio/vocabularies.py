@@ -311,8 +311,18 @@ class SentencePieceVocabulary(Vocabulary):
     self._sp_model = None
 
   def load_model(self) -> None:
+    _ = self._get_or_load_model()
+
+  def _get_or_load_model(
+      self,
+  ) -> Tuple[sentencepiece_processor.SentencePieceProcessor, bytes]:
+    """Loads model if not yet loaded and returns the model context.
+
+    Returns:
+      The model context as a tuple of (tokenizer, sp_model).
+    """
     if self._tokenizer and self._sp_model:
-      return
+      return self._tokenizer, self._sp_model
 
     normalizer_spec_overrides_serialized = (
         self._normalizer_spec_overrides.SerializeToString(deterministic=True)
@@ -326,6 +336,7 @@ class SentencePieceVocabulary(Vocabulary):
         normalizer_spec_overrides_serialized,
         self._reverse_extra_ids,
     )
+    return self._tokenizer, self._sp_model
 
   @classmethod
   @functools.lru_cache(maxsize=None)
@@ -400,20 +411,16 @@ class SentencePieceVocabulary(Vocabulary):
   @property
   def sp_model(self) -> Optional[bytes]:
     """Retrieve the SPM."""
-    if self._sp_model is None:
-      self.load_model()
-    return self._sp_model
+    return self._get_or_load_model()[1]
 
   @property
   def sentencepiece_model_file(self) -> str:
     return self._sentencepiece_model_file
 
   @property
-  def tokenizer(self):
+  def tokenizer(self) -> sentencepiece_processor.SentencePieceProcessor:
     """Returns the Python tokenizer."""
-    if not self._tokenizer:
-      self.load_model()
-    return self._tokenizer
+    return self._get_or_load_model()[0]
 
   @property
   def tf_tokenizer(self):
