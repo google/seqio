@@ -515,7 +515,7 @@ class TfdsDataSource(DataSource):
     return self._splits or self._tfds_dataset.info.splits
 
   @property
-  def tfds_dataset(self):
+  def tfds_dataset(self) -> utils.LazyTfdsLoader:
     return self._tfds_dataset
 
   @property

@@ -20,7 +20,7 @@ import functools
 import os
 import shutil
 import sys
-from typing import Any, Iterator, Mapping, Optional, Sequence, Union, Tuple
+from typing import Any, Iterator, Mapping, Optional, Sequence, Tuple, Union
 
 from absl import flags
 from absl import logging
@@ -1076,7 +1076,15 @@ def clear_mixtures():
 # pylint:disable=invalid-name
 FakeLazyTfds = collections.namedtuple(
     "FakeLazyTfds",
-    ["name", "data_dir", "load", "load_shard", "info", "files", "size"],
+    [
+        "name",
+        "data_dir",
+        "load",
+        "load_shard",
+        "info",
+        "files",
+        "size",
+    ],
 )
 FakeTfdsInfo = collections.namedtuple(
     "FakeTfdsInfo",
