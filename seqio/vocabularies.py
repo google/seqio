@@ -15,10 +15,11 @@
 """Vocabularies."""
 
 import abc
+import dataclasses
 import functools
 import hashlib
 import threading
-from typing import Any, ClassVar, Dict, Iterable, Optional, Sequence, Tuple, Union
+from typing import Any, ClassVar, Dict, Iterable, Optional, Sequence, Union
 
 from absl import logging
 import tensorflow.compat.v2 as tf
@@ -261,6 +262,11 @@ class SentencePieceVocabulary(Vocabulary):
   "I like peanut butter and jel<extra_id_0> sandwiches" is not.).
   """
 
+  @dataclasses.dataclass
+  class _ModelContext:
+    tokenizer: sentencepiece_processor.SentencePieceProcessor
+    sp_model: bytes
+
   _load_model_lock: ClassVar[threading.Lock] = threading.Lock()
 
   def __init__(
@@ -290,8 +296,7 @@ class SentencePieceVocabulary(Vocabulary):
     self._sentencepiece_model_file = sentencepiece_model_file
     self._normalizer_spec_overrides = normalizer_spec_overrides
     self._reverse_extra_ids = reverse_extra_ids
-    self._tokenizer = None
-    self._sp_model = None
+    self._model: Optional[SentencePieceVocabulary._ModelContext] = None
 
     super().__init__(extra_ids=extra_ids)
 
@@ -300,19 +305,27 @@ class SentencePieceVocabulary(Vocabulary):
     # Gin config makes a deep copy of the keyword arguments of configurables.
     # When a SentencePieceVocabulary vocabulary is used as a keyword argument
     # in a Gin configurable, it must be picklable. We therefore remove
-    # _tokenizer and _sp_model; these will be initialized lazily as needed.
-    del state["_tokenizer"]
-    del state["_sp_model"]
+    # _model; will be initialized lazily as needed.
+    del state["_model"]
     return state
 
   def __setstate__(self, state):
     self.__dict__.update(state)
-    self._tokenizer = None
-    self._sp_model = None
+    self._model = None
 
   def load_model(self) -> None:
-    if self._tokenizer and self._sp_model:
-      return
+    _ = self._model_context()
+
+  def _model_context(
+      self,
+  ) -> _ModelContext:
+    """Loads model if not yet loaded and returns the model context.
+
+    Returns:
+      The model context as a tuple of (tokenizer, sp_model).
+    """
+    if self._model:
+      return self._model
 
     normalizer_spec_overrides_serialized = (
         self._normalizer_spec_overrides.SerializeToString(deterministic=True)
@@ -320,12 +333,13 @@ class SentencePieceVocabulary(Vocabulary):
         else None
     )
 
-    self._tokenizer, self._sp_model = self._load_model(
+    self._model = self._load_model(
         self._sentencepiece_model_file,
         self._extra_ids,
         normalizer_spec_overrides_serialized,
         self._reverse_extra_ids,
     )
+    return self._model
 
   @classmethod
   @functools.lru_cache(maxsize=None)
@@ -335,7 +349,7 @@ class SentencePieceVocabulary(Vocabulary):
       extra_ids: int,
       normalizer_spec_overrides_serialized: Optional[bytes] = None,
       reverse_extra_ids: bool = True,
-  ) -> Tuple[sentencepiece_processor.SentencePieceProcessor, bytes]:
+  ) -> _ModelContext:
     """Load SPM, Python tokenizer, and cache results to the class definition."""
     # SentencePieceProcessor::LoadFromSerializedProto is not thread-safe.
     # Without a lock, users may randomly see SIGSEGV on
@@ -383,7 +397,7 @@ class SentencePieceVocabulary(Vocabulary):
             tokenizer.pad_id(),
         )
 
-      return tokenizer, sp_model
+      return cls._ModelContext(tokenizer=tokenizer, sp_model=sp_model)
 
   @property
   def bos_id(self) -> Optional[int]:
@@ -400,20 +414,16 @@ class SentencePieceVocabulary(Vocabulary):
   @property
   def sp_model(self) -> Optional[bytes]:
     """Retrieve the SPM."""
-    if self._sp_model is None:
-      self.load_model()
-    return self._sp_model
+    return self._model_context().sp_model
 
   @property
   def sentencepiece_model_file(self) -> str:
     return self._sentencepiece_model_file
 
   @property
-  def tokenizer(self):
+  def tokenizer(self) -> sentencepiece_processor.SentencePieceProcessor:
     """Returns the Python tokenizer."""
-    if not self._tokenizer:
-      self.load_model()
-    return self._tokenizer
+    return self._model_context().tokenizer
 
   @property
   def tf_tokenizer(self):
