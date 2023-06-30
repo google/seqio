@@ -1020,6 +1020,9 @@ class Task(DatasetProviderBase):
       metric_objs: Optional[Sequence[metrics_lib.Metric]] = None,
       shuffle_buffer_size: Optional[int] = SHUFFLE_BUFFER_SIZE,
       source_info: Optional[SourceInfo] = None,
+      fewshot: Optional[bool] = False,
+      num_shots: Optional[int] = 1,
+      fewshot_processors: Optional[Sequence[Callable[..., Any]]] = None,
   ):
     """Task constructor.
 
@@ -1051,6 +1054,10 @@ class Task(DatasetProviderBase):
       shuffle_buffer_size: an optional integer to set the shuffle buffer size.
         If None, shuffling will be disallowed.
       source_info: optional metadata about where this `Task` was defined.
+      fewshot: whether the task will be used for in context learning
+      num_shots: the number of fewshot examples
+      fewshot_processors: after shots are constructed, these are a list of 
+        processors that are used to process the constructions.
     """
     if not _VALID_TASK_NAME_REGEX.match(name):
       raise ValueError(
@@ -1066,6 +1073,11 @@ class Task(DatasetProviderBase):
     self._name = name
     self._source = source
     self._source_info = source_info
+
+    # setup fewshot
+    self._fewshot = fewshot
+    self._num_shots = num_shots
+    self._fewshot_processors = fewshot_processors or ()
 
     # Capture constructor arguments and use them lazily to speed up
     # Task initialization in case many Tasks are being created that are unused.
@@ -1606,6 +1618,13 @@ class Task(DatasetProviderBase):
     ds = self._validate_preprocessing(ds)
     if trim_output_features:
       ds = self._trim_output_features(ds, sequence_length=sequence_length)
+
+    if self._fewshot:
+      ds = ds.batch(self._num_shots + 1, drop_remainder=True)
+      ds = self._preprocess_dataset(
+          ds, self._fewshot_processors, sequence_length=sequence_length
+      )
+
     if shuffle:
       if self._shuffle_buffer_size is None:
         raise ValueError(
