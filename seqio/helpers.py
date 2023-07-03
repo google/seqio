@@ -297,6 +297,7 @@ def mixture_or_task_with_truncated_data(
         preprocessors=mixture_or_task.preprocessors,
         postprocess_fn=mixture_or_task.postprocessor,
         metric_fns=mixture_or_task.metric_fns,
+        metric_objs=mixture_or_task.metric_objs,
         shuffle_buffer_size=mixture_or_task._shuffle_buffer_size,
     )
     if add_to_seqio_registry:
