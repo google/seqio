@@ -265,6 +265,42 @@ class FeatureConvertersTest(tf.test.TestCase):
     del feature_converters.FeatureConverter.PACKING_FEATURE_DTYPES
     super().tearDown()
 
+  def test_pass_through_and_packing(self):
+    with mock.patch.object(
+        feature_converters.FeatureConverter, "__abstractmethods__", set()
+    ):
+      expected_msg = "Packing is incompatible with pass-through features."
+      with self.assertRaisesRegex(ValueError, expected_msg):
+        feature_converters.FeatureConverter(
+            pack=True,
+            passthrough_features={
+                "pass_through": feature_converters.FeatureConverter.FeatureSpec(
+                    dtype=tf.int32
+                ),
+            },
+        )  # pytype: disable=not-instantiable
+
+  def test_pass_through(self):
+    with mock.patch.object(
+        feature_converters.FeatureConverter, "__abstractmethods__", set()
+    ):
+      converter = feature_converters.FeatureConverter(
+          pack=False,
+          passthrough_features={
+              "pass_through": feature_converters.FeatureConverter.FeatureSpec(
+                  dtype=tf.int32
+              ),
+          },
+      )  # pytype: disable=not-instantiable
+      self.assertDictEqual(
+          converter._passthrough_features,
+          {
+              "pass_through": feature_converters.FeatureConverter.FeatureSpec(
+                  dtype=tf.int32
+              )
+          },
+      )
+
   def test_validate_dataset_missing_feature(self):
     x = [{"targets": [3, 9, 4, 5]}]
     ds = create_default_dataset(x, feature_names=["targets"])
@@ -489,6 +525,17 @@ class FeatureConvertersTest(tf.test.TestCase):
 
 class EncDecFeatureConverterTest(tf.test.TestCase):
 
+  def tearDown(self):
+    if "passthrough" in feature_converters.EncDecFeatureConverter.TASK_FEATURES:
+      del feature_converters.EncDecFeatureConverter.TASK_FEATURES["passthrough"]
+      del feature_converters.EncDecFeatureConverter.MODEL_FEATURES[
+          "passthrough"
+      ]
+      del feature_converters.EncDecFeatureConverter.PACKING_FEATURE_DTYPES[
+          "passthrough"
+      ]
+    super().tearDown()
+
   def test_encoder_decoder_unpacked(self):
     x = [{"inputs": [9, 4, 3, 8, 1], "targets": [3, 9, 4, 1]}]
     ds = create_default_dataset(x)
@@ -504,6 +551,38 @@ class EncDecFeatureConverterTest(tf.test.TestCase):
         # when the data is not packed. This test mimic the behavior.
         "decoder_input_tokens": [0, 3, 9, 4, 1],
         "decoder_loss_weights": [1, 1, 1, 1, 0],
+    }
+    assert_dataset(converted_ds, expected)
+
+  def test_encoder_decoder_unpacked_passthrough(self):
+    x = [{
+        "inputs": [9, 4, 3, 8, 1],
+        "targets": [3, 9, 4, 1],
+        "passthrough": [4, 2, 3],
+    }]
+    ds = create_default_dataset(
+        x, feature_names=["inputs", "targets", "passthrough"]
+    )
+    task_feature_lengths = {"inputs": 7, "targets": 5, "passthrough": 3}
+
+    converter = feature_converters.EncDecFeatureConverter(
+        pack=False,
+        passthrough_features={
+            "passthrough": feature_converters.FeatureConverter.FeatureSpec(
+                tf.int32
+            )
+        },
+    )
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "encoder_input_tokens": [9, 4, 3, 8, 1, 0, 0],
+        "decoder_target_tokens": [3, 9, 4, 1, 0],
+        # mtf.transformer.autoregressive_inputs does not zero out the last eos
+        # when the data is not packed. This test mimic the behavior.
+        "decoder_input_tokens": [0, 3, 9, 4, 1],
+        "decoder_loss_weights": [1, 1, 1, 1, 0],
+        "passthrough": [4, 2, 3],
     }
     assert_dataset(converted_ds, expected)
 
@@ -743,6 +822,22 @@ class LMFeatureConverter(tf.test.TestCase):
 
 class PrefixLMFeatureConverter(tf.test.TestCase):
 
+  def tearDown(self):
+    if (
+        "passthrough"
+        in feature_converters.PrefixLMFeatureConverter.TASK_FEATURES
+    ):
+      del feature_converters.PrefixLMFeatureConverter.TASK_FEATURES[
+          "passthrough"
+      ]
+      del feature_converters.PrefixLMFeatureConverter.MODEL_FEATURES[
+          "passthrough"
+      ]
+      del feature_converters.PrefixLMFeatureConverter.PACKING_FEATURE_DTYPES[
+          "passthrough"
+      ]
+    super().tearDown()
+
   def test_prefix_lm_unpacked(self):
     x = [{"inputs": [9, 4, 6, 1], "targets": [3, 9, 1]}]
     ds = create_default_dataset(x)
@@ -757,6 +852,37 @@ class PrefixLMFeatureConverter(tf.test.TestCase):
         "decoder_input_tokens": [0, 9, 4, 6, 1, 3, 9, 1, 0],
         "decoder_loss_weights": [0, 0, 0, 0, 1, 1, 1, 0, 0],
         "decoder_causal_attention": [1, 1, 1, 1, 1, 0, 0, 0, 0],
+    }
+    assert_dataset(converted_ds, expected)
+
+  def test_prefix_lm_unpacked_passthrough(self):
+    x = [{
+        "inputs": [9, 4, 6, 1],
+        "targets": [3, 9, 1],
+        "passthrough": [6, 5, 4, 3, 2, 1, 0],
+    }]
+    ds = create_default_dataset(
+        x, feature_names=["inputs", "targets", "passthrough"]
+    )
+
+    task_feature_lengths = {"inputs": 5, "targets": 4, "passthrough": 7}
+    converter = feature_converters.PrefixLMFeatureConverter(
+        pack=False,
+        passthrough_features={
+            "passthrough": feature_converters.FeatureConverter.FeatureSpec(
+                tf.int32
+            )
+        },
+    )
+    converted_ds = converter(ds, task_feature_lengths)
+
+    expected = {
+        "decoder_target_tokens": [9, 4, 6, 1, 3, 9, 1, 0, 0],
+        # The last EOS token is kept if unpacked.
+        "decoder_input_tokens": [0, 9, 4, 6, 1, 3, 9, 1, 0],
+        "decoder_loss_weights": [0, 0, 0, 0, 1, 1, 1, 0, 0],
+        "decoder_causal_attention": [1, 1, 1, 1, 1, 0, 0, 0, 0],
+        "passthrough": [6, 5, 4, 3, 2, 1, 0],
     }
     assert_dataset(converted_ds, expected)
 
