@@ -1277,6 +1277,12 @@ def bertwordpiece_vocab(start_of_sequence_id=101):
   )
 
 
+def gpt2bpe_vocab():
+  return vocabularies.GPT2BPEVocabulary(
+      os.path.join(TEST_DATA_DIR, "gpt2bpe"),
+  )
+
+
 def clear_tasks():
   TaskRegistry._REGISTRY = {}  # pylint:disable=protected-access
 
