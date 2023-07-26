@@ -80,7 +80,7 @@ class PreprocessTask(beam.PTransform):
     Raises:
       FileNotFoundError: raised when no shards are found for the task.
     """
-    self._task = task
+    self._task_name = task.name
     self._split = split
     self._preprocessors_seed = preprocessors_seed
     self._modules_to_import = modules_to_import
@@ -101,12 +101,13 @@ class PreprocessTask(beam.PTransform):
 
   def _increment_counter(self, name):
     metrics.Metrics.counter(
-        str("%s_%s" % (self._task.name, self._split)), name
+        str("%s_%s" % (self._task_name, self._split)), name
     ).inc()
 
   def _emit_examples(self, shard: Tuple[int, str]):
     """Emits examples keyed by shard number and index for a single shard."""
     _import_modules(self._modules_to_import)
+    task = seqio.TaskRegistry.get(self._task_name)
 
     if self._tfds_data_dir:
       seqio.set_tfds_data_dir_override(self._tfds_data_dir)
@@ -117,7 +118,7 @@ class PreprocessTask(beam.PTransform):
 
     # Create a unique, deterministic preprocessors seed for each task and shard.
     md5_digest = hashlib.md5(
-        (self._task.name + f"shard{shard_index}").encode()
+        (self._task_name + f"shard{shard_index}").encode()
     ).digest()
     shard_preprocessors_seed = int.from_bytes(md5_digest, "little") + (
         self._preprocessors_seed or 0
@@ -130,7 +131,7 @@ class PreprocessTask(beam.PTransform):
           self._preprocessors_seed or 0
       )
 
-    ds = self._task.source.get_dataset(
+    ds = task.source.get_dataset(
         split=self._split,
         shard_info=seqio.ShardInfo(
             index=shard_index, num_shards=len(self.shards)
@@ -138,12 +139,12 @@ class PreprocessTask(beam.PTransform):
         shuffle=False,
         seed=shard_preprocessors_seed,
     )
-    ds = self._task.preprocess_precache(ds, seed=shard_preprocessors_seed)
+    ds = task.preprocess_precache(ds, seed=shard_preprocessors_seed)
     ds = ds.prefetch(tf.data.AUTOTUNE)
 
     def _add_provenance(index_within_shard: int, ex: Dict[str, Any]):
       ex.update({
-          TASK_PROVENANCE_KEY: self._task.name,
+          TASK_PROVENANCE_KEY: self._task_name,
           SOURCE_SHARD_PROVENANCE_KEY: shard_name,
           SOURCE_SHARD_ID_PROVENANCE_KEY: shard_index,
           ID_WITHIN_SHARD_PROVENANCE_KEY: index_within_shard,
