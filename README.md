@@ -517,7 +517,10 @@ Some notes on a few of the arguments:
 
 For improved performance at load time and to avoid redundant computations for
 commonly used tasks, you can pre-cache your `Task` with all or part of the
-preprocessing done in advance of training.
+preprocessing done in advance of training; this partial preprocessing is
+especially useful if the Task is stochastic and one wishes to cache the
+deterministic operations while running the stochastic ones on the fly. Caching
+stochastic SeqIO Mixtures in this way is not supported.
 
 The first step to doing so is to add a
 `seqio.CacheDatasetPlaceholder(required=False)` as one of the steps in your
