@@ -1552,7 +1552,7 @@ class Task(DatasetProviderBase):
     elif shard_info:
       # Whether we should shard at source or on the examples from the source.
       shard_data_source = (
-          len(self.source.list_shards(split=split)) >= shard_info.num_shards
+          len(source.list_shards(split=split)) >= shard_info.num_shards
       )
       logging.info(
           "Sharding at the %s: %d of %d",
@@ -1580,8 +1580,8 @@ class Task(DatasetProviderBase):
             < _MAX_EXAMPLES_TO_MEM_CACHE
         )
         or (
-            self.num_input_examples(split)
-            and self.num_input_examples(split) < _MAX_EXAMPLES_TO_MEM_CACHE
+            source.num_input_examples(split)
+            and source.num_input_examples(split) < _MAX_EXAMPLES_TO_MEM_CACHE
         )
     ):
       logging.info(
