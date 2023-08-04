@@ -22,12 +22,14 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 
 from absl.testing import absltest
 from absl.testing import parameterized
+import mock
 import numpy as np
 import pyglove as pg
 from seqio import dataset_providers
 from seqio import feature_converters
 from seqio import metrics as metrics_lib
 from seqio import preprocessors
+from seqio import seqio_lineage_log_helpers
 from seqio import test_utils
 from seqio import utils
 from seqio import vocabularies
@@ -919,6 +921,27 @@ class TasksTest(test_utils.FakeTaskTest):
         seed=42,
     )
     test_utils.assert_datasets_neq(dataset1, dataset2)
+
+  @mock.patch.object(seqio_lineage_log_helpers, "create_task_entry")
+  @mock.patch.object(
+      seqio_lineage_log_helpers,
+      "create_relationship_between_task_and_tfds_or_cns",
+  )
+  def test_task_creates_seqio_task_through_lineage_log(
+      self,
+      mock_create_task_entry,
+      mock_create_relationship_between_task_and_tfds_cns,
+  ):
+    sample_task = TaskRegistry.get("tfds_task")
+
+    sample_task.get_dataset(
+        self._sequence_length, split="train", use_cached=False, shuffle=False
+    )
+
+    mock_create_task_entry.assert_called_with(sample_task)
+    mock_create_relationship_between_task_and_tfds_cns.assert_called_with(
+        sample_task
+    )
 
   def test_plaintext_to_pretokenized_rename(self):
     ds = self.cached_plaintext_task.get_dataset(

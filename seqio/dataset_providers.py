@@ -39,6 +39,7 @@ from packaging import version as version_lib
 import pyglove as pg
 from seqio import metrics as metrics_lib
 from seqio import preprocessors as seqio_preprocessors
+from seqio import seqio_lineage_log_helpers
 from seqio import task_registry_provenance_tracking
 from seqio import utils
 from seqio.feature_converters import FeatureConverter
