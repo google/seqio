@@ -1573,15 +1573,17 @@ class Task(DatasetProviderBase):
       ds = source.get_dataset(split=split, shuffle=shuffle, seed=seed)
       ds = ds.shard(shard_info.num_shards, shard_info.index)
 
+    num_shards = shard_info.num_shards if shard_info else 1
     if try_in_mem_cache and (
         (
             use_cached
             and self.get_cached_stats(split)["examples"]
-            < _MAX_EXAMPLES_TO_MEM_CACHE
+            < _MAX_EXAMPLES_TO_MEM_CACHE * num_shards
         )
         or (
             source.num_input_examples(split)
-            and source.num_input_examples(split) < _MAX_EXAMPLES_TO_MEM_CACHE
+            and source.num_input_examples(split)
+            < _MAX_EXAMPLES_TO_MEM_CACHE * num_shards
         )
     ):
       logging.info(
