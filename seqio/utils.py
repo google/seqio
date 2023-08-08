@@ -22,7 +22,7 @@ import inspect
 import os
 import re
 import types
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
 from absl import logging
 import numpy as np
