@@ -1,6 +1,11 @@
 name: build
 
-on: [push]
+on:
+  # For every PR
+  push:
+
+  # To run this workflow manually from the Actions tab (for debugging)
+  workflow_dispatch:
 
 jobs:
   build:
