@@ -741,7 +741,8 @@ class TFExampleDataSource(FileDataSource):
       self,
       split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
       feature_description: Mapping[
-          str, Union[tf.io.FixedLenFeature, tf.io.VarLenFeature]
+          str,
+          tf.io.FixedLenFeature | tf.io.VarLenFeature | tf.io.RaggedFeature,
       ],
       reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
       num_input_examples: Optional[Mapping[str, int]] = None,
@@ -757,7 +758,8 @@ class TFExampleDataSource(FileDataSource):
         (filename or filepattern) or list of strings (filenames or
         filepatterns).
       feature_description: dict, a mapping of string feature keys to
-        `tf.io.FixedLenFeature` or `tf.io.VarLenFeature` values.
+        `tf.io.FixedLenFeature`, `tf.io.VarLenFeature`, or
+        `tf.io.RaggedFeature` values.
       reader_cls: `tf.data.Dataset`, a dataset class to read the input files.
       num_input_examples: dict or None, an optional dictionary mapping split to
         its size in number of input examples (before preprocessing). The
