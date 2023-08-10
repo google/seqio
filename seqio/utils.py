@@ -81,6 +81,33 @@ def add_global_cache_dirs(global_cache_dirs):
   _GLOBAL_CACHE_DIRECTORIES += global_cache_dirs
 
 
+def _validate_tfds_name(name: str) -> None:
+  """Validates TFDS dataset name."""
+  if (
+      name
+      and ":" not in name
+  ):
+    raise ValueError(f"TFDS name must contain a version number, got: {name}")
+
+
+@dataclasses.dataclass(frozen=True)
+class TfdsSplit:
+  """Points to a specific TFDS split.
+
+  Attributes:
+    dataset: dataset name.
+    split: TFDS split (e.g. 'train'), or slice (e.g. 'train[":1%"]').
+    data_dir: directory to read/write TFDS data.
+  """
+
+  dataset: str
+  split: Optional[str]
+  data_dir: Optional[tfds.typing.PathLike] = None
+
+  def __post_init__(self):
+    _validate_tfds_name(self.dataset)
+
+
 class LazyTfdsLoader(object):
   """Wrapper for TFDS datasets with memoization and additional functionality.
 
@@ -92,30 +119,45 @@ class LazyTfdsLoader(object):
 
   def __init__(
       self,
-      name: str,
+      name: Optional[str] = None,
       data_dir=None,
-      split_map=None,
+      split_map: Optional[
+          Union[
+              Mapping[str, str],
+              Mapping[str, "TfdsSplit"],
+          ]
+      ] = None,
       decoders=None,
   ):
     """LazyTfdsLoader constructor.
 
     Args:
-      name: str, the name of the TFDS dataset.
+      name: str (optional), the name of the TFDS dataset. If `name` is not
+        specified then `split_map` values must be instances of `TfdsSplit`.
       data_dir: str (optional), directory to read/write TFDS data.
       split_map: dict (optional), mapping from canonical splits (e.g.,
-        'validation') to TFDS splits or slices (e.g., 'train[':1%']).
+        'validation') to TFDS splits (e.g. 'train'), or slices (e.g.,
+        'train[':1%']), or `TfdsSplit` (e.g. `TfdsSplit(dataset='mnist',
+        split='train')`). If `TfdsSplit` are used then `name` must be empty.
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
         such as tfds.decode.SkipDecoding() for skipping image byte decoding
     """
-    if (
-        name
-        and ":" not in name
-    ):
-      raise ValueError(f"TFDS name must contain a version number, got: {name}")
+    _validate_tfds_name(name)
     self._name = name
     self._data_dir = data_dir
     self._split_map = split_map
     self._decoders = decoders
+
+    self._is_custom_split_map = False
+    if split_map:
+      random_split_value = next(iter(split_map.values()))
+      if isinstance(random_split_value, TfdsSplit):
+        self._is_custom_split_map = True
+        if self._name or self._data_dir:
+          raise ValueError(
+              "If split values are instances of `TfdsSplit`, `name` and"
+              " `data_dir` must be `None`."
+          )
 
   @property
   def name(self):
@@ -138,7 +180,13 @@ class LazyTfdsLoader(object):
 
   @property
   def data_dir(self):
-    """Returns the data directory fot this TFDS dataset."""
+    """Returns the data directory for this TFDS dataset."""
+
+    if self._is_custom_split_map:
+      logging.warning(
+          "`LazyTfdsLoader` refers to multiple datasets, `data_dir` is unknown."
+      )
+      return None
 
 
     if (
@@ -160,45 +208,85 @@ class LazyTfdsLoader(object):
       return _TFDS_DATA_READ_CONFIG_OVERRIDE
     return tfds.ReadConfig()
 
-  @functools.cached_property
-  def _builder_key(self) -> Tuple[str, Optional[str]]:
-    return (self.name, self.data_dir)
+  def _get_builder_key(
+      self, dataset: Optional[str], data_dir: Optional[str]
+  ) -> Tuple[Optional[str], Optional[str]]:
+    return (dataset, data_dir)
 
   @property
   def is_memoized(self) -> bool:
-    return self._builder_key in LazyTfdsLoader._MEMOIZED_BUILDERS
+    if self._is_custom_split_map:
+      return all(
+          self._get_builder_key(tfds_split.dataset, tfds_split.data_dir)
+          in LazyTfdsLoader._MEMOIZED_BUILDERS
+          for tfds_split in self._split_map.values()
+      )
+    else:
+      return (
+          self._get_builder_key(self.name, self.data_dir)
+          in LazyTfdsLoader._MEMOIZED_BUILDERS
+      )
 
   @property
   def builder(self):
+    return self._get_builder()
+
+  def _get_builder(self, split: Optional[str] = None):
     """Returns the DatasetBuilder for this TFDS dataset."""
-    if not self.is_memoized:
-      if self.name:
-        LazyTfdsLoader._MEMOIZED_BUILDERS[self._builder_key] = tfds.builder(
-            self.name, data_dir=self.data_dir
+    if self._is_custom_split_map:
+      if mapped_split := self._split_map.get(split):
+        dataset = mapped_split.dataset
+        data_dir = mapped_split.data_dir
+      else:
+        raise ValueError(
+            "`LazyTfdsLoader` refers to multiple datasets, pass `split` to"
+            " `_get_builder()`."
+        )
+    else:
+      dataset = self.name
+      data_dir = self.data_dir
+    builder_key = self._get_builder_key(dataset, data_dir)
+    if builder_key not in LazyTfdsLoader._MEMOIZED_BUILDERS:
+      if dataset:
+        LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = tfds.builder(
+            dataset, data_dir=data_dir
         )
       else:
-        LazyTfdsLoader._MEMOIZED_BUILDERS[self._builder_key] = (
-            tfds.builder_from_directory(self.data_dir)
+        LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = (
+            tfds.builder_from_directory(data_dir)
         )
-    return LazyTfdsLoader._MEMOIZED_BUILDERS[self._builder_key]
+    return LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key]
 
   @property
   def info(self):
     return self.builder.info
 
-  def _map_split(self, split: str):
-    return self._split_map[split] if self._split_map else split
+  def _map_split(self, split: str) -> Optional[str]:
+    """Maps the given split to a dataset split."""
+    if self._is_custom_split_map:
+      self._split_map: Mapping[str, TfdsSplit]
+      return self._split_map[split].split
+    elif self._split_map:
+      self._split_map: Mapping[str, str]
+      return self._split_map[split]
+    else:
+      return split
 
   def files(self, split: str):
     """Returns set of instructions for reading TFDS files for the dataset."""
-    split = self._map_split(split)
+    dataset_split = self._map_split(split)
+    builder = self._get_builder(split)
 
-    if "/" not in self.name and self.builder.BUILDER_CONFIGS:
+    if (
+        self.name is not None
+        and "/" not in self.name
+        and builder.BUILDER_CONFIGS
+    ):
       # If builder has multiple configs, and no particular config was
       # requested, raise an error.
       raise ValueError("Dataset '%s' has multiple configs." % self.name)
 
-    split_info = self.builder.info.splits[split]
+    split_info = builder.info.splits[dataset_split]
     files = split_info.file_instructions
 
     if not files:
@@ -213,7 +301,13 @@ class LazyTfdsLoader(object):
       shard_info=None,
   ):
     """Returns a tf.data.Dataset for the given split."""
-    split = self._map_split(split)
+    dataset_split = self._map_split(split)
+    if self._is_custom_split_map:
+      name = self._split_map[split].dataset
+      data_dir = self._split_map[split].data_dir
+    else:
+      name = self.name
+      data_dir = self.data_dir
     read_config = self.read_config
     read_config.input_context = (
         tf.distribute.InputContext(  # pylint: disable=g-long-ternary
@@ -226,9 +320,9 @@ class LazyTfdsLoader(object):
     read_config.shuffle_seed = seed
     read_config.skip_prefetch = True
     return tfds.load(
-        self._name,
-        split=split,
-        data_dir=self.data_dir,
+        name,
+        split=dataset_split,
+        data_dir=data_dir,
         shuffle_files=shuffle_files,
         download=True,
         try_gcs=True,
@@ -254,9 +348,9 @@ class LazyTfdsLoader(object):
 
   def size(self, split: str) -> Optional[int]:
     """Returns the number of examples in the split."""
-    split = self._map_split(split)
-    ds_splits = self.info.splits
-    dataset_size = ds_splits[split].num_examples
+    dataset_split = self._map_split(split)
+    ds_splits = self._get_builder(split).info.splits
+    dataset_size = ds_splits[dataset_split].num_examples
     # Very large datasets have num_examples = 0; default instead to np.inf
     dataset_size = dataset_size if dataset_size > 0 else np.inf
     return dataset_size

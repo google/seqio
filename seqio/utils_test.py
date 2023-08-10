@@ -117,9 +117,13 @@ class LazyTfdsLoaderTest(absltest.TestCase):
         info=mock.Mock(
             splits={
                 "validation": mock.Mock(
-                    num_examples=420, file_instructions=["f1", "f2"]
+                    name="validation",
+                    num_examples=420,
+                    file_instructions=["f1", "f2"],
                 ),
-                "test": mock.Mock(num_examples=42, file_instructions=["f3"]),
+                "test": mock.Mock(
+                    name="test", num_examples=42, file_instructions=["f3"]
+                ),
             }
         )
     )
@@ -152,6 +156,66 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     self.assertListEqual(["f3"], ds.files(split="validation"))
     with self.assertRaises(KeyError):
       ds.files(split="test")
+
+  @mock.patch("tensorflow_datasets.load")
+  def test_tfds_split(self, mock_tfds_load):
+    utils.LazyTfdsLoader._MEMOIZED_BUILDERS[("ds/c1:1.0.0", None)] = mock.Mock(
+        info=mock.Mock(
+            splits={
+                "validation": mock.Mock(
+                    name="validation",
+                    num_examples=420,
+                    file_instructions=["f1", "f2"],
+                ),
+            }
+        )
+    )
+    utils.LazyTfdsLoader._MEMOIZED_BUILDERS[("ds/c2:1.0.0", None)] = mock.Mock(
+        info=mock.Mock(
+            splits={
+                "test": mock.Mock(
+                    name="test", num_examples=42, file_instructions=["f3"]
+                ),
+            }
+        )
+    )
+    split_map = {
+        "train": utils.TfdsSplit(dataset="ds/c1:1.0.0", split="validation"),
+        "test": utils.TfdsSplit(dataset="ds/c2:1.0.0", split="test"),
+    }
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        "If split values are instances of `TfdsSplit`, `name` and"
+        " `data_dir` must be `None`.",
+    ):
+      utils.LazyTfdsLoader("ds/c1:1.0.0", split_map=split_map)
+    ds = utils.LazyTfdsLoader(split_map=split_map)
+
+    # test .load()
+    ds.load("train", shuffle_files=False, seed=42)
+    mock_tfds_load.assert_called_once_with(
+        "ds/c1:1.0.0",
+        split="validation",
+        data_dir=None,
+        shuffle_files=False,
+        download=True,
+        try_gcs=True,
+        read_config=AnyArg(),
+        decoders=None,
+    )
+
+    # test .size()
+    self.assertEqual(420, ds.size(split="train"))
+    self.assertEqual(42, ds.size(split="test"))
+    with self.assertRaises(KeyError):
+      ds.size(split="validation")
+
+    # test .files()
+    self.assertListEqual(["f1", "f2"], ds.files(split="train"))
+    self.assertListEqual(["f3"], ds.files(split="test"))
+    with self.assertRaises(KeyError):
+      ds.files(split="validation")
 
   @mock.patch("tensorflow_datasets.load")
   def test_read_config_override_default(self, mock_tfds_load):
@@ -735,7 +799,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
             "idx": [1, 2],
         },
     ]
-    ds = ds = tf.data.Dataset.from_generator(
+    ds = tf.data.Dataset.from_generator(
         lambda: x,
         output_signature={
             "inputs": tf.TensorSpec([None], tf.int32),

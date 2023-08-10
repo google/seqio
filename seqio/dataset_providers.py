@@ -471,9 +471,11 @@ class TfdsDataSource(DataSource):
 
   def __init__(
       self,
-      tfds_name: str,
+      tfds_name: Optional[str] = None,
       tfds_data_dir: Optional[str] = None,
-      splits: Optional[Union[Iterable[str], Mapping[str, str]]] = None,
+      splits: Optional[
+          Union[Iterable[str], Mapping[str, str], Mapping[str, utils.TfdsSplit]]
+      ] = None,
       caching_permitted: bool = True,
       decoders: Optional[tfds.typing.TreeDict[tfds.decode.Decoder]] = None,
   ):
@@ -481,15 +483,18 @@ class TfdsDataSource(DataSource):
 
     Args:
       tfds_name: The name and version number of a TFDS dataset, optionally with
-        a config.
+        a config. If `tfds_name` is not specified then `splits` values must be
+        instances of `TfdsSplit`.
       tfds_data_dir: An optional path to a specific TFDS data directory to use.
         If provided `tfds_name` must be a valid dataset in the directory. If
         `tfds_name` is empty `tfds_dara_dir` must point to the directory with
         one dataset.
       splits: an iterable of allowable string split names, a dict mapping
         allowable canonical splits (e.g., 'validation') to TFDS splits or slices
-        (e.g., 'train[':1%']), or None. The default, None, uses all available
-        splits from the TFDS dataset info.
+        (e.g., 'train[':1%']), or `TfdsSplit` (e.g. `TfdsSplit(dataset='mnist',
+        split='train')`), or None. The default, None, uses all available splits
+        from the TFDS dataset info. If `TfdsSplit` are used then `tfds_name`
+        must be empty.
       caching_permitted: indicates whether this data source may be cached.
         Default True.
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,

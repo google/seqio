@@ -1960,6 +1960,16 @@ class TfdsDataSourceTest(test_utils.FakeTaskTest):
             tfds_name="fake:0.0.0", splits={"validation": "train"}
         ).splits,
     )
+    self.assertSameElements(
+        ["train"],
+        dataset_providers.TfdsDataSource(
+            splits={
+                "train": utils.TfdsSplit(
+                    dataset="fake:0.0.0", split="validation"
+                )
+            }
+        ).splits,
+    )
 
   def test_tfds_source_splits(self):
     default_splits_src = dataset_providers.TfdsDataSource("fake:0.0.0")
