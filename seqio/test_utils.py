@@ -511,7 +511,9 @@ def assert_dataset(
           or isinstance(actual_value, np.ndarray)
           and np.issubdtype(actual_value.dtype, np.floating)
       ):
-        np.testing.assert_allclose(actual_value, expected_dict[key])
+        np.testing.assert_allclose(
+            actual_value, expected_dict[key], err_msg=key
+        )
       else:
         np.testing.assert_array_equal(
             actual_value, _maybe_as_bytes(expected_dict[key]), key
