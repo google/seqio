@@ -297,6 +297,7 @@ class SentencePieceVocabulary(Vocabulary):
     self._normalizer_spec_overrides = normalizer_spec_overrides
     self._reverse_extra_ids = reverse_extra_ids
     self._model: Optional[SentencePieceVocabulary._ModelContext] = None
+    self._tf_tokenizer: Optional[tf_text.SentencepieceTokenizer] = None
 
     super().__init__(extra_ids=extra_ids)
 
@@ -428,7 +429,10 @@ class SentencePieceVocabulary(Vocabulary):
   @property
   def tf_tokenizer(self):
     """Instantiate and return a TF tokenizer."""
-    return tf_text.SentencepieceTokenizer(model=self.sp_model)
+    if not self._tf_tokenizer:
+      self._tf_tokenizer = tf_text.SentencepieceTokenizer(model=self.sp_model)
+
+    return self._tf_tokenizer
 
   @property
   def vocab_size(self):
