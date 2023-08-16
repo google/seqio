@@ -545,6 +545,10 @@ class ByteVocabulary(Vocabulary):
     return tf.constant([bytes([i]) for i in range(self._byte_size)])
 
   @property
+  def bos_id(self) -> Optional[int]:
+    return None
+
+  @property
   def eos_id(self) -> Optional[int]:
     return 1
 
@@ -608,6 +612,7 @@ class ByteVocabulary(Vocabulary):
     Returns:
       a list of integers (not terminated by EOS)
     """
+    s = s.decode() if isinstance(s, bytes) else s
     ids = self._convert_strings_to_ids(s)
     return [i + self._num_special_tokens for i in ids]
 
