@@ -151,7 +151,7 @@ def tokenize_and_append_eos(
     output_features: OutputFeaturesType,
     copy_pretokenized: bool = True,
 ) -> tf.data.Dataset:
-  """Encode output features with specified vocbularies and append EOS.
+  """Encode output features with specified vocabularies and append EOS.
 
   Passes through non-string features unchanged. Optionally passes through copy
   of original features with "_pretokenized" suffix added to the key.
