@@ -2142,7 +2142,7 @@ def _log_mixing_proportions(
   else:
 
     def _estimated_mean_length(task, key):
-      if key not in sequence_length:
+      if sequence_length is None or key not in sequence_length:
         return 0
       if (
           task.supports_caching
