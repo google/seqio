@@ -1894,7 +1894,7 @@ class Mixture(DatasetProviderBase):
       return {k: v for k, v in ex.items() if k in output_feature_keys}
 
     return task.get_dataset(
-        sequence_length,
+        sequence_length=sequence_length,
         split=split,
         use_cached=use_cached,
         shuffle=shuffle,
