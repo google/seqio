@@ -60,340 +60,522 @@ class _ProxyTest(absltest.TestCase):
 
 _pyunit_proxy = _ProxyTest()
 
-_FAKE_DATASET = {
-    "train": [
-        {
-            "prefix": "this",
-            "suffix": "is a test",
-            "2d_feature": ((1, 2, 3),),
-            "3d_feature": (((1, 2, 3), (4, 5, 6)),),
-        },
-        {
-            "prefix": "that",
-            "suffix": "was a test",
-            "2d_feature": ((1, 2, 3),),
-            "3d_feature": (((1, 2, 3), (4, 5, 6)),),
-        },
-        {
-            "prefix": "those",
-            "suffix": "were tests",
-            "2d_feature": ((1, 2, 3),),
-            "3d_feature": (((1, 2, 3), (4, 5, 6)),),
-        },
-    ],
-    "validation": [
-        {
-            "idx": 0,
-            "idxs": (100,),
-            "id": "a",
-            "ids": ("a1", "a2"),
-            "prefix": "this",
-            "suffix": "is a validation",
-            "2d_feature": ((3, 2, 1),),
-            "3d_feature": (((6, 5, 4), (3, 2, 1)),),
-        },
-        {
-            "idx": 1,
-            "idxs": (200, 201),
-            "id": "b",
-            "ids": ("b1",),
-            "prefix": "that",
-            "suffix": "was another validation",
-            "2d_feature": ((3, 2, 1),),
-            "3d_feature": (((6, 5, 4), (3, 2, 1)),),
-        },
-    ],
-}
-
-# Text preprocessed and tokenized.
-_FAKE_TOKENIZED_DATASET = {
-    "train": [
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6),
-            "inputs_pretokenized": "complete: this",
-            "targets": (3, 8, 6, 3, 5, 10),
-            "targets_pretokenized": "is a test",
-        },
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18),
-            "inputs_pretokenized": "complete: that",
-            "targets": (17, 5, 6, 3, 5, 10),
-            "targets_pretokenized": "was a test",
-        },
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4),
-            "inputs_pretokenized": "complete: those",
-            "targets": (17, 4, 23, 4, 10, 6),
-            "targets_pretokenized": "were tests",
-        },
-    ],
-    "validation": [
-        {
-            "idx": 0,
-            "idxs": (100,),
-            "id": "a",
-            "ids": ("a1", "a2"),
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6),
-            "inputs_pretokenized": "complete: this",
-            "targets": (3, 8, 6, 3, 5, 3, 25, 5, 9, 8, 21, 18, 8, 7, 22),
-            "targets_pretokenized": "is a validation",
-        },
-        {
-            "idx": 1,
-            "idxs": (200, 201),
-            "id": "b",
-            "ids": ("b1",),
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18),
-            "inputs_pretokenized": "complete: that",
-            "targets": (
-                17,
-                5,
-                6,
-                3,
-                5,
-                22,
-                7,
-                24,
-                20,
-                4,
-                23,
-                3,
-                25,
-                5,
-                9,
-                8,
-                21,
-                18,
-                8,
-                7,
-                22,
-            ),
-            "targets_pretokenized": "was another validation",
-        },
-    ],
-}
-
-# Text preprocessed and tokenized.
-# Simulates legacy cached dataset that used '_plaintext' suffix instead of
-# '_pretokenized'.
-_FAKE_PLAINTEXT_TOKENIZED_DATASET = {
-    "train": [
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6),
-            "inputs_plaintext": "complete: this",
-            "targets": (3, 8, 6, 3, 5, 10),
-            "targets_plaintext": "is a test",
-        },
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18),
-            "inputs_plaintext": "complete: that",
-            "targets": (17, 5, 6, 3, 5, 10),
-            "targets_plaintext": "was a test",
-        },
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4),
-            "inputs_plaintext": "complete: those",
-            "targets": (17, 4, 23, 4, 10, 6),
-            "targets_plaintext": "were tests",
-        },
-    ],
-}
-
-# Text preprocessed and tokenized.
-_FAKE_TOKEN_PREPROCESSED_DATASET = {
-    "train": [
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
-            "inputs_pretokenized": "complete: this",
-            "targets": (3, 8, 6, 3, 5, 10),
-            "targets_pretokenized": "is a test",
-        },
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
-            "inputs_pretokenized": "complete: that",
-            "targets": (17, 5, 6, 3, 5, 10),
-            "targets_pretokenized": "was a test",
-        },
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 7, 6, 4),
-            "inputs_pretokenized": "complete: those",
-            "targets": (17, 4, 23, 4, 10, 6),
-            "targets_pretokenized": "were tests",
-        },
-    ],
-    "validation": [
-        {
-            "idx": 0,
-            "idxs": (100,),
-            "id": "a",
-            "ids": ("a1", "a2"),
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
-            "inputs_pretokenized": "complete: this",
-            "targets": (3, 8, 6, 3, 5, 3, 25, 5, 9, 8, 21, 18, 8, 7, 22),
-            "targets_pretokenized": "is a validation",
-        },
-        {
-            "idx": 1,
-            "idxs": (200, 201),
-            "id": "b",
-            "ids": ("b1",),
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
-            "inputs_pretokenized": "complete: that",
-            "targets": (
-                17,
-                5,
-                6,
-                3,
-                5,
-                22,
-                7,
-                24,
-                20,
-                4,
-                23,
-                3,
-                25,
-                5,
-                9,
-                8,
-                21,
-                18,
-                8,
-                7,
-                22,
-            ),
-            "targets_pretokenized": "was another validation",
-        },
-    ],
-}
-
-_FAKE_TOKEN_PREPROCESSED_NDFEATURES_DATASET = {
-    "train": [
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
-            "inputs_pretokenized": "complete: this",
-            "targets": (3, 8, 6, 3, 5, 10),
-            "targets_pretokenized": "is a test",
-            "2d_feature": ((1, 2, 3),),
-            "3d_feature": (((1, 2, 3), (4, 5, 6)),),
-            "2d_feature_pretokenized": ((1, 2, 3),),
-            "3d_feature_pretokenized": (((1, 2, 3), (4, 5, 6)),),
-        },
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
-            "inputs_pretokenized": "complete: that",
-            "targets": (17, 5, 6, 3, 5, 10),
-            "targets_pretokenized": "was a test",
-            "2d_feature": ((1, 2, 3),),
-            "3d_feature": (((1, 2, 3), (4, 5, 6)),),
-            "2d_feature_pretokenized": ((1, 2, 3),),
-            "3d_feature_pretokenized": (((1, 2, 3), (4, 5, 6)),),
-        },
-        {
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 7, 6, 4),
-            "inputs_pretokenized": "complete: those",
-            "targets": (17, 4, 23, 4, 10, 6),
-            "targets_pretokenized": "were tests",
-            "2d_feature": ((1, 2, 3),),
-            "3d_feature": (((1, 2, 3), (4, 5, 6)),),
-            "2d_feature_pretokenized": ((1, 2, 3),),
-            "3d_feature_pretokenized": (((1, 2, 3), (4, 5, 6)),),
-        },
-    ],
-    "validation": [
-        {
-            "idx": 0,
-            "idxs": (100,),
-            "id": "a",
-            "ids": ("a1", "a2"),
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
-            "inputs_pretokenized": "complete: this",
-            "targets": (3, 8, 6, 3, 5, 3, 25, 5, 9, 8, 21, 18, 8, 7, 22),
-            "targets_pretokenized": "is a validation",
-            "2d_feature": ((3, 2, 1),),
-            "3d_feature": (((6, 5, 4), (3, 2, 1)),),
-            "2d_feature_pretokenized": ((3, 2, 1),),
-            "3d_feature_pretokenized": (((6, 5, 4), (3, 2, 1)),),
-        },
-        {
-            "idx": 1,
-            "idxs": (200, 201),
-            "id": "b",
-            "ids": ("b1",),
-            "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
-            "inputs_pretokenized": "complete: that",
-            "targets": (
-                17,
-                5,
-                6,
-                3,
-                5,
-                22,
-                7,
-                24,
-                20,
-                4,
-                23,
-                3,
-                25,
-                5,
-                9,
-                8,
-                21,
-                18,
-                8,
-                7,
-                22,
-            ),
-            "targets_pretokenized": "was another validation",
-            "2d_feature": ((3, 2, 1),),
-            "3d_feature": (((6, 5, 4), (3, 2, 1)),),
-            "2d_feature_pretokenized": ((3, 2, 1),),
-            "3d_feature_pretokenized": (((6, 5, 4), (3, 2, 1)),),
-        },
-    ],
-}
-
-_FAKE_DATASETS = {
-    "input": _FAKE_DATASET,
-    "tokenized": _FAKE_TOKENIZED_DATASET,
-    "token_preprocessed": _FAKE_TOKEN_PREPROCESSED_DATASET,
-    "token_preprocessed_ndfeatures": (
-        _FAKE_TOKEN_PREPROCESSED_NDFEATURES_DATASET
-    ),
-}
 
 _DEFAULT_SEQUENCE_LENGTH = {"inputs": 13, "targets": 13}
 
+_FAKE_DATASET: Optional[Mapping[str, Any]] = None
+_FAKE_TOKENIZED_DATASET: Optional[Mapping[str, Any]] = None
+_FAKE_PLAINTEXT_TOKENIZED_DATASET: Optional[Mapping[str, Any]] = None
+_FAKE_TOKEN_PREPROCESSED_DATASET: Optional[Mapping[str, Any]] = None
+_FAKE_TOKEN_PREPROCESSED_NDFEATURES_DATASET: Optional[Mapping[str, Any]] = None
+_FAKE_TOKEN_PREPROCESSED_RAGGED_FEATURES_DATASET: Optional[
+    Mapping[str, Any]
+] = None
+_FAKE_DATASETS = None
+
+
+def _make_fake_datasets():
+  """Generate the fake data used in several tests.
+
+  This uses TF operations so it needs to be differed until after the
+  enable_eager_execution calls some tests use or those calls will error.
+  """
+  global _FAKE_DATASET
+  global _FAKE_TOKENIZED_DATASET
+  global _FAKE_PLAINTEXT_TOKENIZED_DATASET
+  global _FAKE_TOKEN_PREPROCESSED_DATASET
+  global _FAKE_TOKEN_PREPROCESSED_NDFEATURES_DATASET
+  global _FAKE_TOKEN_PREPROCESSED_RAGGED_FEATURES_DATASET
+  global _FAKE_DATASETS
+
+  if _FAKE_DATASET:
+    return
+
+  empty_ragged_tensor = tf.ragged.constant([[]], ragged_rank=1, dtype=tf.int32)
+  empty_ragged_tensor = tf.expand_dims(tf.concat(
+      [empty_ragged_tensor, empty_ragged_tensor], 0), 2)
+  empty_ragged_tensor = tf.concat(
+      [empty_ragged_tensor, empty_ragged_tensor], 2)
+  _FAKE_DATASET = {
+      "train": [
+          {
+              "prefix": "this",
+              "suffix": "is a test",
+              "2d_feature": ((1, 2, 3),),
+              "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+              "ragged_feature": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[3, 1], [4, 1], [5, 9], [2, 6]]),
+                  row_splits=[0, 2, 4],
+                  validate=True),
+          },
+          {
+              "prefix": "that",
+              "suffix": "was a test",
+              "2d_feature": ((1, 2, 3),),
+              "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+              "ragged_feature": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[3, 1], [4, 1], [5, 9]]),
+                  row_splits=[0, 1, 3],
+                  validate=True),
+          },
+          {
+              "prefix": "those",
+              "suffix": "were tests",
+              "2d_feature": ((1, 2, 3),),
+              "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+              "ragged_feature": empty_ragged_tensor,
+          },
+      ],
+      "validation": [
+          {
+              "idx": 0,
+              "idxs": (100,),
+              "id": "a",
+              "ids": ("a1", "a2"),
+              "prefix": "this",
+              "suffix": "is a validation",
+              "2d_feature": ((3, 2, 1),),
+              "3d_feature": (((6, 5, 4), (3, 2, 1)),),
+              "ragged_feature": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[6, 2], [9, 0], [3, 3]]),
+                  row_splits=[0, 1, 3],
+                  validate=True),
+          },
+          {
+              "idx": 1,
+              "idxs": (200, 201),
+              "id": "b",
+              "ids": ("b1",),
+              "prefix": "that",
+              "suffix": "was another validation",
+              "2d_feature": ((3, 2, 1),),
+              "3d_feature": (((6, 5, 4), (3, 2, 1)),),
+              "ragged_feature": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[0, 9], [8, 7], [2, 4], [6, 5]]),
+                  row_splits=[0, 2, 4],
+                  validate=True),
+          },
+      ],
+  }
+
+  # Text preprocessed and tokenized.
+  _FAKE_TOKENIZED_DATASET = {
+      "train": [
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6),
+              "inputs_pretokenized": "complete: this",
+              "targets": (3, 8, 6, 3, 5, 10),
+              "targets_pretokenized": "is a test",
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18),
+              "inputs_pretokenized": "complete: that",
+              "targets": (17, 5, 6, 3, 5, 10),
+              "targets_pretokenized": "was a test",
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4),
+              "inputs_pretokenized": "complete: those",
+              "targets": (17, 4, 23, 4, 10, 6),
+              "targets_pretokenized": "were tests",
+          },
+      ],
+      "validation": [
+          {
+              "idx": 0,
+              "idxs": (100,),
+              "id": "a",
+              "ids": ("a1", "a2"),
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6),
+              "inputs_pretokenized": "complete: this",
+              "targets": (3, 8, 6, 3, 5, 3, 25, 5, 9, 8, 21, 18, 8, 7, 22),
+              "targets_pretokenized": "is a validation",
+          },
+          {
+              "idx": 1,
+              "idxs": (200, 201),
+              "id": "b",
+              "ids": ("b1",),
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18),
+              "inputs_pretokenized": "complete: that",
+              "targets": (
+                  17,
+                  5,
+                  6,
+                  3,
+                  5,
+                  22,
+                  7,
+                  24,
+                  20,
+                  4,
+                  23,
+                  3,
+                  25,
+                  5,
+                  9,
+                  8,
+                  21,
+                  18,
+                  8,
+                  7,
+                  22,
+              ),
+              "targets_pretokenized": "was another validation",
+          },
+      ],
+  }
+
+  # Text preprocessed and tokenized.
+  # Simulates legacy cached dataset that used '_plaintext' suffix instead of
+  # '_pretokenized'.
+  _FAKE_PLAINTEXT_TOKENIZED_DATASET = {
+      "train": [
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6),
+              "inputs_plaintext": "complete: this",
+              "targets": (3, 8, 6, 3, 5, 10),
+              "targets_plaintext": "is a test",
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18),
+              "inputs_plaintext": "complete: that",
+              "targets": (17, 5, 6, 3, 5, 10),
+              "targets_plaintext": "was a test",
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4),
+              "inputs_plaintext": "complete: those",
+              "targets": (17, 4, 23, 4, 10, 6),
+              "targets_plaintext": "were tests",
+          },
+      ],
+  }
+
+  # Text preprocessed and tokenized.
+  _FAKE_TOKEN_PREPROCESSED_DATASET = {
+      "train": [
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
+              "inputs_pretokenized": "complete: this",
+              "targets": (3, 8, 6, 3, 5, 10),
+              "targets_pretokenized": "is a test",
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
+              "inputs_pretokenized": "complete: that",
+              "targets": (17, 5, 6, 3, 5, 10),
+              "targets_pretokenized": "was a test",
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 7, 6, 4),
+              "inputs_pretokenized": "complete: those",
+              "targets": (17, 4, 23, 4, 10, 6),
+              "targets_pretokenized": "were tests",
+          },
+      ],
+      "validation": [
+          {
+              "idx": 0,
+              "idxs": (100,),
+              "id": "a",
+              "ids": ("a1", "a2"),
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
+              "inputs_pretokenized": "complete: this",
+              "targets": (3, 8, 6, 3, 5, 3, 25, 5, 9, 8, 21, 18, 8, 7, 22),
+              "targets_pretokenized": "is a validation",
+          },
+          {
+              "idx": 1,
+              "idxs": (200, 201),
+              "id": "b",
+              "ids": ("b1",),
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
+              "inputs_pretokenized": "complete: that",
+              "targets": (
+                  17,
+                  5,
+                  6,
+                  3,
+                  5,
+                  22,
+                  7,
+                  24,
+                  20,
+                  4,
+                  23,
+                  3,
+                  25,
+                  5,
+                  9,
+                  8,
+                  21,
+                  18,
+                  8,
+                  7,
+                  22,
+              ),
+              "targets_pretokenized": "was another validation",
+          },
+      ],
+  }
+
+  _FAKE_TOKEN_PREPROCESSED_NDFEATURES_DATASET = {
+      "train": [
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
+              "inputs_pretokenized": "complete: this",
+              "targets": (3, 8, 6, 3, 5, 10),
+              "targets_pretokenized": "is a test",
+              "2d_feature": ((1, 2, 3),),
+              "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+              "2d_feature_pretokenized": ((1, 2, 3),),
+              "3d_feature_pretokenized": (((1, 2, 3), (4, 5, 6)),),
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
+              "inputs_pretokenized": "complete: that",
+              "targets": (17, 5, 6, 3, 5, 10),
+              "targets_pretokenized": "was a test",
+              "2d_feature": ((1, 2, 3),),
+              "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+              "2d_feature_pretokenized": ((1, 2, 3),),
+              "3d_feature_pretokenized": (((1, 2, 3), (4, 5, 6)),),
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 7, 6, 4),
+              "inputs_pretokenized": "complete: those",
+              "targets": (17, 4, 23, 4, 10, 6),
+              "targets_pretokenized": "were tests",
+              "2d_feature": ((1, 2, 3),),
+              "3d_feature": (((1, 2, 3), (4, 5, 6)),),
+              "2d_feature_pretokenized": ((1, 2, 3),),
+              "3d_feature_pretokenized": (((1, 2, 3), (4, 5, 6)),),
+          },
+      ],
+      "validation": [
+          {
+              "idx": 0,
+              "idxs": (100,),
+              "id": "a",
+              "ids": ("a1", "a2"),
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
+              "inputs_pretokenized": "complete: this",
+              "targets": (3, 8, 6, 3, 5, 3, 25, 5, 9, 8, 21, 18, 8, 7, 22),
+              "targets_pretokenized": "is a validation",
+              "2d_feature": ((3, 2, 1),),
+              "3d_feature": (((6, 5, 4), (3, 2, 1)),),
+              "2d_feature_pretokenized": ((3, 2, 1),),
+              "3d_feature_pretokenized": (((6, 5, 4), (3, 2, 1)),),
+          },
+          {
+              "idx": 1,
+              "idxs": (200, 201),
+              "id": "b",
+              "ids": ("b1",),
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
+              "inputs_pretokenized": "complete: that",
+              "targets": (
+                  17,
+                  5,
+                  6,
+                  3,
+                  5,
+                  22,
+                  7,
+                  24,
+                  20,
+                  4,
+                  23,
+                  3,
+                  25,
+                  5,
+                  9,
+                  8,
+                  21,
+                  18,
+                  8,
+                  7,
+                  22,
+              ),
+              "targets_pretokenized": "was another validation",
+              "2d_feature": ((3, 2, 1),),
+              "3d_feature": (((6, 5, 4), (3, 2, 1)),),
+              "2d_feature_pretokenized": ((3, 2, 1),),
+              "3d_feature_pretokenized": (((6, 5, 4), (3, 2, 1)),),
+          },
+      ],
+  }
+
+  _FAKE_TOKEN_PREPROCESSED_RAGGED_FEATURES_DATASET = {
+      "train": [
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
+              "inputs_pretokenized": "complete: this",
+              "targets": (3, 8, 6, 3, 5, 10),
+              "targets_pretokenized": "is a test",
+              "ragged_feature": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[3, 1], [4, 1], [5, 9], [2, 6]]),
+                  row_splits=[0, 2, 4],
+                  validate=True),
+              "ragged_feature_pretokenized": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[3, 1], [4, 1], [5, 9], [2, 6]]),
+                  row_splits=[0, 2, 4],
+                  validate=True),
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
+              "inputs_pretokenized": "complete: that",
+              "targets": (17, 5, 6, 3, 5, 10),
+              "targets_pretokenized": "was a test",
+              "ragged_feature": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[3, 1], [4, 1], [5, 9]]),
+                  row_splits=[0, 1, 3],
+                  validate=True),
+              "ragged_feature_pretokenized": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[3, 1], [4, 1], [5, 9]]),
+                  row_splits=[0, 1, 3],
+                  validate=True),
+          },
+          {
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 7, 6, 4),
+              "inputs_pretokenized": "complete: those",
+              "targets": (17, 4, 23, 4, 10, 6),
+              "targets_pretokenized": "were tests",
+              "ragged_feature": empty_ragged_tensor,
+              "ragged_feature_pretokenized": empty_ragged_tensor,
+          },
+      ],
+      "validation": [
+          {
+              "idx": 0,
+              "idxs": (100,),
+              "id": "a",
+              "ids": ("a1", "a2"),
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 8, 6),
+              "inputs_pretokenized": "complete: this",
+              "targets": (3, 8, 6, 3, 5, 3, 25, 5, 9, 8, 21, 18, 8, 7, 22),
+              "targets_pretokenized": "is a validation",
+              "ragged_feature": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[6, 2], [9, 0], [3, 3]]),
+                  row_splits=[0, 1, 3],
+                  validate=True),
+              "ragged_feature_pretokenized": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[6, 2], [9, 0], [3, 3]]),
+                  row_splits=[0, 1, 3],
+                  validate=True),
+          },
+          {
+              "idx": 1,
+              "idxs": (200, 201),
+              "id": "b",
+              "ids": ("b1",),
+              "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
+              "inputs_pretokenized": "complete: that",
+              "targets": (
+                  17,
+                  5,
+                  6,
+                  3,
+                  5,
+                  22,
+                  7,
+                  24,
+                  20,
+                  4,
+                  23,
+                  3,
+                  25,
+                  5,
+                  9,
+                  8,
+                  21,
+                  18,
+                  8,
+                  7,
+                  22,
+              ),
+              "targets_pretokenized": "was another validation",
+              "ragged_feature": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[0, 9], [8, 7], [2, 4], [6, 5]]),
+                  row_splits=[0, 2, 4],
+                  validate=True),
+              "ragged_feature_pretokenized": tf.RaggedTensor.from_row_splits(
+                  tf.constant([[0, 9], [8, 7], [2, 4], [6, 5]]),
+                  row_splits=[0, 2, 4],
+                  validate=True),
+          },
+      ],
+  }
+
+  _FAKE_DATASETS = {
+      "input": _FAKE_DATASET,
+      "tokenized": _FAKE_TOKENIZED_DATASET,
+      "token_preprocessed": _FAKE_TOKEN_PREPROCESSED_DATASET,
+      "token_preprocessed_ndfeatures": (
+          _FAKE_TOKEN_PREPROCESSED_NDFEATURES_DATASET
+      ),
+      "token_preprocessed_ragged_features": (
+          _FAKE_TOKEN_PREPROCESSED_RAGGED_FEATURES_DATASET
+      ),
+  }
+
 
 def get_fake_dataset(
-    split, shuffle_files=False, seed=None, shard_info=None, ndfeatures=False
+    split,
+    shuffle_files=False,
+    seed=None,
+    shard_info=None,
+    ndfeatures=False,
+    ragged_features=False,
 ):
   """Returns a tf.data.Dataset with fake data."""
   del shuffle_files  # Unused, to be compatible with TFDS API.
   del seed
 
-  output_types = {"prefix": tf.string, "suffix": tf.string}
+  _make_fake_datasets()
+
+  output_signature = {
+      "prefix": tf.TensorSpec(shape=(), dtype=tf.string),
+      "suffix": tf.TensorSpec(shape=(), dtype=tf.string),
+  }
   if split == "validation":
-    output_types.update(
-        {"idx": tf.int64, "idxs": tf.int32, "id": tf.string, "ids": tf.string}
+    output_signature.update(
+        {
+            "idx": tf.TensorSpec(shape=(), dtype=tf.int64),
+            "idxs": tf.TensorSpec(shape=[None], dtype=tf.int32),
+            "id": tf.TensorSpec(shape=(), dtype=tf.string),
+            "ids": tf.TensorSpec(shape=[None], dtype=tf.string),
+        }
     )
-  output_shapes = {k: [] for k in output_types}
-  if split == "validation":
-    output_shapes.update({"idxs": [None], "ids": [None]})
 
   if ndfeatures:
     # If we are using ndfeatures fake dataset add the info.
-    output_types.update({"2d_feature": tf.int32, "3d_feature": tf.int32})
-    output_shapes.update({"2d_feature": [None, 3], "3d_feature": [None, 2, 3]})
+    output_signature.update(
+        {
+            "2d_feature": tf.TensorSpec(shape=(None, 3), dtype=tf.int32),
+            "3d_feature": tf.TensorSpec(shape=(None, 2, 3), dtype=tf.int32),
+        }
+    )
+
+  if ragged_features:
+    output_signature.update(
+        {
+            "ragged_feature": tf.RaggedTensorSpec(
+                shape=(2, None, 2),
+                dtype=tf.int32,
+                ragged_rank=1,
+            ),
+        }
+    )
 
   # Keep only defined features.
   examples = list(
-      map(lambda ex: {k: ex[k] for k in output_types}, _FAKE_DATASET[split])
+      map(lambda ex: {k: ex[k] for k in output_signature}, _FAKE_DATASET[split])
   )
 
   ds = tf.data.Dataset.from_generator(
-      lambda: examples, output_types, output_shapes
+      lambda: examples, output_signature=output_signature,
   )
   if shard_info:
     ds = ds.shard(num_shards=shard_info.num_shards, index=shard_info.index)
@@ -563,10 +745,19 @@ def _assert_compare_to_fake_dataset(
     sequence_length: Optional[Mapping[str, int]],
     token_preprocessed: bool = False,
     ndfeatures: bool = False,
+    ragged_features: bool = False,
 ):
   """Calls assertion to compare fake examples to actual dataset."""
+  if ndfeatures and ragged_features:
+    raise ValueError(
+        "At most one of ndfeatures and ragged_features can be True at once."
+    )
   dataset = "token_preprocessed" if token_preprocessed else "tokenized"
   dataset = dataset if not ndfeatures else "token_preprocessed_ndfeatures"
+  dataset = (
+      dataset if not ragged_features else "token_preprocessed_ragged_features"
+  )
+  _make_fake_datasets()
   fake_examples = copy.deepcopy(_FAKE_DATASETS[dataset][split])
 
   for key, feat in features.items():
@@ -613,6 +804,15 @@ def _assert_compare_to_fake_dataset(
         "2d_feature_pretokenized": [None, 3],
         "3d_feature_pretokenized": [None, 2, 3],
     })
+  if ragged_features:
+    expected_output_dtypes.update({
+        "ragged_feature": tf.int32,
+        "ragged_feature_pretokenized": tf.int32,
+    })
+    expected_output_shapes.update({
+        "ragged_feature": [None, None, 2],
+        "ragged_feature_pretokenized": [None, None, 2],
+    })
   # Override with Feature dtypes.
   for k, f in features.items():
     expected_output_dtypes[k] = f.dtype
@@ -626,6 +826,16 @@ def _assert_compare_to_fake_dataset(
 
   actual_examples = _get_comparable_examples_from_ds(ds)
   expected_examples = [tuple(sorted(ex.items())) for ex in fake_examples]
+  # Replace RaggedTensors in a nested way.
+  def recursive_ragged_tensor_to_list(x: Any):
+    if isinstance(x, tf.RaggedTensor):
+      x: tf.RaggedTensor
+      return x.to_list()
+    if isinstance(x, dict) or isinstance(x, list) or isinstance(x, tuple):
+      return tf.nest.map_structure(recursive_ragged_tensor_to_list, x)
+    return x
+  actual_examples = recursive_ragged_tensor_to_list(actual_examples)
+  expected_examples = recursive_ragged_tensor_to_list(expected_examples)
   _pyunit_proxy.assertCountEqual(expected_examples, actual_examples)
 
 
@@ -1162,6 +1372,7 @@ class FakeTaskTest(absltest.TestCase):
     """Prepares data sources and tasks."""
     clear_tasks()
     clear_mixtures()
+    _make_fake_datasets()
     # Prepare TfdsSource
     # Note we don't use mock.Mock since they fail to pickle.
     fake_tfds_paths = {
@@ -1372,6 +1583,7 @@ class FakeTaskTest(absltest.TestCase):
       use_cached=False,
       token_preprocessed=False,
       ndfeatures=False,
+      ragged_features=False,
       splits=("train", "validation"),
       sequence_length=_DEFAULT_SEQUENCE_LENGTH,
       num_shards=None,
@@ -1402,6 +1614,7 @@ class FakeTaskTest(absltest.TestCase):
           sequence_length,
           token_preprocessed=token_preprocessed,
           ndfeatures=ndfeatures,
+          ragged_features=ragged_features,
       )
 
 

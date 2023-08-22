@@ -1,0 +1,22 @@
+{
+  "features": {
+    "inputs": {
+      "dtype": "string",
+      "shape": []
+    },
+    "ragged_feature": {
+      "dtype": "int32",
+      "shape": [
+        null,
+        null,
+        2
+      ]
+    },
+    "targets": {
+      "dtype": "string",
+      "shape": []
+    }
+  },
+  "num_shards": 1,
+  "seqio_version": "0.0.0"
+}

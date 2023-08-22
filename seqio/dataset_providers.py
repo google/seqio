@@ -926,11 +926,34 @@ class _CachedDataSource(FileDataSource):
           feat["dtype"] = "int32"
 
     # Use `FixedLenSequenceFeature` for sequences with variable length.
-    def _feature_config(shape, dtype):
+    def _feature_config(
+        key: str,
+        shape,
+        dtype: str,
+        ) -> Union[tf.io.FixedLenFeature, tf.io.RaggedFeature]:
       if dtype in ("int32", "bool"):
         # int32 and bool are stored as int64 in the tf.train.Example protobuf.
         # TODO(adarob): Support other conversions.
         dtype = "int64"
+      if shape:
+        num_none_components = 0
+        for x in shape[1:]:
+          if x is None:
+            num_none_components += 1
+        if num_none_components > 0:  # Parse as a ragged feature.
+          partitions = []
+          ragged_idx = 0
+          for x in shape[1:]:
+            if x is None:
+              partitions.append(tf.io.RaggedFeature.RowLengths(
+                  utils.tfexample_ragged_length_key(key, ragged_idx)))
+              ragged_idx += 1
+            else:
+              partitions.append(tf.io.RaggedFeature.UniformRowLength(x))
+          return tf.io.RaggedFeature(
+              value_key=key,
+              partitions=partitions,
+              dtype=dtype)
       if shape and shape[0] is None:
         return tf.io.FixedLenSequenceFeature(
             shape[1:], dtype, allow_missing=True
@@ -938,7 +961,7 @@ class _CachedDataSource(FileDataSource):
       return tf.io.FixedLenFeature(shape, dtype)
 
     feature_description = {
-        feat: _feature_config(**desc) for feat, desc in features.items()
+        feat: _feature_config(feat, **desc) for feat, desc in features.items()
     }
 
     def read_file_fn(filepattern):

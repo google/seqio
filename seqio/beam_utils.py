@@ -142,7 +142,8 @@ class PreprocessTask(beam.PTransform):
     ds = task.preprocess_precache(ds, seed=shard_preprocessors_seed)
     ds = ds.prefetch(tf.data.AUTOTUNE)
 
-    def _add_provenance(index_within_shard: int, ex: Dict[str, Any]):
+    def _add_provenance(
+        index_within_shard: int, ex: Dict[str, Any]) -> Dict[str, Any]:
       ex.update({
           TASK_PROVENANCE_KEY: self._task_name,
           SOURCE_SHARD_PROVENANCE_KEY: shard_name,
@@ -153,7 +154,7 @@ class PreprocessTask(beam.PTransform):
         ex.update({PREPROCESSORS_SEED_PROVENANCE_KEY: self._preprocessors_seed})
       return ex
 
-    for i, ex in enumerate(ds.as_numpy_iterator()):
+    for i, ex in enumerate(ds):
       if self._add_provenance:
         ex = _add_provenance(i, ex)
       self._increment_counter("examples")
@@ -255,7 +256,10 @@ class GetInfo(beam.PTransform):
     for k, v in ex.items():
       if self._exclude_provenance and k.startswith(PROVENANCE_PREFIX):
         continue
-      t = tf.constant(v)
+      if isinstance(v, tf.RaggedTensor):
+        t = v
+      else:
+        t = tf.constant(v)
       dtype = t.dtype.name
       shape = t.shape.as_list()
       # Keep all the dimensions but the first if t is not a scalar.
@@ -291,10 +295,14 @@ class _CountTokens(beam.DoFn):
     for name, feat in self._output_features.items():
       if (
           name in ex
-          and isinstance(ex[name], np.ndarray)
+          and (isinstance(ex[name], np.ndarray)
+               or isinstance(ex[name], tf.Tensor))
           and ex[name].dtype in (np.int32, np.int64)
       ):
-        values = ex[name]
+        if isinstance(ex[name], tf.Tensor):
+          values = ex[name].numpy()
+        else:
+          values = ex[name]
         conditions = []
         if feat.vocabulary.eos_id is not None:
           conditions.append((values != feat.vocabulary.eos_id))
@@ -414,6 +422,7 @@ class GetStats(beam.PTransform):
     self._output_features = output_features
     self._task_ids = task_ids or {}
     self._enable_char_counts = enable_char_counts
+    logging.info("Getting stats for output features: %s", str(output_features))
 
   def expand(self, pcoll):
     example_counts = (

@@ -39,6 +39,7 @@ class ProcessTaskBeamTest(test_utils.FakeTaskTest):
       expected_task_dir="cached_task",
       token_preprocessed=False,
       ndfeatures=False,
+      ragged_features=False,
       num_shards=2,
   ):
     self.assertTrue(TaskRegistry.get("cached_task").cache_dir)
@@ -107,6 +108,8 @@ class ProcessTaskBeamTest(test_utils.FakeTaskTest):
         splits=task.splits,
         token_preprocessed=token_preprocessed,
         ndfeatures=ndfeatures,
+        ragged_features=ragged_features,
+        num_shards=num_shards,
     )
 
   def test_tfds_pipeline(self):
@@ -161,6 +164,40 @@ class ProcessTaskBeamTest(test_utils.FakeTaskTest):
         num_shards=1,
         token_preprocessed=True,
         ndfeatures=True,
+    )
+
+  def test_cache_before_tokenization_ragged_features_pipeline(self):
+    self.add_task(
+        "task_tokenized_postcache_ragged_features",
+        seqio.dataset_providers.FunctionDataSource(
+            dataset_fn=functools.partial(
+                test_utils.get_fake_dataset, ragged_features=True
+            ),
+            splits=["train", "validation"],
+        ),
+        output_features={
+            "inputs": seqio.Feature(test_utils.sentencepiece_vocab()),
+            "targets": seqio.Feature(test_utils.sentencepiece_vocab()),
+            "ragged_feature": seqio.Feature(
+                seqio.PassThroughVocabulary(1000, eos_id=0),
+                add_eos=False,
+                rank=3,
+            ),
+        },
+        preprocessors=[
+            test_utils.test_text_preprocessor,
+            seqio.CacheDatasetPlaceholder(),
+            seqio.preprocessors.tokenize,
+            test_utils.token_preprocessor_no_sequence_length,
+            seqio.preprocessors.append_eos_after_trim,
+        ],
+    )
+    self.validate_pipeline(
+        "task_tokenized_postcache_ragged_features",
+        expected_task_dir="cached_untokenized_ragged_features_task",
+        num_shards=1,
+        token_preprocessed=True,
+        ragged_features=True,
     )
 
   def test_cache_before_tokenization_pipeline(self):
