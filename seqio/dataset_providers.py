@@ -1955,7 +1955,8 @@ class Mixture(DatasetProviderBase):
         May be set to None to avoid truncation.
       split: string, the split to return for all tasks.
       use_cached: bool, whether to use the cached dataset instead of processing
-        it on the fly. Defaults to False.
+        it on the fly. This will be passed to the underlying Tasks in the
+        Mixture. Defaults to False.
       shuffle: bool, whether to shuffle the dataset.  Only used when generating
         on the fly (use_cached=False).
       seed: tf.int64 scalar tf.Tensor (or None) for shuffling tf.data.
