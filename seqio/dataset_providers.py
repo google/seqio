@@ -22,6 +22,7 @@ import abc
 import collections
 import dataclasses
 import functools
+import glob
 import inspect
 import json
 import numbers
@@ -685,7 +686,14 @@ class FileDataSource(DataSource):
 
   @functools.lru_cache(maxsize=1024)
   def list_shards(self, split: str) -> Sequence[str]:
-    return _list_files(pattern=self._split_to_filepattern[split])
+    filepattern = self._split_to_filepattern[split]
+    if isinstance(filepattern, str):
+      return _list_files(pattern=filepattern)
+
+    if not any(glob.has_magic(f) for f in filepattern):
+      return filepattern
+    else:
+      return _list_files(pattern=filepattern)
 
 
 
