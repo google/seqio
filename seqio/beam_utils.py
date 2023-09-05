@@ -19,7 +19,7 @@ import hashlib
 import importlib
 import json
 import operator
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from absl import logging
 import apache_beam as beam
@@ -60,7 +60,9 @@ class PreprocessTask(beam.PTransform):
       task: seqio.Task,
       split: str,
       *,
+      sequence_lengths: Mapping[str, int] | None = None,
       preprocessors_seed: Optional[int] = None,
+      setup_fn: Callable[[], None] = lambda: None,
       modules_to_import: Sequence[str] = (),
       add_provenance: bool = False,
       tfds_data_dir: Optional[str] = None,
@@ -70,8 +72,12 @@ class PreprocessTask(beam.PTransform):
     Args:
       task: Task, the task to process.
       split: string, the split to process.
+      sequence_lengths: (Optional) dict mapping, feature key to maximum int
+        length for that feature. If longer after preprocessing, the feature will
+        be truncated. May be set to None to avoid truncation.
       preprocessors_seed: (Optional) int, a seed for stateless random ops in
         task preprocessing.
+      setup_fn: (Optional) callable, a function called before loading the task.
       modules_to_import: (Optional) list, modules to import.
       add_provenance: If True, provenance is added to each example.
       tfds_data_dir: (Optional) str, directory where the TFDS datasets are
@@ -82,7 +88,9 @@ class PreprocessTask(beam.PTransform):
     """
     self._task_name = task.name
     self._split = split
+    self._sequence_lengths = sequence_lengths
     self._preprocessors_seed = preprocessors_seed
+    self._setup_fn = setup_fn
     self._modules_to_import = modules_to_import
     self._add_provenance = add_provenance
     self._tfds_data_dir = tfds_data_dir
@@ -106,6 +114,7 @@ class PreprocessTask(beam.PTransform):
 
   def _emit_examples(self, shard: Tuple[int, str]):
     """Emits examples keyed by shard number and index for a single shard."""
+    self._setup_fn()
     _import_modules(self._modules_to_import)
     task = seqio.TaskRegistry.get(self._task_name)
 
@@ -140,6 +149,11 @@ class PreprocessTask(beam.PTransform):
         seed=shard_preprocessors_seed,
     )
     ds = task.preprocess_precache(ds, seed=shard_preprocessors_seed)
+    ds = task.preprocess_postcache(
+        ds,
+        sequence_length=self._sequence_lengths,
+        seed=shard_preprocessors_seed,
+    )
     ds = ds.prefetch(tf.data.AUTOTUNE)
 
     def _add_provenance(

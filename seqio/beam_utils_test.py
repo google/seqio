@@ -57,9 +57,9 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           util.equal_to([
               {
                   "inputs_pretokenized": b"complete: this",
-                  "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6],
+                  "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 8, 6, 1],
                   "targets_pretokenized": b"is a test",
-                  "targets": [3, 8, 6, 3, 5, 10],
+                  "targets": [3, 8, 6, 3, 5, 10, 1],
                   "provenance/task": "tfds_task",
                   "provenance/source_shard": "train.tfrecord-00000-of-00002",
                   "provenance/source_shard_index": 0,
@@ -68,9 +68,9 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               },
               {
                   "inputs_pretokenized": b"complete: those",
-                  "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4],
+                  "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 7, 6, 4, 1],
                   "targets_pretokenized": b"were tests",
-                  "targets": [17, 4, 23, 4, 10, 6],
+                  "targets": [17, 4, 23, 4, 10, 6, 1],
                   "provenance/task": "tfds_task",
                   "provenance/source_shard": "train.tfrecord-00000-of-00002",
                   "provenance/source_shard_index": 0,
@@ -79,9 +79,9 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               },
               {
                   "inputs_pretokenized": b"complete: that",
-                  "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18],
+                  "inputs": [3, 13, 7, 14, 15, 9, 4, 16, 12, 11, 18, 1],
                   "targets_pretokenized": b"was a test",
-                  "targets": [17, 5, 6, 3, 5, 10],
+                  "targets": [17, 5, 6, 3, 5, 10, 1],
                   "provenance/task": "tfds_task",
                   "provenance/source_shard": "train.tfrecord-00001-of-00002",
                   "provenance/source_shard_index": 1,
@@ -90,6 +90,24 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
               },
           ]),
       )
+
+  def test_preprocess_task_with_setup_fn(self):
+    with TestPipeline() as p:
+      pcoll = p | beam_utils.PreprocessTask(
+          task=seqio.get_mixture_or_task("tfds_task"),
+          split="train",
+          preprocessors_seed=42,
+          setup_fn=beam.metrics.Metrics.counter("test", "setup_fn_called").inc,
+          add_provenance=True,
+      )
+      result = p.run()
+      util.assert_that(pcoll, util.is_not_empty())
+
+      counters = result.metrics().query(
+          beam.metrics.MetricsFilter().with_name("setup_fn_called")
+      )["counters"]
+      self.assertLen(counters, 1)
+      self.assertGreater(counters[0].committed, 0)
 
   def test_write_example_tf_record(self):
     output_path = os.path.join(self.test_data_dir, "output.tfrecord")
