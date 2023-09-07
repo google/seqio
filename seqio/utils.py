@@ -160,8 +160,20 @@ class LazyTfdsLoader(object):
           )
 
   @property
-  def name(self):
+  def name(self) -> Optional[str]:
     return self._name
+
+  @property
+  def resolved_tfds_name(self) -> Optional[str]:
+    """Returns the resolved TFDS dataset name.
+
+    When the specified TFDS name doesn't specify everything, e.g. the version
+    has a wildcard or the config is not specified, then this function returns
+    the complete TFDS name if the dataset has already been loaded.
+    """
+    if self.is_memoized:
+      return self.builder.get_reference().tfds_name(include_version=True)
+    return self.name
 
   def __str__(self):
     return (
@@ -248,13 +260,10 @@ class LazyTfdsLoader(object):
     builder_key = self._get_builder_key(dataset, data_dir)
     if builder_key not in LazyTfdsLoader._MEMOIZED_BUILDERS:
       if dataset:
-        LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = tfds.builder(
-            dataset, data_dir=data_dir
-        )
+        builder = tfds.builder(dataset, data_dir=data_dir)
       else:
-        LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = (
-            tfds.builder_from_directory(data_dir)
-        )
+        builder = tfds.builder_from_directory(data_dir)
+      LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = builder
     return LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key]
 
   @property

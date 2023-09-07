@@ -771,8 +771,8 @@ class TFExampleDataSource(FileDataSource):
         (filename or filepattern) or list of strings (filenames or
         filepatterns).
       feature_description: dict, a mapping of string feature keys to
-        `tf.io.FixedLenFeature`, `tf.io.VarLenFeature`, or
-        `tf.io.RaggedFeature` values.
+        `tf.io.FixedLenFeature`, `tf.io.VarLenFeature`, or `tf.io.RaggedFeature`
+        values.
       reader_cls: `tf.data.Dataset`, a dataset class to read the input files.
       num_input_examples: dict or None, an optional dictionary mapping split to
         its size in number of input examples (before preprocessing). The
@@ -938,7 +938,7 @@ class _CachedDataSource(FileDataSource):
         key: str,
         shape,
         dtype: str,
-        ) -> Union[tf.io.FixedLenFeature, tf.io.RaggedFeature]:
+    ) -> Union[tf.io.FixedLenFeature, tf.io.RaggedFeature]:
       if dtype in ("int32", "bool"):
         # int32 and bool are stored as int64 in the tf.train.Example protobuf.
         # TODO(adarob): Support other conversions.
@@ -953,15 +953,17 @@ class _CachedDataSource(FileDataSource):
           ragged_idx = 0
           for x in shape[1:]:
             if x is None:
-              partitions.append(tf.io.RaggedFeature.RowLengths(
-                  utils.tfexample_ragged_length_key(key, ragged_idx)))
+              partitions.append(
+                  tf.io.RaggedFeature.RowLengths(
+                      utils.tfexample_ragged_length_key(key, ragged_idx)
+                  )
+              )
               ragged_idx += 1
             else:
               partitions.append(tf.io.RaggedFeature.UniformRowLength(x))
           return tf.io.RaggedFeature(
-              value_key=key,
-              partitions=partitions,
-              dtype=dtype)
+              value_key=key, partitions=partitions, dtype=dtype
+          )
       if shape and shape[0] is None:
         return tf.io.FixedLenSequenceFeature(
             shape[1:], dtype, allow_missing=True
