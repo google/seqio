@@ -91,6 +91,24 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           ]),
       )
 
+  def test_preprocess_task_with_setup_fn(self):
+    with TestPipeline() as p:
+      pcoll = p | beam_utils.PreprocessTask(
+          task=seqio.get_mixture_or_task("tfds_task"),
+          split="train",
+          preprocessors_seed=42,
+          setup_fn=beam.metrics.Metrics.counter("test", "setup_fn_called").inc,
+          add_provenance=True,
+      )
+      result = p.run()
+      util.assert_that(pcoll, util.is_not_empty())
+
+      counters = result.metrics().query(
+          beam.metrics.MetricsFilter().with_name("setup_fn_called")
+      )["counters"]
+      self.assertLen(counters, 1)
+      self.assertGreater(counters[0].committed, 0)
+
   def test_write_example_tf_record(self):
     output_path = os.path.join(self.test_data_dir, "output.tfrecord")
     example = {
