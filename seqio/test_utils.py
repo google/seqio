@@ -657,6 +657,8 @@ def assert_dataset(
     dataset: tf.data.Dataset,
     expected: Union[Mapping[str, Any], Sequence[Mapping[str, Any]]],
     expected_dtypes: Optional[Mapping[str, tf.DType]] = None,
+    rtol=1e-7,
+    atol=0,
 ):
   """Tests whether the entire dataset == expected or [expected].
 
@@ -665,6 +667,8 @@ def assert_dataset(
     expected: either a single example, or a list of examples. Each example is a
       dictionary.
     expected_dtypes: an optional mapping from feature key to expected dtype.
+    rtol: the relative tolerance.
+    atol: the absolute tolerance.
   """
 
   if not isinstance(expected, list):
@@ -694,7 +698,7 @@ def assert_dataset(
           and np.issubdtype(actual_value.dtype, np.floating)
       ):
         np.testing.assert_allclose(
-            actual_value, expected_dict[key], err_msg=key
+            actual_value, expected_dict[key], err_msg=key, rtol=rtol, atol=atol
         )
       else:
         np.testing.assert_array_equal(
