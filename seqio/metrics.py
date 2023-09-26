@@ -490,7 +490,9 @@ class PassthroughLegacyMetric(CollectingMetric):
             # first dim is for batch, second is for sequence length.
             if isinstance(model_output, np.ndarray) and model_output.ndim == 2:
               predictions = [vocab.decode(tokens) for tokens in model_output]
-            else:
+            elif (
+                isinstance(model_output, np.ndarray) and model_output.ndim == 3
+            ):
               # In case of top-k decoding, model_output will be a 3d array
               # first dim is for batch, second is for num_decodes, third is for
               # sequence length.
@@ -500,6 +502,10 @@ class PassthroughLegacyMetric(CollectingMetric):
                 for sequence in sequences:
                   predictions_for_one_example.append(vocab.decode(sequence))
                 predictions.append(predictions_for_one_example)
+            else:
+              # If neither 2d or 3d, assume that model_output is already
+              # decoded.
+              predictions = model_output
           targets_and_inferences["output"] = predictions
 
           # Postprocesses the predictions here.

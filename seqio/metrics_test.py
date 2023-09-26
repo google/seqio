@@ -13,10 +13,14 @@
 # limitations under the License.
 
 """Tests for seqio.metrics."""
+from unittest import mock
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import numpy as np
+from seqio import dataset_providers
 from seqio import metrics
+from seqio import vocabularies
 
 
 class MetricsTest(absltest.TestCase):
@@ -60,6 +64,36 @@ class MetricsTest(absltest.TestCase):
          [1, 3, 4]]
     ))
 
+
+class MetricsComputeTest(parameterized.TestCase):
+
+  @parameterized.parameters(False, True)
+  def test_passthrough_legacy_metric(self, do_external_decode: bool):
+    mf = lambda targets, predictions: {"accuracy": 1.0}
+    metric_obj = metrics.PassthroughLegacyMetric.from_metric_fn(
+        mf, None
+    ).empty()
+    mock_vocab = mock.create_autospec(vocabularies.Vocabulary)
+
+    task_batch = [
+        {"targets": [0, 1, 2, 3]},
+        {"targets": [1, 2, 3, 4]},
+    ]
+    model_output = np.array([[0, 1, 2, 3], [1, 2, 3, 4]])
+    output_features = {"targets": dataset_providers.Feature(mock_vocab)}
+
+    if do_external_decode:
+      model_output = [mock_vocab.decode(tokens) for tokens in model_output]
+
+    metric_instance = metric_obj.from_model_output(
+        inputs=task_batch,
+        model_output=model_output,
+        features=output_features,
+    )
+    metric_value, _ = metric_instance.actual_compute(
+        task_batch, output_features
+    )
+    self.assertEqual(metric_value["accuracy"], 1.0)
 
 if __name__ == "__main__":
   absltest.main()
