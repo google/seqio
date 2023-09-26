@@ -684,5 +684,124 @@ class BertWordpieceVocabularyTest(absltest.TestCase):
 
 
 
+class GPT2BPEVocabularyTest(absltest.TestCase):
+  TEST_STRING = "this is a test"
+  TEST_TOKENS = (5661, 318, 257, 1332)
+
+  TEST_EMPTY_STRING = ""
+  TEST_EMPTY_TOKEN = []
+
+  TEST_BATCH_STRINGS = ["Hello", "world", "this is a test"]
+  TEST_BATCH_TOKENS = [[15496], [6894], [5661, 318, 257, 1332]]
+
+  TEST_BATCH_EMPTY_STRINGS = ["", ""]
+  TEST_BATCH_EMPTY_TOKENS = [[], []]
+
+  def test_vocab(self):
+    vocab = test_utils.gpt2bpe_vocab()
+    # The test vocab.json is a modified version of the vocab.json.
+    # The HuggingFace Tokenizer vocab_size does not include the `added_tokens`
+    # and is equivalent to Seqio Vocabulary _base_vocab_size.
+    self.assertEqual(vocab.tokenizer.vocab_size, vocab._base_vocab_size)
+    self.assertEqual(vocab.tokenizer.vocab_size, 50257)
+    # The HF number of added_tokens are equivalent to Seqio extra_ids.
+    # Seqio vocab_size includes the _base_vocab_size and extra_ids.
+    self.assertEqual(vocab.vocab_size, 50401)
+
+    self.assertEqual(vocab.pad_id, 50400)
+    self.assertEqual(vocab.bos_id, 50256)
+    self.assertEqual(vocab.eos_id, 50256)
+    self.assertEqual(vocab.unk_id, 50256)
+
+  def test_encode(self):
+    vocab = test_utils.gpt2bpe_vocab()
+    actual_encode = vocab.encode(self.TEST_STRING)
+    self.assertSequenceEqual(self.TEST_TOKENS, tuple(actual_encode))
+
+  def test_decode(self):
+    vocab = test_utils.gpt2bpe_vocab()
+    self.assertEqual(self.TEST_STRING, vocab.decode(self.TEST_TOKENS))
+
+  def test_encode_tf(self):
+    vocab = test_utils.gpt2bpe_vocab()
+    actual_encode_tf = vocab.encode_tf(tf.constant(self.TEST_STRING))
+    self.assertSequenceEqual(self.TEST_TOKENS, tuple(actual_encode_tf.numpy()))
+
+  def test_decode_tf(self):
+    vocab = test_utils.gpt2bpe_vocab()
+    ids = tf.ragged.constant(self.TEST_TOKENS, dtype=tf.int32)
+    actual_decode_tf = vocab.decode_tf(ids)
+    expected_decode_tf = tf.constant(self.TEST_STRING)
+    self.assertTrue(
+        tf.math.reduce_all(tf.equal(actual_decode_tf, expected_decode_tf))
+    )
+
+  def test_encode_tf_batch(self):
+    vocab = test_utils.gpt2bpe_vocab()
+    actual_batch_encode_tf = vocab.encode_tf(
+        tf.constant(self.TEST_BATCH_STRINGS)
+    )
+    expected_batch_encode_tf = tf.ragged.constant(
+        self.TEST_BATCH_TOKENS, dtype=tf.int32
+    )
+    self.assertEqual(
+        actual_batch_encode_tf.shape, expected_batch_encode_tf.shape
+    )
+    self.assertTrue(
+        tf.math.reduce_all(
+            tf.equal(actual_batch_encode_tf, expected_batch_encode_tf)
+        )
+    )
+
+  def test_decode_tf_batch(self):
+    vocab = test_utils.gpt2bpe_vocab()
+    ids = tf.ragged.constant(self.TEST_BATCH_TOKENS, dtype=tf.int32)
+    actual_batch_decode_tf = vocab.decode_tf(ids)
+    expected_batch_decode = self.TEST_BATCH_STRINGS
+    expected_batch_decode_tf = tf.constant(
+        expected_batch_decode, dtype=tf.string
+    )
+    self.assertEqual(
+        actual_batch_decode_tf.shape, expected_batch_decode_tf.shape
+    )
+    self.assertTrue(
+        tf.math.reduce_all(
+            tf.equal(actual_batch_decode_tf, expected_batch_decode_tf)
+        )
+    )
+
+  def test_encode_tf_empty_string(self):
+    vocab = test_utils.gpt2bpe_vocab()
+    actual_encode_tf = vocab.encode_tf(tf.constant(self.TEST_EMPTY_STRING))
+    expected_encode_tf = tf.ragged.constant(
+        self.TEST_EMPTY_TOKEN, dtype=tf.int32
+    )
+    self.assertTrue(
+        tf.math.reduce_all(tf.equal(actual_encode_tf, expected_encode_tf))
+    )
+
+  def test_encode_tf_empty_strings_batch(self):
+    vocab = test_utils.gpt2bpe_vocab()
+    actual_batch_encode_tf = vocab.encode_tf(
+        tf.constant(self.TEST_BATCH_EMPTY_STRINGS)
+    )
+    expected_batch_encode_tf = tf.ragged.constant(
+        self.TEST_BATCH_EMPTY_TOKENS, dtype=tf.int32
+    )
+    self.assertEqual(
+        actual_batch_encode_tf.shape, expected_batch_encode_tf.shape
+    )
+    self.assertTrue(
+        tf.math.reduce_all(
+            tf.equal(actual_batch_encode_tf, expected_batch_encode_tf)
+        )
+    )
+
+  def test_equal(self):
+    vocab1 = test_utils.gpt2bpe_vocab()
+    vocab2 = test_utils.gpt2bpe_vocab()
+    self.assertEqual(vocab1, vocab2)
+
+
 if __name__ == "__main__":
   absltest.main()
