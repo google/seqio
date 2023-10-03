@@ -1294,6 +1294,7 @@ FakeLazyTfds = collections.namedtuple(
     "FakeLazyTfds",
     [
         "name",
+        "tfds_splits",
         "resolved_tfds_name",
         "data_dir",
         "load",
@@ -1411,7 +1412,8 @@ class FakeTaskTest(absltest.TestCase):
 
     fake_tfds = FakeLazyTfds(
         name="fake:0.0.0",
-        resolved_tfds_name="fake:0.0.0",
+        tfds_splits=None,
+        resolved_tfds_name=lambda: "fake:0.0.0",
         data_dir="/tfds",
         load=get_fake_dataset,
         load_shard=_load_shard,
