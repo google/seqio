@@ -643,8 +643,10 @@ class ByteVocabulary(Vocabulary):
     Returns:
       a 1d tf.Tensor with dtype tf.int32
     """
-    tf_ids = tf.io.decode_raw(s, tf.uint8) + self._num_special_tokens
-    return tf.dtypes.cast(tf_ids, tf.int32)
+    return (
+        tf.dtypes.cast(tf.io.decode_raw(s, tf.uint8), tf.int32)
+        + self._num_special_tokens
+    )
 
   def _decode_tf(self, ids):
     """Decode in TensorFlow.
