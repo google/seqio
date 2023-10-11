@@ -21,13 +21,14 @@ import itertools
 import json
 import os
 import time
-from typing import Any, Mapping, Optional, Sequence, Type, Dict, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Type
 
 from absl import logging
 import numpy as np
 from seqio import metrics as metrics_lib
 import tensorflow as tf
 import tensorflow_datasets as tfds
+
 
 
 def skip_none_value_dict_factory(
@@ -452,8 +453,7 @@ class JSONLogger(Logger):
         unset.append("targets is None or empty")
       if not dataset:
         unset.append("dataset is None or empty")
-      logging.info(
-          "Skipping inference logging as %s", ", and ".join(unset))
+      logging.info("Skipping inference logging as %s", ", and ".join(unset))
       return
 
     write_tick = time.time()
@@ -509,3 +509,5 @@ class JSONLogger(Logger):
         write_time,
         len(inferences) / write_time,
     )
+
+

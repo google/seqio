@@ -782,5 +782,7 @@ class TensorAndNumpyEncoderLoggerTest(tf.test.TestCase):
     self.assertEqual(self.logger.encode(obj), '{"bar": 1}')
 
 
+
+
 if __name__ == "__main__":
   tf.test.main()
