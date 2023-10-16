@@ -443,7 +443,7 @@ class SentencePieceVocabulary(Vocabulary):
     """
     return self.tokenizer.GetPieceSize()
 
-  def _encode(self, s):
+  def _encode(self, s: str) -> Sequence[int]:
     """Encode a python string as a list of integers.
 
     Args:
