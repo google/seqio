@@ -75,14 +75,14 @@ class LazyTfdsLoaderTest(absltest.TestCase):
   @mock.patch("tensorflow_datasets.builder")
   def test_wildcard_in_version(self, mock_tfds_builder):
     loader = utils.LazyTfdsLoader(name="a/b:1.0.*")
-    self.assertEqual("a/b:1.0.*", loader.resolved_tfds_name)
+    self.assertEqual("a/b:1.0.*", loader.resolved_tfds_name())
     mock_tfds_builder.assert_not_called()
     # Get the builder to make sure it's memoized
     _ = loader.builder
     mock_reference = mock.MagicMock()
     mock_tfds_builder.return_value.get_reference.return_value = mock_reference
     mock_reference.tfds_name.return_value = "a/b:1.0.2"
-    self.assertEqual("a/b:1.0.2", loader.resolved_tfds_name)
+    self.assertEqual("a/b:1.0.2", loader.resolved_tfds_name())
 
   @mock.patch("tensorflow_datasets.builder")
   def test_builder_memoization(self, mock_tfds_builder):

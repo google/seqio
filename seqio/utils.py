@@ -102,7 +102,7 @@ class TfdsSplit:
 
   dataset: str
   split: Optional[str]
-  data_dir: Optional[tfds.typing.PathLike] = None
+  data_dir: Optional[str] = None
 
   def __post_init__(self):
     _validate_tfds_name(self.dataset)
@@ -120,13 +120,8 @@ class LazyTfdsLoader(object):
   def __init__(
       self,
       name: Optional[str] = None,
-      data_dir=None,
-      split_map: Optional[
-          Union[
-              Mapping[str, str],
-              Mapping[str, "TfdsSplit"],
-          ]
-      ] = None,
+      data_dir: Optional[str] = None,
+      split_map: Union[Mapping[str, str], Mapping[str, TfdsSplit], None] = None,
       decoders=None,
   ):
     """LazyTfdsLoader constructor.
@@ -164,16 +159,31 @@ class LazyTfdsLoader(object):
     return self._name
 
   @property
-  def resolved_tfds_name(self) -> Optional[str]:
+  def tfds_splits(self) -> Optional[Mapping[str, TfdsSplit]]:
+    return self._split_map if self._is_custom_split_map else None
+
+  def resolved_tfds_name(self, split: Optional[str] = None) -> Optional[str]:
     """Returns the resolved TFDS dataset name.
 
     When the specified TFDS name doesn't specify everything, e.g. the version
     has a wildcard or the config is not specified, then this function returns
     the complete TFDS name if the dataset has already been loaded.
+
+    Args:
+      split: optional split name.
+
+    Returns:
+      complete TFDS name.
     """
-    if self.is_memoized:
-      return self.builder.get_reference().tfds_name(include_version=True)
-    return self.name
+    if self.is_memoized(split):
+      return (
+          self._get_builder(split)
+          .get_reference()
+          .tfds_name(include_version=True)
+      )
+    else:
+      dataset, _ = self.get_split_params(split)
+      return dataset
 
   def __str__(self):
     return (
@@ -189,9 +199,28 @@ class LazyTfdsLoader(object):
         f" decoders={self._decoders})"
     )
 
+  def get_split_params(
+      self, split: Optional[str] = None
+  ) -> Tuple[Optional[str], Optional[str]]:
+    """Returns a tuple of (dataset, data_dir) for the given canonical split."""
+    if self._is_custom_split_map:
+      if mapped_split := self._split_map.get(split):
+        dataset = mapped_split.dataset
+        data_dir = mapped_split.data_dir
+      else:
+        raise ValueError(
+            "`LazyTfdsLoader` refers to multiple datasets, pass `split` value "
+            "corresponding to one of them to `get_split_params()`."
+        )
+    else:
+      dataset = self.name
+      data_dir = self.data_dir
+
+    return dataset, data_dir
+
 
   @property
-  def data_dir(self):
+  def data_dir(self) -> Optional[str]:
     """Returns the data directory for this TFDS dataset."""
 
     if self._is_custom_split_map:
@@ -225,19 +254,14 @@ class LazyTfdsLoader(object):
   ) -> Tuple[Optional[str], Optional[str]]:
     return (dataset, data_dir)
 
-  @property
-  def is_memoized(self) -> bool:
-    if self._is_custom_split_map:
-      return all(
-          self._get_builder_key(tfds_split.dataset, tfds_split.data_dir)
-          in LazyTfdsLoader._MEMOIZED_BUILDERS
-          for tfds_split in self._split_map.values()
-      )
-    else:
-      return (
-          self._get_builder_key(self.name, self.data_dir)
-          in LazyTfdsLoader._MEMOIZED_BUILDERS
-      )
+  def is_memoized(self, split: Optional[str] = None) -> bool:
+    """Returns true if the dataset is memoized."""
+    dataset, data_dir = self.get_split_params(split)
+
+    return (
+        self._get_builder_key(dataset, data_dir)
+        in LazyTfdsLoader._MEMOIZED_BUILDERS
+    )
 
   @property
   def builder(self):
@@ -245,18 +269,7 @@ class LazyTfdsLoader(object):
 
   def _get_builder(self, split: Optional[str] = None):
     """Returns the DatasetBuilder for this TFDS dataset."""
-    if self._is_custom_split_map:
-      if mapped_split := self._split_map.get(split):
-        dataset = mapped_split.dataset
-        data_dir = mapped_split.data_dir
-      else:
-        raise ValueError(
-            "`LazyTfdsLoader` refers to multiple datasets, pass `split` to"
-            " `_get_builder()`."
-        )
-    else:
-      dataset = self.name
-      data_dir = self.data_dir
+    dataset, data_dir = self.get_split_params(split)
     builder_key = self._get_builder_key(dataset, data_dir)
     if builder_key not in LazyTfdsLoader._MEMOIZED_BUILDERS:
       if dataset:
@@ -311,12 +324,7 @@ class LazyTfdsLoader(object):
   ):
     """Returns a tf.data.Dataset for the given split."""
     dataset_split = self._map_split(split)
-    if self._is_custom_split_map:
-      name = self._split_map[split].dataset
-      data_dir = self._split_map[split].data_dir
-    else:
-      name = self.name
-      data_dir = self.data_dir
+    dataset, data_dir = self.get_split_params(split)
     read_config = self.read_config
     read_config.input_context = (
         tf.distribute.InputContext(  # pylint: disable=g-long-ternary
@@ -329,7 +337,7 @@ class LazyTfdsLoader(object):
     read_config.shuffle_seed = seed
     read_config.skip_prefetch = True
     return tfds.load(
-        name,
+        dataset,
         split=dataset_split,
         data_dir=data_dir,
         shuffle_files=shuffle_files,
