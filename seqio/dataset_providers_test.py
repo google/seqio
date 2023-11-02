@@ -920,6 +920,7 @@ class TasksTest(test_utils.FakeTaskTest):
     )
     test_utils.assert_datasets_neq(dataset1, dataset2)
 
+
   def test_plaintext_to_pretokenized_rename(self):
     ds = self.cached_plaintext_task.get_dataset(
         self._sequence_length, split="train", use_cached=True, shuffle=False
