@@ -170,9 +170,12 @@ def tokenize_and_append_eos(
 
 
 @utils.map_over_dataset
-def print_dataset(features):
-  """tf.Print dataset fields for debugging purposes."""
-  return {k: tf.Print(v, [v], k + ': ') for k, v in features.items()}
+def print_dataset(features, summarize=3):
+  """Print dataset fields for debugging purposes."""
+  return {
+      k: tf.keras.backend.print_tensor(v, f'{k}: ', summarize=summarize)
+      for k, v in features.items()
+  }
 
 
 def append_eos(
