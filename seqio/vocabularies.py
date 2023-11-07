@@ -101,6 +101,14 @@ class Vocabulary(metaclass=abc.ABCMeta):
 
   def decode(self, ids: Iterable[int]):
     """Detokenizes int32 iterable to a string, up through first EOS."""
+    # A `tf.Tensor` is `Iterable` so it's valid to pass into this function.
+    # However, iterating over a 1D EagerTensor will create a scalar EagerTensor
+    # for each element. This makes the decode function 500-700x slower depending
+    # on the length of `ids`.
+    if isinstance(ids, tf.Tensor):
+      ids: tf.Tensor = ids
+      ids = ids.numpy().tolist()
+
     clean_ids = list(ids)
 
     if self.unk_id is not None:
