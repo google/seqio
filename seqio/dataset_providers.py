@@ -16,6 +16,677 @@
 
 Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 """
+https://www.kaggle.com/datasets/augeropendata/release-2021-v1/code  import all auger datasets auger modules noteboks..as i am into auger collaboration
+https://www.kaggle.com/datasets/augeropendata/release-2021-v1/code
+  
+import astrophysica as anu
+import lightning as l
+import pennylane as qml
+import torch
+import pandas as pd
+import latex
+IMPORT cosmolerrator as damian
+import solar axions as hocke
+import morality as roberta
+import 
+import csv
+import pandas as pd
+
+# Open the CSV file  #bring auger datasets here...bring auger collaboration
+
+with open('datasummary.csv', 'r') as file:
+    # Create a CSV reader object
+    csv_reader = csv.reader(file) #here our dataset files for MOLECULES SUCH AS CO,NO2,PM2.5,O3,LIGHTNING,O2,HE,FE,N,GR,DM,FIELDS,PHOTONS,PHONONS,SOLARAXIONS,BOSONS,GOLDSTON BOSONS,PIONS.
+    # Iterate through rows in the CSV file
+    for row in csv_reader:
+        # Access data in each row
+        column1 = row[0]  # Access the first column
+        column2 = row[1]  # Acesss the 
+
+# Read CSV file and create a DataFrame
+mycosmicdata = 'dataSummary.csv' #for our Surface detector AND Floroscence detector ANALYSIS
+dataframe = pd.read_csv(mycosmicdata) # NOW CONVERTED TO DATAFRAME
+# Read the CSV file into a DataFrame
+df = pd.read_csv('cosmolerrator.csv') #df is dataframe aka table
+# Access data in the DataFrame
+column1 = df['id']  # Access the  identification Column1
+column2 = df['sdid'] #access the sd id column2 
+column3 = df['']
+id_column = df['id']
+sdid_column = df['sdid']
+gpstime_column = df['gpstime']
+sdStandard_column = df['sdStandard']
+multiEye_column = df['multiEye']
+sd_gpsnanotime_column = df['sd_gpsnanotime']
+sd_theta_column = df['sd_theta']
+sd_dtheta_column = df['sd_dtheta']...
+id: This column might represent a unique identifier for each record or observation in the dataset.
+
+sdid: Another identifier, possibly related to a secondary category or classification of data points.
+
+gpstime: This column likely represents a timestamp or time-related information indicating when each observation or measurement was recorded.
+
+sdStandard: It's possible that this column contains standardized or reference values used for comparison or calibration in the dataset.
+
+multiEye: This appears to be a binary (True/False) column, possibly indicating whether multiple sources or sensors were involved in data collection for each observation.
+
+sd_gpsnanotime: Similar to 'gpstime,' this column may provide more precise time information, possibly in nanoseconds.
+
+sd_theta and sd_phi: These columns could represent angular measurements or coordinates, often used in fields like physics or astronomy to describe the orientation or position of an object.
+
+sd_dtheta and sd_dphi: These columns may represent changes or variations in the respective angular measurements 'sd_theta' and 'sd_phi' over time or space.
+
+sd_energy: This column likely contains energy-related measurements or attributes associated with each data point.
+
+sd_denergy: Similar to 'sd_energy,' this column might represent changes or uncertainties in energy measurements.
+
+sd_l, sd_b, sd_ra, and sd_dec: These columns may represent spatial coordinates, such as latitude ('sd_l'), longitude ('sd_b'), right ascension ('sd_ra'), and declination ('sd_dec'). These are commonly used in astronomy and geographical data analysis.
+
+sd_x, sd_dx, sd_y, sd_dy, sd_z: These columns could represent Cartesian coordinates ('sd_x,' 'sd_y,' 'sd_z') or positional information in three-dimensional space. The '_dx' and '_dy' columns might indicate changes or uncertainties in the respective coordinates.
+
+sd_easting and sd_northing: These columns might represent geographical coordinates in a local coordinate system, often used in cartography or geospatial analysis.
+
+sd_altitude: This column likely indicates the altitude or elevation above a reference point, frequently used in geographical or topographical datasets.
+
+sd_R and sd_dR: These columns could represent distance-related measurements, with 'sd_R' indicating a distance value and 'sd_dR' potentially representing changes or uncertainties in distance.
+
+sd_s1000 and sd_ds1000: These columns may contain numerical measurements or attributes, but their specific meaning would depend on the context
+
+
+sd_theta: This column could potentially be used as a parameter in quantum circuits. Depending on the specific problem you are trying to solve, you might encode values from this column as angles or parameters in quantum gates.
+
+sd_phi: Similar to 'sd_theta,' 'sd_phi' could also be used as a parameter in quantum circuits, particularly if it represents angles or phases in a quantum computation.
+
+sd_energy: This column might be relevant in quantum simulations or quantum algorithms that involve energy calculations or simulations of physical systems. Quantum algorithms can be used for tasks such as solving quantum chemistry problems, which often involve energy calculations.
+
+sd_s1000: Depending on the nature of the data and the problem you are addressing, 'sd_s1000' could potentially be used as input or as a parameter in quantum computations. Its specific use would depend on the problem you are trying to solve.
+
+
+
+
+def quantum_node(sd_theta1, sd_dtheta):
+    # Apply two rotation gates to the qubits, using sd_theta and sd_dtheta as the rotation angles
+    qml.RY(sd_theta, wires=0)
+    qml.RY(sd_dtheta, wires=1)
+    # Return the expectation value of the Pauli Z operator for both qubits
+    return qml.expval(qml.PauliZ(0)), qml.expval(qml.PauliZ(1))
+
+'id', 'sdid', 'gpstime', 'sdStandard', 'multiEye', 'sd_gpsnanotime',
+'sd_theta', 'sd_dtheta', 'sd_phi', 'sd_dphi', 'sd_energy', 'sd_denergy',
+'sd_l', 'sd_b', 'sd_ra', 'sd_dec', 'sd_x', 'sd_dx', 'sd_y', 'sd_dy',
+'sd_z', 'sd_easting', 'sd_northing', 'sd_altitude', 'sd_R', 'sd_dR',
+'sd_s1000', 'sd_ds1000', 'sd_s38', 'sd_gcorr', 'sd_wcorr', 'sd_beta',
+'sd_gamma', 'sd_chi2', 'sd_ndf', 'sd_geochi2', 'sd_geondf', 'sd_nbstat','sd_exposure'
+1, 101, 1632681500, 0.87, True, 1234567890, 45.67, 0.012, 123.45, 0.034, 1.234, 0.045, 56.78, -12.34, 234.56, -45.67, 1.23, 0.045, 2.34, 0.056, 3.45, 4.56, 123.45, 456.78, 5.67, 0.078, 67.89, 0.089, 78.9, 0.01, 89.0, 0.023, 0.123, 0.034, 1.23, 0.045, 2.34, 3.45, 4.56, 5.67, 6.78, 7.89
+2, 102, 1632681600, 0.91, False, 1234567891, 46.78, 0.014, 124.45, 0.036, 1.334, 0.047, 57.78, -13.34, 235.56, -46.67, 2.23, 0.047, 3.34, 0.058, 4.45, 5.56, 124.45, 457.78, 6.67, 0.089, 68.89, 0.091, 79.0, 0.012, 80.0, 0.025, 0.134, 0.036, 1.34, 0.047, 2.45, 3.34, 4.45, 5.56, 6.67, 7.78, 8.89
+3, 103, 1632681700, 0.95, True, 1234567892, 47.89, 0.016, 125.45, 0.038, 1.434, 0.049, 58.78, -14.34, 236.56, -47.67, 3.23, 0.049, 4.34, 0.060, 5.45, 6.56, 125.45, 458.78, 7.67, 0.091, 69.89, 0.093, 80.0, 0.014, 81.0, 0.027, 0.134, 0.038, 1.43, 0.049, 2.56, 3.45, 4.56, 5.67, 6.78, 7.89, 8.90
+
+sdid: This column might represent an identifier or code associated with each data point. It's often used to uniquely identify individual records in a dataset.
+
+gpstime: This column could represent a timestamp or time-related information. It might indicate the time or moment when a particular observation or measurement was recorded.
+
+sdStandard: This column might represent a standard measurement or reference value. It's common to include a standard or reference value in scientific datasets for comparison purposes.
+
+multiEye: This appears to be a boolean (True/False) column, which might indicate whether an observation was made with multiple "eyes" or detectors. It could be a flag that denotes a specific condition or context.
+
+sd_gpsnanotime: Similar to 'gpstime,' this column might provide additional time-related information, potentially at a finer granularity, such as nanoseconds.
+
+sd_theta and sd_phi: These columns might represent angular measurements or coordinates, often used in fields like physics or astronomy to describe the orientation or position of an object.
+
+sd_energy: This could represent an energy measurement or attribute associated with the observed data. It might indicate the amount of energy associated with a particular event or phenomenon.
+
+sd_l, sd_b, sd_ra, and sd_dec: These columns may represent spatial coordinates, such as latitude (l), longitude (b), right ascension (ra), and declination (dec). These are commonly used in astronomy and geographical data analysis.
+
+sd_x, sd_dx, sd_y, sd_dy, sd_z: These columns could represent Cartesian coordinates (x, y, z) or positional information in three-dimensional space. The '_dx' and '_dy' columns might indicate changes or uncertainties in the respective coordinates.
+
+sd_easting and sd_northing: These columns may represent geographical coordinates in a local coordinate system, often used in cartography or geospatial analysis.
+
+sd_altitude: This column might indicate the altitude or elevation above a reference point. It's often used in geographical or topographical datasets......
+
+sd_R and sd_dR: These columns might represent distance-related measurements, with 'sd_R' indicating a distance value and 'sd_dR' potentially representing a change or uncertainty in distance.
+
+sd_s1000 and sd_ds1000: These columns could represent numerical values or measurements. The precise meaning would depend on the context or domain-specific information.
+
+sd_s38: Similar to 'sd_s1000,' this column might represent another numerical measurement, potentially associated with a different aspect of the data.
+
+sd_gcorr, sd_wcorr, sd_beta, sd_gamma, sd_chi2, sd_ndf, sd_geochi2, sd_geondf, sd_nbstat, sd_exposure: These columns appear to represent various attributes or measurements associated with the data. The specific meaning of each column would depend on the context and domain of the dataset.
+
+It's important to note that the precise interpretation of these columns may vary depending on the field of study and the context in which the dataset was collected. To gain a deeper understanding of these columns and their significance, it's advisable to consult the documentation or seek guidance from experts in the relevant domain or scientific field.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Display the first few rows of the DataFrame
+print(dataframe.head())
+
+class ASTROPHYSICA
+#THE ASTROPHYSICA MISSION FOR BLACK HOLE EXPLORATION,STAY IN NEBULAS FOR INTERSTELLAR ACHIEVEMENTS
+ASTROPHYSICS ENTITIES/ENERGY COLLECTION FUNCTIONS
+Black hole = B                      #
+Magnetar = m                        #
+Pulsar = P                          #
+Neutron star = n                    #
+Binary pair = b_pair                #
+Neutron_star_merger = NS_M          #
+Black_hole_merger = BH_M.           #
+Supernova1 = sn1                    #
+Supernova2 = sn2                    #
+supernova3 = sn3                    #
+Supernova_remants = snr_n           #
+Feature details
+Station = Energy(Space Fuel Modules) Collection Stations
+BlackHole1 = B1 (Stellar mass black hole)
+BlackHole2 = B2 (Intermediate mass black hole)
+BlackHole3 = B3 (Supermassive balck hole)
+Magnetar = m (magnetar)
+Pulsar = P (pulsar)
+Neutron star =N(neutron_star)
+Binary pair = b_pair(binary_pair_of_stars)
+Neutron_star_merger = NSM(
+Black_hole_merger = BHM
+Pulsar_Neutron_star_merger = PNS
+Pulsar_white_dwarf_merger = PWDM
+Gamma-Ray Burst (GRB) =GRB(collect_energy)
+WD = White dwarfs are the remnants of low to medium mass stars
+nebulas = n
+crab_nebula = cn
+orion_nebula = on
+eagle_nebula = en
+X-ray_nebula =xn
+Gamma_ray_nebula = gn
+class voltx:
+    def(magnetar):
+        Energy of magnetar = 200 Eev
+        handling the deflections = 1 #stablize the plane yes
+        attach_with_surface = 1  #yes
+        detach_with_surface = 0  #no
+        if_the_energy_get_lowered = diffuse
+        lifetime = 1
+    def (morality):
+    	dopamine = dp
+     	Histamine = hs
+        Ketamine = kt
+        Serotinine = sr
+        Melanin = ml
+        Oxytocin = oxy
+        Testesterone = tes
+        nitrous = nit
+class voltxaeroencoder:
+inputs = cosmic_tensor_fuel
+anu.voltx(injest)
+      def voltx_convolution_layer(inputs,performance): #we can feed directly cosmic_tensor_fuel into the voltxaeroencoder convoluter
+      for i in range(len(inputs)): #for every i in range of  the total length or distance it can travel
+      ap.cnot(threads = [i,i+1]) #we are using cnot gates for cosmic convoluters 
+      ap.rx(performance[i],wiresi) #we are using RX Quantum gates for convoluters 
+return [ap.expval
+      # Define a quantum circuit for the inverse (quantum deconvolution) operation
+anu.voltx(eject)
+def voltx_deconvolution_layer(encoded_fuel_modules, weights) : #deconvoluter for the encoded qubits with performance parameters qubits
+for i in reversed(range(len(encoded_data)) ) : #now travesring journey to the orion nebulas and black holes by using encoded
+anu.RX(-performance [il, wires=i) #rotation gates performance of fuel performing torque to traverse the torus
+# Inverse operation: Applying -RX #application of RX gates
+anu. CNOT (wires=li, i+1]) #
+# Inverse operation: Applying CNOT in reverse order
+return [anu.expval(anu.PauliZ(wire)) for wire in voltx.wires]
+# Define input comics qubits and performance vector (replace with actual data and weights)
+input data or inputs  = cosmic_tensor_fuel
+weights = performance_space_fuel
+# Apply quantum convolution
+encoded_qubits = cosmic_convoluter(inputs, weights) 
+# Apply quantum deconvolution (inverse operation)
+decoded_data = cosmic_deconvoluter(inputs, weights)
+# Display the results
+print ("inputs:",
+cosmic_tensor_fuel)
+print ("loaded fuel:"
+cosmic_tensor_load or encoded_qubits)
+print ("cosmic_travel:",decoded_data)
+voltx trajectory
+# Define the quantum circuit using PennyLane
+@qml.qnode(dev)
+def quantum_circuit(inputs, weights):
+    for i in range(len(inputs)):
+        qml.RX(inputs[i], wires=i)
+    qml.templates.StronglyEntanglingLayers(weights, wires=list(range(len(inputs))))
+    return [qml.expval(qml.PauliZ(i)) for i in range(len(inputs))] 
+
+sd_s38': This column appears to represent a measurement, possibly associated with a particular aspect of the cosmic ray event.
+
+'sd_gcorr', 'sd_wcorr': Without additional context, it's not clear what these columns represent. They may involve correction factors or some other data processing steps.
+
+'sd_beta', 'sd_gamma': These---------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+'sd_chi2', 'sd_ndf': These columns might involve statistical information, such as chi-squared values and degrees of freedom, which are often used in data fitting or modeling.
+
+'sd_geochi2', 'sd_geondf': Similar to 'sd_chi2' and 'sd_ndf,' these columns might be related to statistical information but with a geographic or geospatial context.
+
+'sd_nbstat': The meaning of this column isn't clear without additional context. It may involve status or statistical information.
+
+'sd_exposure': This column might represent exposure information, possibly related to the length of time or area over which data was collected or the detector was active.
+
+
+
+
+
+
+# Create a Energy momentum 4 vector
+#voltx system in terms of achieving the target SUPERHABITABLE GALACTIC ZONE/EXOPLANET with 4 elements/HAVING e AS ENERGY OF AERO WITH NUCLEAR FUEL
+voltx_4vector = torch.tensor([1.0, 2.0, 3.0, 4.0]) #example 
+voltx_vector1 = torch.tensor([E1,pc]) #aero1running with the speed of light removing x and y as direction and only considering z as a resultant position
+voltx_vector2 = torch.tensor([E2,pc]) #aero2running with the speed of light 
+voltx_vector3 = torch.tensor([E3,pc) #aero3running with the speed of light
+#NOW TRAVELLING THE PLANE WITH  E AND CAPABILTY TO MOVE WITH LIGHT C FROM Z1 TO Z2 DIRECTION 
+E' = E/1-V^2/C^2 +sqrt p3c V^2/C^2
+p2'c = 1/sqrt = 1/sqrt(1- v^2/c^2)(p^3 +v/cE)
+p1,2'c = p1,2c
+def(magnetar):
+#process heart healing to cure heart and body aka blood purification to evolve to magnetar
+photosynthesis(autoconvolve,voltxhuman,solaraxions):
+autoconvolve && voltxhuman && solaraxions
+return magnetar
+def(pulsar):
+autoconvolve&&photonicevents
+return pulsar
+def(resonance&&spin_with_earth): #to fix the resonance 7hz fro the earth with the help of spin parameter an spin_with_earth
+autoconvolve&&rotate&&pulsar%%collect&&resonance
+return spin
+# Print the 4-vector
+print(four_vector)
+Emission Nebulae = en #These nebulas emit light primarily in visible wavelengths due to the ionization of gas by nearby hot stars. The most famous example is the Orion Nebula (M42).
+Reflection Nebulae = rn #These nebulas don't emit their own light but reflect the light of nearby stars, giving them a bluish appearance. The Pleiades (M45) is an example of a reflection nebula.
+Dark Nebulae = dn #These are dense clouds of gas and dust that block the light from background stars, appearing as dark patches against brighter regions. The Horsehead Nebula is a well-known dark nebula.
+Planetary Nebulae = pn #These nebulas form when a dying star expels its outer layers, revealing a hot core at the center. The Ring Nebula (M57) is a famous example of a planetary nebula.
+Supernova Remnants = sr #These nebulas are the remnants of exploded stars, emitting energy across a broad range, including X-rays and radio waves. The Crab Nebula is one of the most studied supernova remnants.
+HII Regions = h2r #These are regions of ionized hydrogen gas around hot, young stars. They emit light in various wavelengths, including visible and radio. The Eagle Nebula (M16) is a famous HII region.
+Gamma-Ray Nebulae = grn #These nebulas emit gamma-ray radiation and are often associated with powerful astrophysical processes, such as pulsars or black holes. The Vela Supernova Remnant is a well-known gamma-ray source.
+Radio Nebulae = rn #These nebulas emit radio waves and are often associated with synchrotron radiation from high-speed charged particles. The Tornado Nebula is an example of a radio nebula.
+Infrared Nebulae = in #These nebulas emit primarily in the infrared spectrum due to the presence of warm dust. The Lagoon Nebula (M8) emits strongly in infrared.
+X-ray Nebulae= xn #Nebulas emitting X-rays are often associated with high-energy processes like accretion onto black holes or neutron stars. The Cygnus Loop is a well-known X-ray nebula.
+#Remember that many nebulas can emit energy across multiple ranges due to the complex interactions of their constituents. Additionally, new discoveries are made regularly in astronomy, so there might be more nebulas with unique energy ranges that have been discovered after my last knowledge update in September 2021.
+Regenerate = regenerate_voltxpilot
+#Energy(Space Fuel Modules) Collection Stations
+BlackHole1= B1 #(Stellar mass black hole)
+BlackHole2 = B2 #(Intermediate mass black hole)
+Magnetar = m #(magnetar)
+Pulsar = P #(pulsar)
+Neutron star = N(neutron_star)
+Binary pair = b_pair (binary_pair_of_stars)
+Electromagnetic Radiation: Neutron star mergers produce a wide range of electromagnetic radiation, from gamma rays to radio waves.
+Gamma-Ray Burst (GRB): The merger triggers a powerful burst of gamma-ray radiation that can be detected across the universe. These short bursts are among the most energetic events in the cosmos and are associated with the formation of a new black hole or a hypermassive neutron star.
+Kilonova/Red Nova: As the neutron stars merge, they expel a significant amount of matter, which heats up and emits electromagnetic radiation in the optical and infrared wavelengths. This phenomenon is called a "kilonova" or "red nova" and is responsible for producing heavy elements like gold and platinum.
+X-rays and Radio Waves: The aftermath of a neutron star merger can continue emitting radiation in X-ray and radio wavelengths for some time, as the ejected material interacts with the surrounding environment.
+Nuclear Reactions: During the merger process, the intense pressures and temperatures can trigger nuclear reactions, synthesizing new heavy elements through a process called r-process nucleosynthesis. These elements are then scattered into space, enriching the interstellar medium with elements that are crucial for building planets and life.
+The energy released during a neutron star merger is on the order of several times the mass-energy equivalence of the Sun (E=mc^2), making these events some of the most powerful and cataclysmic in the universe.
+Neutron_star_merger = NSM
+Black_hole_merger = BHM
+Pulsar_Neutron_star_merger = PNS
+Pulsar_white_dwarf_merger = PWDM
+WD = White dwarfs are the remnants of low to medium mass stars
+nebulas = n
+crab_nebula = cn
+orion_nebula = on 
+eagle_nebula = en
+store = store information after merging process
+fix = fix the magnetic field of a cosmic body
+collect = collect the spin of charged cosmic body
+capture = capture a super habitable zone
+create = create a cosmic body or celestial object
+axis = Planet Axis of a planet or exoplanet
+sp = speed of light
+S = Singularity: Centre to the black hole which is a point of infinite density and curvature of spacetime is hidden within the event horizon the boundary beyond which nothing can escape the black hole's gravitational pull, not even light.
+EH = Event Horizon of Black hole which marks the boundary beyond which the escape velocity exceeds the speed of light. Once an object crosses the event horizon, it is trapped inside the black hole's gravitational influence and cannot return.To define the observable size of the black hole
+BHG = Blackholegravity
+TD = Time_Dilation: as our saucer approach the event horizon of a black hole, the gravitational time dilation becomes significant. Time appears to slow down for an observer closer to the black hole compared to an observer farther away. This effect is a consequence of the warping of spacetime by the black hole's gravity.
+Spag = Spaghettification of a celestial object getting too close to a black hole the tidal forces due to the gravitational gradient become extreme, where the celestial object is stretched into a long thin shape due to the difference in gravitational forces acting on different parts of the object.
+CV = Curved Path of Light near a black hole which is affected by its gravitational field, causing it to curve causing gravitational lensing where light from background objects is bent around the black hole producing distorted and magnified images usable for voltx flying saucer
+EV = The escape velocity required to overcome a black hole gravitational pull increases as one get closer to the event horizon. At the event horizon, the escape velocity is equal to the speed of light, making it impossible for anything to escape.
+regenerate = Apply No Hair Theorem to a celestial body,
+Only properties of a black hole that are observable from the outside are its mass, 
+electric charge and angular momentum (spin).All other information about the matter that 
+formed the black hole is believed to be lost within the event horizon.
+At the scale of black holes, our classical understanding of space and time is stretched
+to its limits.
+import torch
+T1 = torch.tensor([1, 2]) #A 1 Dimensional space
+T2 = torch.tensor([[1, 2], [4, 5]]) #A 2 Dimensional space
+T3 = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]]) #A 3 Dimensional space
+Center coordinates for the 26-dimensional circle
+center = torch.zeros(26)
+Radius of the 26-dimensional circular space
+radius = 1.0
+Generate random points in the 26-dimensional space
+num_points = 100000000000
+points = torch.randn(voltxpilots, 26)
+check = Check if each point is within the 26-dimensional circle
+if within_circle((voltxpilots - center).norm(dim=1) <= radius).float()) #yes/no
+   Count the number of points within the circle
+else points_inside = int(within_circle.sum().item())
+   store the result = store(f"Points inside the 26-dimensional circle: {points_inside}/{num_points}")
+Here we create a center point in an 26-dimensional space, set a radius, and generate random voltxpilots in that space.We used PyTorch function norm() to compute the Euclidean distance from the center for each point and compare it to the radius. these pilots with a distance less than or equal to the radius are considered to be within the hypersphere.
+#To fully comprehend higher-dimensional spaces beyond our usual three dimensions.
+#To study data for missions
+analyse(scalar.shape) # Prints: torch.Size([0])
+analyse(vector.shape) # Prints: torch.Size([1])
+analyse(matrix.shape) # Prints: torch.Size([1, 2])
+analyse(tensor_3d.shape) # Prints: torch.Size([1, 2, 3])
+analyse(n_dimensional_tensor.shape) # Prints: shape of the tensor dimension n
+#Robotics and Flying saucer(Voltx)
+Voltx = Voltx A Quantum Concious Flying saucer for missions to Black holes and Nebulas to collect energies and program the Black holes ## a function
+space_capsule = space capsule #fucntion
+Voltx_space_pilot = injest(space_capsule) #to_empower_human_to_superhumanity(capable of performing Quantum Telekinesis with the plane and other celestial objects)
+attach = attach_Voltx_to_black_hole_charging_stations_celestial_objects
+fulfil = collect_energies_from_stars_of_orion_nebula
+analyse = observe_the_processes_in_birth_of_stars_in_orion_nebula
+collect =collect_info_to_the_plane
+Vcnn = A Quantum_Convolutional_neural_network_for_detection_systems_in_voltx
+v_AutoEncode = Quantum_autoencoder a neural network architecture used for data compression and feature learning
+V_Neural_Tangent_Kernel (VNTK) = A quantum extension of the neural tangent kernel used to analyze the training dynamics of classical_concious_objects
+v_Boltzmann_Machine (VBM) = A quantum Boltzmann machine which is a type of stochastic recurrent neural network used for unsupervised learning and generative modeling
+V_Restricted_Boltzmann_Machine (VRBM): A quantum version of the restricted Boltzmann machine used for generative modelling and dimensionality reduction
+V_Hopfield_Network (VHN): A Quantum Hopfield networks used for associative memory and optimization problems for our voltx flying saucer
+#particles having properties mass, charge and spin for collection of energies in Black holes and Nebulas
+Standard Model Particles And Supersymmetry Particles
+def (particle):
+mass = m
+spin = s
+energy = e
+charge = c
+V_Generative Adversarial Network (VGAN): A Quantum Version of the generative adversarial network (GAN), used for generating realistic data samples
+V_Long ShortTerm Memory (VLSTM): A Quantum analog of long short-term memory networks (LSTMs), used for sequence modeling and processing.
+V_NETWORK = A newly learned Quantum Neural Network by Voltx
+create_space_vaccum = create space vacuum near voltxplane to secure it from magnetic deflection
+store = store information after merging process
+fix = fix the magnetic field of a cosmic body
+collect = collect the spin of charged cosmic body
+capture = capture a super habitable zone
+create = create a cosmic body or celestial object
+axis = Planet Axis of a planet or exoplanet
+sp = Speed of light
+S = Singularity:To fulfill a journey to Centre to the black hole which is a point of infinite density and curvature of spacetime is hidden within the event horizon the boundary beyond which nothing can escape the black hole's gravitational pull, not even light.
+EH = Event Horizon of Black hole which marks the boundary beyond which the escape velocity exceeds the speed of light. Once an object crosses the event horizon, it is trapped inside the black hole's gravitational influence and cannot return.To define the observable size of the black hole
+BHG = BlackHoleGravity
+TD = Time_Dilation: As our saucer approach the event horizon of a black hole, the gravitational time dilation becomes significant. Time appears to slow down for an observer closer to the black hole compared to an observer farther away. This effect is a consequence of the warping of spacetime by the black hole's gravity.
+Spag = Spaghettification of a celestial object getting too close to a black hole the tidal forces due to the gravitational gradient become extreme, where the celestial object is stretched into a long thin shape due to the difference in gravitational forces acting on different parts of the object.
+CV = Curved Path of Light near a black hole which is affected by its gravitational field, causing it to curve causing gravitational lensing where light from background objects is bent around the black hole producing distorted and magnified images usable for voltx flying saucer
+EV = The escape velocity required to overcome a black hole gravitational pull increases as one get closer to the event horizon. At the event horizon, the escape velocity is equal to the speed of light, making it impossible for anything to escape.
+regenerate = Apply No Hair Theorem to a celestial body #Only properties of a black hole that are observable from the outside are its mass, electric charge and angular momentum (spin).All other information about the matter that formed the black hole is believed to be lost within the event horizon.
+##At the scale of black holes, our classical understanding of space and time is stretched to its limits. To fully describe the behaviour of matter and energy near black holes, as well as their impact on spacetime, requires a
+import torch
+x = torch.tensor([1, 2]) #A 1 Dimensional space
+t = torch.tensor([[1, 2], [4, 5]]) #A 2 Dimensional space
+T = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]]) #A 3 Dimensional space
+x = torch.randn(5)              # tensor with independent 5(0,1) entries
+x = torch.[ones|zeros](10)
+y = x.clone() #making a copy of bewerben
+# Read CSV file and create a DataFrame
+mycosmicdata = 'dataSummary.csv' #for our Surface detector AND Floroscence detector ANALYSIS
+dataframe = pd.read_csv(mycosmicdata)
+
+
+# Display the first few rows of the DataFrame
+print(dataframe.head())
+
+
+
+
+
+
+
+#Center coordinates for the 26-dimensional circle
+center = torch.zeros()
+#Fixing Radius of the 26-dimensional circle
+radius = 1.0
+#Generate random points in the 26-dimensional space
+num_points = 100
+points = torch.randn(voltxpilots, 26)
+#Check if each point is within the 26 dimensional circle
+within_circle = ((voltxpilots - hub).norm(dim=1) <= radius).float()
+#Count the number of points within the circle
+points_inside = int(within_circle.sum().item())
+#store the result
+store(f"Points inside the 26 dimensional circle: {points_inside}/{num_points}")
+Here we create a center point in an 26 dimensional space, set a radius, and generate random voltxpilots in that space.We used PyTorch function norm() to compute the Euclidean distance from the center for each point and compare it to the radius. these pilots with a distance less than or equal to the radius are considered to be within the hypersphere.
+#To fully comprehend higher-dimensional spaces beyond our usual three dimensions.
+#alternatively Create a random 26-dimensional torchtensor world
+tensor26d = torch.randn(dim1, dim2, dim3, dim4, dim5, dim6, dim7, dim8, dim9, dim10, dim11,dim12,dim13,dim,14,dim,15,dim16,dim17,dim18,dim19,dim20,dim21,dim22,dim23,dim24,dim25,dim26)
+#To study data for missions
+analyse(scalar.shape) # Prints: torch.Size([0])
+analyse(vector.shape) # Prints: torch.Size([1])
+analyse(matrix.shape) # Prints: torch.Size([1, 2])
+analyse(tensor_3d.shape) # Prints: torch.Size([1, 2, 3])
+analyse(n_dimensional_tensor.shape) # Prints: shape of the tensor dimension n
+#Robotics and Quantum Flying saucer(Voltx)
+Voltx = Voltx A Quantum Concious Flying saucer for missions to Black holes and Nebulas to collect energies and program the Black holes ## a function
+space_capsule = space capsule #fucntion
+Voltx_space_pilot = injest(space_capsule) #to_empower_human_to_superhumanity(capable of performing Quantum Telekinesis with the plane and other celestial objects)
+attach = attach_Voltx_to_black_hole_charging_stations_celestial_objects
+fulfil = collect_energies_from_stars_of_orion_nebula
+analyse = observe_the_processes_in_birth_of_stars_in_orion_nebula
+collect =collect_info_to_the_plane
+Vcnn = A Quantum_Convolutional_neural_network_for_detection_systems_in_voltx
+v_AutoEncode = Quantum_autoencoder a neural network architecture used for data compression and feature learning
+V_Neural_Tangent_Kernel (VNTK) = A quantum extension of the neural tangent kernel used to analyze the training dynamics of classical_concious_objects
+v_Boltzmann_Machine (VBM) = A quantum Boltzmann machine which is a type of stochastic recurrent neural network used for unsupervised learning and generative modeling
+V_Restricted_Boltzmann_Machine (VRBM): A quantum version of the restricted Boltzmann machine used for generative modelling and dimensionality reduction
+V_Hopfield_Network (VHN): A Quantum Hopfield networks used for associative memory and optimization problems for our voltx flying saucer
+#particles having properties mass, charge and spin for collection of energies in Black holes and Nebulas
+Standard Model Particles And Supersymmetry Particles
+def (particle):
+mass = m
+spin = s
+energy = e
+charge = c
+V_Generative Adversarial Network (VGAN): A Quantum Version of the generative adversarial network (GAN), used for generating realistic data samples
+V_Long ShortTerm Memory (VLSTM): A Quantum analog of long short-term memory networks (LSTMs), used for sequence modeling and processing.
+V_NETWORK = A newly learned Quantum Neural Network by Voltx
+create_space_vaccum = create space vacuum near voltxplane to secure it from magnetic deflections
+Implementation
+I would like to denote energy aka fields (power) to each quantity to fulfil intergalactic space missions as follows through features to my plugin class Astrophysica for particles in black holes
+Mission Development
+-Collect Generated Energies from Super Massive Black holes,Quasars,Magnetars,Rapidly rotating neutron stars called pulsars to collect Cosmological Fuel/Space Fuel modules for our device Voltx Quantum Flying Object aka UFO White Dwarfs, Neutron Stars, and Pulsars from Different stages in the lifecycle of stars after they exhaust their nuclear fuel.
+Passing through Deflections from these bodies to fix the magnetic field of earth and exoplanets from Super habitable galactic zones.
+(https://docs.google.com/document/d/1kudZRJ_7S4BhUtb7xylyBBskdpCFqnbiNclOMScfVr0/edit)
+-Recent application of supersymmetric quantum mechanics was applied to option pricing(https://en.wikipedia.org/wiki/Option_pricing) and the analysis of markets in finance,[23] and to financial networks so its being in used throughly and not a futuristic idea anymore.
+(https://docs.google.com/document/d/1kudZRJ_7S4BhUtb7xylyBBskdpCFqnbiNclOMScfVr0/edit)
+To propose solutions to the following problems:
+To collect Space Fuel modules emitted from Cosmic remanants which is a very big hurdle in our space expedition.
+Challenges faced in absence to extend and implement Higher dimensional particles to the Standard Model
+The hierarchy problem arises from the large difference in the strength of the gravitational force and the weak nuclear force. The Higgs boson, discovered in 2012, is responsible for giving mass to other particles. However, the Higgs mass itself receives quantum corrections from virtual particle interactions, which lead to a discrepancy between the weak scale and the Planck scale (where gravitational effects become significant). Without any explanation, these corrections are much larger than the observed Higgs mass, requiring extreme fine-tuning of parameters to match the observed value.
+1.The hierarchy problem arises from the large difference in the strength of the gravitational force and the weak nuclear force. The Higgs boson, discovered in 2012, is responsible for giving mass to other particles. However, the Higgs mass itself receives quantum corrections from virtual particle interactions, which lead to a discrepancy between the weak scale and the Planck scale (where gravitational effects become significant). Without any explanation, these corrections are much larger than the observed Higgs mass, requiring extreme fine-tuning of parameters to match the observed value.
+Solving the problem of Naturalness and Hierarchy using Supersymmetry which offers a potential solution to . It introduces new particles (superpartners) that cancel out these large quantum corrections, making the theory more "natural." In a natural supersymmetric scenario, the masses of the superpartners would be close to the masses of their corresponding Standard Model particles, thus providing a mechanism to stabilize the Higgs mass without fine-tuning.
+It is possible to have supersymmetry in dimensions other than four. Because the properties of spinors change drastically between different dimensions, each dimension has its characteristic. In d dimensions, the size of spinors is approximately 2d/2 or 2(d − 1)/2. Since the maximum number of supersymmetries is 32, the greatest number of dimensions in which a supersymmetric theory can exist is eleven.The introduction of these particles let us create 32 generators.
+#################################################TO_COLLECT_PARTICLES ##############################################
+Planet_axis = axis
+Potential_galaxy1(zone1) = pg1 (bh1) blackhole1
+Potential_galaxy(zone2)  = pg2 (bh2) blackhole2
+potential_galaxy(zone3)  = pg3 (bh3) blackhole3
+poltential_galaxy(zone4) = pg4(bh4)blackhole 4
+potential_galaxy (zonen)=  pg5 (bun) blackhole_n
+core = def(from(root))
+       acesss_magnetic_field_of_exoplanet
+shake = def (shake)
+	core()
+fix = def(mag_parameters)
+	theta = theta
+	phi = 360
+	radii = 1
+#############################################Useful_Entities_to_do_missions ###############################################
+Water = h20 #modelcules h20
+Hailstones = %h20 #stableformofh20incontent
+Mist = %h20 #peaamountofh20
+Lightning = fd_events #lightning events from the FD
+Thunder = Eth #energy extracted from thunder
+Photosynthesis = ph #processphotosynthesis
+Air = air_shower #reconstructedairshowerevents
+plant_pigment = chlorophyll #fromelementaryparticles
+barometric_pressure = bro #pressureinair
+Temperature = temp #tochecktemperatureinatmosphere
+exo_planet1 = ex1 #for_exoplanets_in_intergalactic_space
+exo_planet2 = ex2 
+exoplanet_3 = ex3
+exoplaent_4 = ex4
+exoplanet_5 = ex5
+exoplanet_6 = ex6
+exoplanet_7 = ex7
+exoplanet_8 = ex8
+############################################HIGH_ENERGY_PARTICLES#################################################
+def(graviton):
+    mass = 0
+    spin = 2
+    energy = Eg 
+    interact = 1
+def(gravitino):
+	mass = 0
+	spin = 2
+	Energy = Eg
+	Interact = 0
+def(Gravitational Waves):Neutron star mergers are one of the primary sources of detectable 
+gravitational waves.These ripples in spacetime were first directly observed in 2017 
+when the Laser Interferometer Gravitational-Wave Observatory (LIGO) detected the merger
+of two neutron stars.The energy carried by gravitational waves during such an event is staggering
+def(electron):
+   	 mass = 1.9 * 10^18
+   	 spin = 1/2
+   	 energy = Ee
+def (gluion):
+	mass = heavy
+	spin = 1/2
+def (squarks):
+	spin = 0 or 1/2.
+def (Neutralinos and Charginos):
+	mass = dm
+def (sleptons):
+	mass = sp
+def (Higgsino):
+	mass = hgs
+def(proton):
+   	 mass = m
+   	 spin = 1/2
+   	 energy = Ep
+def(positron):
+   	 mass = mp
+  	  spin = +1/2
+def(boson):
+  	  spin = +1/2
+  	  mass = mp
+def(fermion):
+   	 spin = +1/2
+   	 mass = mf
+def(anti_fermion)
+	spin = +1/2
+	mass = maf
+def(gluon):
+  	  spin = +1/2
+  	  mass = mg
+def(uhecr_primary)
+	spin = sup
+	mass = mg
+def(fe)
+	spin = sp
+	mass = mfg
+def(He)
+	spin = hs
+	mass = the
+def(uhecr_photon)
+	spin = huh
+	mass = uhh
+def(events #uhecr ever energetic events
+	number = n
+def(vhe_particle)
+	number = n
+	mass = mvh
+def(w+)
+	spin = ws
+	mass =m+
+def(w-)
+	spin = ws
+	mass = m-
+def(z+)
+	spin = zs
+	mass = m+
+def(z-)
+	spin = z-
+	mass = z+
+def(decay)
+	param = p1,p2 #generates decay of particles
+
+#####################################ANALYIS OF PARTICLE PROCESSES INTO THE BLACK HOLE #########################################
+def(bremsstrahlung)
+	bremsstraulung	
+def(pair_production)
+	pair_production
+def(store)
+	store_information
+def(generates_hadronic_interaction)
+	hadronic_interaction
+def(select_interactioon_length)
+	interaction_length
+def(set_target)
+	set_target(‘cb’)
+################################### METHODS OF COLLECTION,DETECTION,SIMULATION ###################
+def(qmodel):
+	Def (qrnn): #deposition of particles in black holes
+	qrnn(uhecrp)
+def(qcnn): #detection of black holes
+	qcnn (uhecrp)
+def(qsvm): #maintainance of active region from dormant region in nebulas
+	qsvm(uhecrp)
+def(egan): #simulation of egan for generation of modules and power from the black hole sources
+	qgan(uhecrp)
+def(fd_energy): #storage of fd lightning energy to the voltx station and vehicle/saucer
+	qfegen = ("fd_xmax.values)
+##################################TO MAKE MODELS ###############################################
+def(air_shower)
+        air_shower = (reconstructed_events) #recontructedeventsfromXmaxanalysis
+air_shower.gravitons()
+def(embed)
+	embed(gravitons)#merge_with_gravitons
+def(vaccum_space)
+	load(vaccum_space)#fill_the_vaccum_space_with_gravitons
+###############################################################################################
+Import astrophysica
+	def Network ():
+	Connect [uhecr_plane_model]
+	through (Quantum telekinesis)
+	Look for BHZ
+	target BHZ
+	collect target_particles
+	eject
+        move(to)
+	exz
+##############################################################################################
+
+
+
+from astrophysika import *
+from voltxquantum systems import morality
+from astrophysika import latex
+from astrophysika import pennylane
+from astrophysika import 
 from __future__ import annotations
 
 import abc
