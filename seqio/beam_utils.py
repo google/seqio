@@ -135,16 +135,7 @@ class PreprocessTask(beam.PTransform):
           self._preprocessors_seed or 0
       )
 
-    ds = task.source.get_dataset(
-        split=self._split,
-        shard_info=seqio.ShardInfo(
-            index=shard_index, num_shards=len(self.shards)
-        ),
-        shuffle=False,
-        seed=shard_preprocessors_seed,
-    )
-    ds = task.preprocess_precache(ds, seed=shard_preprocessors_seed)
-    ds = ds.prefetch(tf.data.AUTOTUNE)
+    ds = self._get_dataset(task, shard_index, shard_preprocessors_seed)
 
     def _add_provenance(
         index_within_shard: int, ex: Dict[str, Any]) -> Dict[str, Any]:
@@ -166,6 +157,22 @@ class PreprocessTask(beam.PTransform):
       if i & (i - 1) == 0:
         logging.info("Example [%d] = %s", i, ex)
       yield ex
+
+  def _get_dataset(
+      self, task: seqio.Task, shard_index: int, shard_preprocessors_seed: int
+  ) -> tf.data.Dataset:
+    """Gets and preprocesses the dataset for the provided task."""
+    ds = task.source.get_dataset(
+        split=self._split,
+        shard_info=seqio.ShardInfo(
+            index=shard_index, num_shards=len(self.shards)
+        ),
+        shuffle=False,
+        seed=shard_preprocessors_seed,
+    )
+    ds = task.preprocess_precache(ds, seed=shard_preprocessors_seed)
+    ds = ds.prefetch(tf.data.AUTOTUNE)
+    return ds
 
   def expand(self, pipeline):
     return (
