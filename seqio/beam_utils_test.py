@@ -109,6 +109,31 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
       self.assertLen(counters, 1)
       self.assertGreater(counters[0].committed, 0)
 
+  def test_preprocess_task_with_preprocess_postcache(self):
+    def preprocessor(dataset, sequence_length=None):
+      self.assertEqual(sequence_length, 123)
+      beam.metrics.Metrics.counter("test", "preprocessor_called").inc()
+      return dataset
+
+    self.add_task(
+        "test_task", source=self.tfds_source, preprocessors=[preprocessor]
+    )
+    with TestPipeline() as p:
+      pcoll = p | beam_utils.PreprocessTask(
+          task=seqio.get_mixture_or_task("test_task"),
+          split="train",
+          preprocess_postcache=True,
+          sequence_length=123,
+      )
+      result = p.run()
+      util.assert_that(pcoll, util.is_not_empty())
+
+      counters = result.metrics().query(
+          beam.metrics.MetricsFilter().with_name("preprocessor_called")
+      )["counters"]
+      self.assertLen(counters, 1)
+      self.assertGreater(counters[0].committed, 0)
+
   def test_write_example_tf_record(self):
     output_path = os.path.join(self.test_data_dir, "output.tfrecord")
     example = {

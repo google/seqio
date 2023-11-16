@@ -61,6 +61,8 @@ class PreprocessTask(beam.PTransform):
       split: str,
       *,
       preprocessors_seed: Optional[int] = None,
+      preprocess_postcache: bool = False,
+      sequence_length: Optional[Mapping[str, int]] = None,
       setup_fn: Callable[[], None] = lambda: None,
       modules_to_import: Sequence[str] = (),
       add_provenance: bool = False,
@@ -73,6 +75,11 @@ class PreprocessTask(beam.PTransform):
       split: string, the split to process.
       preprocessors_seed: (Optional) int, a seed for stateless random ops in
         task preprocessing.
+      preprocess_postcache: (Optional) If True, the `preprocess_postcache()`
+        function is invoked on the task. Setting this flag to True ensures that
+        preprocessing is performed, regardless if the task supports caching.
+      sequence_length: (Optional) A map of feature key to maximum int length for
+        that feature. Used only if `preprocess_postcache` is true.
       setup_fn: (Optional) callable, a function called before loading the task.
       modules_to_import: (Optional) list, modules to import.
       add_provenance: If True, provenance is added to each example.
@@ -85,6 +92,8 @@ class PreprocessTask(beam.PTransform):
     self._task_name = task.name
     self._split = split
     self._preprocessors_seed = preprocessors_seed
+    self._preprocess_postcache = preprocess_postcache
+    self._sequence_length = sequence_length
     self._setup_fn = setup_fn
     self._modules_to_import = modules_to_import
     self._add_provenance = add_provenance
@@ -135,16 +144,7 @@ class PreprocessTask(beam.PTransform):
           self._preprocessors_seed or 0
       )
 
-    ds = task.source.get_dataset(
-        split=self._split,
-        shard_info=seqio.ShardInfo(
-            index=shard_index, num_shards=len(self.shards)
-        ),
-        shuffle=False,
-        seed=shard_preprocessors_seed,
-    )
-    ds = task.preprocess_precache(ds, seed=shard_preprocessors_seed)
-    ds = ds.prefetch(tf.data.AUTOTUNE)
+    ds = self._get_dataset(task, shard_index, shard_preprocessors_seed)
 
     def _add_provenance(
         index_within_shard: int, ex: Dict[str, Any]) -> Dict[str, Any]:
@@ -166,6 +166,28 @@ class PreprocessTask(beam.PTransform):
       if i & (i - 1) == 0:
         logging.info("Example [%d] = %s", i, ex)
       yield ex
+
+  def _get_dataset(
+      self, task: seqio.Task, shard_index: int, shard_preprocessors_seed: int
+  ) -> tf.data.Dataset:
+    """Gets and preprocesses the dataset for the provided task."""
+    ds = task.source.get_dataset(
+        split=self._split,
+        shard_info=seqio.ShardInfo(
+            index=shard_index, num_shards=len(self.shards)
+        ),
+        shuffle=False,
+        seed=shard_preprocessors_seed,
+    )
+    ds = task.preprocess_precache(ds, seed=shard_preprocessors_seed)
+    if self._preprocess_postcache:
+      ds = task.preprocess_postcache(
+          ds,
+          sequence_length=self._sequence_length,
+          seed=shard_preprocessors_seed,
+      )
+    ds = ds.prefetch(tf.data.AUTOTUNE)
+    return ds
 
   def expand(self, pipeline):
     return (
