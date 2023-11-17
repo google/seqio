@@ -2076,6 +2076,7 @@ class PyGloveTunableMixture(Mixture):
       sample_fn: SampleFn = functools.partial(
           tf.data.Dataset.sample_from_datasets, stop_on_empty_dataset=True
       ),
+      source_info: Optional[SourceInfo] = None,
   ):
     def hyper_ratio(task_name, hyper):
       """Function for converting PyGlove hyper primitive as ratio fn."""
@@ -2100,6 +2101,7 @@ class PyGloveTunableMixture(Mixture):
         tasks=converted_tasks,
         default_rate=default_rate,
         sample_fn=sample_fn,
+        source_info=source_info,
     )
 
   def _get_submixture_rate(self, mix: "Mixture") -> float:
