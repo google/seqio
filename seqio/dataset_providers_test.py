@@ -932,7 +932,6 @@ class TasksTest(test_utils.FakeTaskTest):
         ),
     )
 
-
   def test_list_shards(self):
     def _get_formatted_shards_list(task_name, split):
       shards = dataset_providers.get_mixture_or_task(
