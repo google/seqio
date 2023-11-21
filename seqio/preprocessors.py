@@ -36,8 +36,8 @@ def rekey(x, key_map=None):
   examples with the format
   {'boo': 'something', 'spar': 'something else'}
 
-  If a mapping is to an empty key name or None, the new value is set to an empty
-  string.
+  If a mapping is to an empty key name or None or it does not exist in the given
+  mapping x, the new value is set to an empty string.
 
   Args:
     x: an example to process.
@@ -48,7 +48,7 @@ def rekey(x, key_map=None):
   """
   if key_map:
     return {
-        new_key: x[old_key] if old_key else ''
+        new_key: x[old_key] if (old_key and old_key in x) else ''
         for new_key, old_key in key_map.items()
     }
   return x
