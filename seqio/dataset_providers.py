@@ -16,6 +16,7 @@
 
 Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 """
+
 from __future__ import annotations
 
 import abc
@@ -499,7 +500,7 @@ class TfdsDataSource(DataSource):
       caching_permitted: indicates whether this data source may be cached.
         Default True.
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
-        such as tfds.decode.SkipDecoding() for skipping image byte decoding
+        such as tfds.decode.SkipDecoding() for skipping image byte decoding.
     """
     if splits and not isinstance(splits, dict):
       splits = {k: k for k in splits}

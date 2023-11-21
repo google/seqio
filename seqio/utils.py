@@ -135,7 +135,7 @@ class LazyTfdsLoader(object):
         'train[':1%']), or `TfdsSplit` (e.g. `TfdsSplit(dataset='mnist',
         split='train')`). If `TfdsSplit` are used then `name` must be empty.
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
-        such as tfds.decode.SkipDecoding() for skipping image byte decoding
+        such as tfds.decode.SkipDecoding() for skipping image byte decoding.
     """
     _validate_tfds_name(name)
     self._name = name
