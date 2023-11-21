@@ -540,7 +540,7 @@ class TfdsDataSource(DataSource):
 
   def get_dataset(
       self,
-      split: Optional[str] = None,
+      split: str = tfds.Split.TRAIN,
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
@@ -549,8 +549,6 @@ class TfdsDataSource(DataSource):
       use_cached: bool = False,  # Unused
       num_epochs: Optional[int] = 1,  # Unused
   ) -> tf.data.Dataset:
-    if split is None:
-      split = tfds.Split.TRAIN
     return self.tfds_dataset.load(
         split, shuffle_files=shuffle, seed=seed, shard_info=shard_info
     )

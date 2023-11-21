@@ -317,7 +317,7 @@ class LazyTfdsLoader(object):
 
   def load(
       self,
-      split: Optional[str],
+      split: str,
       shuffle_files: bool,
       seed: Optional[int] = None,
       shard_info=None,
@@ -1046,7 +1046,7 @@ def _pack_with_tf_ops(
         )
       partial = new_partial
 
-    _, outputs = _write_packed_example(partial, outputs)
+    partial, outputs = _write_packed_example(partial, outputs)
     packed = {k: outputs[k].stack() for k in keys_etc}
     for k in keys:
       packed[k + "_segment_ids"] = tf.cumsum(
