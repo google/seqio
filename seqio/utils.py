@@ -716,10 +716,12 @@ def add_kwargs_to_transform(transform, **kwargs):
   is_dataclass = dataclasses.is_dataclass(transform)
   # Filter kwargs by attributes of the dataclass/arguments of the function.
   if is_dataclass:
-    avaialabe_arg_names = [f.name for f in dataclasses.fields(transform)]
+    available_arg_names = [f.name for f in dataclasses.fields(transform)]
   else:
-    avaialabe_arg_names = set(inspect.signature(transform).parameters.keys())
-  kwargs = {k: v for k, v in kwargs.items() if k in avaialabe_arg_names}
+    available_arg_names = set(inspect.signature(transform).parameters.keys())
+    if isinstance(transform, functools.partial):
+      available_arg_names -= set(transform.keywords.keys())
+  kwargs = {k: v for k, v in kwargs.items() if k in available_arg_names}
   if not kwargs:
     return transform
   # Add attributes/arguments.

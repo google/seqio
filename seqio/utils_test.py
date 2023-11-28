@@ -284,6 +284,19 @@ class TransformUtilsTest(parameterized.TestCase):
     fn = utils.add_kwargs_to_transform(fn, y=2, z=10)
     self.assertEqual(60, fn(3))
 
+  def test_add_kwargs_to_transform_partial(self):
+    """Test add_kwargs_to_transform() with partial.
+
+    Ensure not to overwrite the keyword argument once it has been predefined
+    by functools.partial.
+    """
+
+    def fn(x, y):
+      return x * y
+
+    fn = utils.add_kwargs_to_transform(functools.partial(fn, x=1), x=2, y=3)
+    self.assertEqual(3, fn())
+
 
 class MapOverDatasetTest(parameterized.TestCase):
 
