@@ -24,12 +24,14 @@ import collections
 import dataclasses
 import functools
 import glob
+import importlib
 import inspect
 import json
 import numbers
 import operator
 import os
 import re
+import traceback
 from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple, Type, Union
 
 from absl import logging
@@ -59,6 +61,14 @@ SHUFFLE_BUFFER_SIZE = 1000
 DatasetReaderType = Callable[[Union[str, Iterable[str]]], tf.data.Dataset]
 DecodeFnType = Callable[..., Mapping[str, tf.train.Feature]]
 Feature = utils.Feature
+
+
+def _being_reloaded() -> bool:
+  """Returns whether we are being called from importlib.reload."""
+  for s in traceback.extract_stack():
+    if s.name == "reload" and s.filename == importlib.__file__:
+      return True
+  return False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -160,7 +170,12 @@ class DatasetProviderRegistry(object):
   def add_provider(cls, name: str, provider):
     """Adds a data provider instance to the registry."""
     if name in cls._REGISTRY:
-      raise ValueError("Attempting to register duplicate provider: %s" % name)
+      if _being_reloaded():
+        # Allow overwrite when we're reloading modules. This often happens when
+        # developing in notebooks.
+        logging.warning("Overwriting provider during module reload: %s", name)
+      else:
+        raise ValueError("Attempting to register duplicate provider: %s" % name)
     if not isinstance(provider, cls._PROVIDER_TYPE):
       raise ValueError(
           "Attempting to register a class of an invalid type. "
