@@ -285,6 +285,7 @@ class SentencePieceVocabulary(Vocabulary):
           sentencepiece_model_pb2.NormalizerSpec
       ] = None,
       reverse_extra_ids: bool = True,
+      use_fast_tokenizer: bool = False,
   ):
     """Create a SentencePieceVocabulary.
 
@@ -300,11 +301,14 @@ class SentencePieceVocabulary(Vocabulary):
       reverse_extra_ids: if True, extra_ids are numbered in descending order, so
         the first extra_id has the highest number. This is done for
         compatibility with span_corruption mask generation in T5.
+      use_fast_tokenizer: use the tf_text fastsentencepiecetokenizer 
+        implementation which runs much faster.
     """
     self._sentencepiece_model_file = sentencepiece_model_file
     self._normalizer_spec_overrides = normalizer_spec_overrides
     self._reverse_extra_ids = reverse_extra_ids
     self._model: Optional[SentencePieceVocabulary._ModelContext] = None
+    self._use_fast_tokenizer = use_fast_tokenizer
 
     super().__init__(extra_ids=extra_ids)
 
@@ -436,6 +440,8 @@ class SentencePieceVocabulary(Vocabulary):
   @property
   def tf_tokenizer(self):
     """Instantiate and return a TF tokenizer."""
+    if self._use_fast_tokenizer:
+      return tf_text.FastSentencepieceTokenizer(model=self.sp_model)
     return tf_text.SentencepieceTokenizer(model=self.sp_model)
 
   @property
