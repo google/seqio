@@ -1931,6 +1931,7 @@ class Mixture(DatasetProviderBase):
       try_in_mem_cache: bool = True,
   ) -> tf.data.Dataset:
     """."""
+
     def filter_features(ex):
       return {k: v for k, v in ex.items() if k in output_feature_keys}
 
