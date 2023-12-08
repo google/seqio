@@ -134,6 +134,12 @@ class Vocabulary(metaclass=abc.ABCMeta):
 
   def decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
     """Detokenizes int32 batched Tensor through first EOS."""
+    # The empty tensor is an important special case that can come up often. The
+    # call otherwise takes time proportional to the size of the vocabulary, so
+    # this can be a very significant speedup.
+    if tf.equal(tf.size(ids), 0):
+      return tf.constant(b"", dtype=tf.string)
+
     clean_ids = ids
 
     if self.unk_id is not None:
@@ -433,9 +439,11 @@ class SentencePieceVocabulary(Vocabulary):
     """Returns the Python tokenizer."""
     return self._model_context().tokenizer
 
-  @property
+  # The tf tokenizer object is expensive to create - it can take dozens of
+  # milliseconds for large vocabularies. So cache it.
+  @functools.cached_property
   def tf_tokenizer(self):
-    """Instantiate and return a TF tokenizer."""
+    """Instantiate (or reuse) and return a TF tokenizer."""
     return tf_text.SentencepieceTokenizer(model=self.sp_model)
 
   @property
