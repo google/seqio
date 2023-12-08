@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Tests for seqio.utils."""
+
 import dataclasses
 import functools
 from typing import Mapping, Optional, Sequence
@@ -121,6 +122,28 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     self.assertEqual("ds1:1.0.0,dir1", ds1_dir1.builder)
     self.assertEqual("ds2:1.0.0,", ds2.builder)
     self.assertEqual(3, tfds.builder.call_count)
+
+  def test_builder_cls_existing(self):
+    class SomeDataset(tfds.core.GeneratorBasedBuilder):
+      VERSION = "1.0.0"
+
+      def _info(self):
+        raise NotImplementedError
+
+      def _split_generators(self, dl_manager):
+        raise NotImplementedError
+
+      def _generate_examples(self, **kwargs):
+        raise NotImplementedError
+
+    ds = utils.LazyTfdsLoader("some_dataset:1.0.0")
+    actual = ds.builder_cls()
+    self.assertEqual(actual, SomeDataset)
+
+  def test_builder_cls_non_existing(self):
+    ds = utils.LazyTfdsLoader("i_have_no_builder_class/c1:1.0.0")
+    actual = ds.builder_cls()
+    self.assertIsNone(actual)
 
   @mock.patch("tensorflow_datasets.load")
   def test_split_map(self, mock_tfds_load):

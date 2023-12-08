@@ -22,7 +22,7 @@ import inspect
 import os
 import re
 import types
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
 import numpy as np
@@ -264,6 +264,31 @@ class LazyTfdsLoader(object):
         self._get_builder_key(dataset, data_dir)
         in LazyTfdsLoader._MEMOIZED_BUILDERS
     )
+
+  def builder_cls(
+      self, split: Optional[str] = None
+  ) -> Optional[Type[tfds.core.DatasetBuilder]]:
+    """Returns the DatasetBuilder class for this TFDS dataset.
+
+    If no builder class can be found (e.g. the class has not been imported),
+    then `None` will be returned.
+
+    Args:
+      split: optional split for which to return the builder class. This can be
+        used in case there's a custom split map with different datasets per
+        split.
+
+    Returns:
+      the builder class of the dataset in case it can be found and `None` if the
+      builder class cannot be found.
+    """
+    dataset, _ = self.get_split_params(split)
+    # `builder_cls` only accepts the dataset name, not the config and version.
+    ds_name, _ = tfds.core.naming.parse_builder_name_kwargs(dataset)
+    try:
+      return tfds.builder_cls(str(ds_name))
+    except ValueError:
+      return None
 
   @property
   def builder(self):
