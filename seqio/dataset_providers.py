@@ -61,6 +61,8 @@ DecodeFnType = Callable[..., Mapping[str, tf.train.Feature]]
 Feature = utils.Feature
 
 
+
+
 @dataclasses.dataclass(frozen=True)
 class ContinuousFeature(Feature):
   """A container for multi-modal output features of data providers."""
@@ -1458,6 +1460,8 @@ class Task(DatasetProviderBase):
           os.path.join(d, utils.get_task_dir_from_name(self.name))
           for d in utils.get_global_cache_dirs()
       ]
+
+
       for cache_dir in potential_cache_dirs:
         try:
           if tf.io.gfile.exists(os.path.join(cache_dir, "COMPLETED")):

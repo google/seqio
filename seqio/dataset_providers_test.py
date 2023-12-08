@@ -396,6 +396,18 @@ class TasksTest(test_utils.FakeTaskTest):
     ):
       task.get_dataset({"inputs": 512, "targets": 512}, use_cached=False)
 
+  def test_requires_caching_not_cached(self):
+    utils.set_global_cache_dirs([self.test_data_dir])
+
+    task = dataset_providers.Task(
+        "requires_cache",
+        output_features=self.DEFAULT_OUTPUT_FEATURES,
+        source=self.function_source,
+        preprocessors=[
+            dataset_providers.CacheDatasetPlaceholder(required=True),
+            preprocessors.tokenize,
+        ],
+    )
     # We haven't actually cached the task, so it still fails but with a
     # different error.
     with self.assertRaisesWithLiteralMatch(
@@ -487,6 +499,7 @@ class TasksTest(test_utils.FakeTaskTest):
 
     utils.set_global_cache_dirs([self.test_data_dir])
     self.assertTrue(self.cached_task.cache_dir)
+
 
   def test_get_dataset_cached(self):
     self.verify_task_matches_fake_datasets(
