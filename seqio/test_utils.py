@@ -1265,12 +1265,14 @@ def sentencepiece_vocab(
         sentencepiece_model_pb2.NormalizerSpec
     ] = None,
     reverse_extra_ids: bool = True,
+    use_fast_tokenizer: bool = False,
 ):
   return vocabularies.SentencePieceVocabulary(
       os.path.join(TEST_DATA_DIR, "sentencepiece", "sentencepiece.model"),
       extra_ids=extra_ids,
       normalizer_spec_overrides=normalizer_spec_overrides,
       reverse_extra_ids=reverse_extra_ids,
+      use_fast_tokenizer=use_fast_tokenizer,
   )
 
 
