@@ -1665,6 +1665,8 @@ class Task(DatasetProviderBase):
       # Shuffle before mixing since preprocessor can output multiple
       # (correlated) examples per input.
       ds = ds.shuffle(shuffle_buffer_size, seed=seed)
+
+
     return ds.prefetch(tf.data.experimental.AUTOTUNE)
 
   def _get_cached_source(
