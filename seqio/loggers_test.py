@@ -13,10 +13,12 @@
 # limitations under the License.
 
 """Tests for seqio.loggers."""
+
 # pylint:disable=g-bare-generic,g-long-lambda
 
-
+import collections
 import dataclasses
+import itertools
 import json
 import os
 from typing import Optional
