@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Experimental utilities for SeqIO."""
+
 import functools
 import inspect
 from typing import Callable, Iterable, Mapping, Optional, Sequence
@@ -86,6 +87,7 @@ def _no_op_mixture_registry_get(*args, **kwargs):
 
 
 def disable_registry():
+  """Disables the seqio TaskRegistry and MixtureRegistry."""
   _enfore_empty_registries()
   dataset_providers.TaskRegistry.add = _no_op_task_registry_add
   dataset_providers.TaskRegistry.add_provider = _no_op_task_registry_add
