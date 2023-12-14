@@ -15,6 +15,8 @@
 """Tests for seqio.preprocessors."""
 
 import contextlib
+from unittest import mock
+
 from absl.testing import absltest
 from seqio import dataset_providers
 from seqio import experimental
@@ -982,6 +984,7 @@ class DisableRegistryTest(absltest.TestCase):
       with self._restore_registry_after_test():
         experimental.disable_registry()
         MixtureRegistry.get('dummy_mixture')
+
 
 
 if __name__ == '__main__':
