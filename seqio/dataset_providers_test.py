@@ -1178,7 +1178,7 @@ class MixturesTest(test_utils.FakeTaskTest):
     self.add_task("task2", self.function_source)
     MixtureRegistry.add("test_mix1", [("task1", 1), ("task2", 1)])
     mix = MixtureRegistry.get("test_mix1")
-    self.assertEqual(len(mix.tasks), 2)
+    self.assertLen(mix.tasks, 2)
 
     for task in mix.tasks:
       self.verify_task_matches_fake_datasets(task.name, use_cached=False)
@@ -1200,7 +1200,7 @@ class MixturesTest(test_utils.FakeTaskTest):
 
     MixtureRegistry.add("test_mix1", [(task1, 1), (task2, 1)])
     mix = MixtureRegistry.get("test_mix1")
-    self.assertEqual(len(mix.tasks), 2)
+    self.assertLen(mix.tasks, 2)
 
     for task in mix.tasks:
       self.verify_task_matches_fake_datasets(task=task, use_cached=False)
@@ -1221,7 +1221,7 @@ class MixturesTest(test_utils.FakeTaskTest):
     )
     MixtureRegistry.add("test_mix1", [task1, task2], default_rate=1.0)
     mix = MixtureRegistry.get("test_mix1")
-    self.assertEqual(len(mix.tasks), 2)
+    self.assertLen(mix.tasks, 2)
 
     for task in mix.tasks:
       self.verify_task_matches_fake_datasets(task=task, use_cached=False)
@@ -1250,7 +1250,7 @@ class MixturesTest(test_utils.FakeTaskTest):
     )
 
     mix = MixtureRegistry.get("test_mix2")
-    self.assertEqual(len(mix.tasks), 3)
+    self.assertLen(mix.tasks, 3)
 
     automl_context = pg.hyper.DynamicEvaluationContext(require_hyper_name=True)
     with automl_context.collect():
