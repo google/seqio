@@ -134,6 +134,12 @@ class Vocabulary(metaclass=abc.ABCMeta):
 
   def decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
     """Detokenizes int32 batched Tensor through first EOS."""
+    # The empty tensor is an important special case that can come up often. The
+    # call otherwise takes time proportional to the size of the vocabulary, so
+    # this can be a very significant speedup.
+    if ids.shape == (0,):
+      return tf.constant(b"", dtype=tf.string)
+
     clean_ids = ids
 
     if self.unk_id is not None:

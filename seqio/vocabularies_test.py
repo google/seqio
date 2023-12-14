@@ -15,6 +15,7 @@
 """Tests for seqio.vocabularies."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import numpy as np
 from seqio import test_utils
 from seqio import vocabularies
@@ -250,7 +251,7 @@ class UnigramVocabularyTest(absltest.TestCase):
 
 
 
-class SentencepieceVocabularyTest(absltest.TestCase):
+class SentencepieceVocabularyTest(parameterized.TestCase):
   TEST_STRING = "this is a test"
   TEST_TOKENS = (11, 8, 6, 3, 8, 6, 3, 5, 10)
   UNK_STRING = " ⁇ "
@@ -274,6 +275,33 @@ class SentencepieceVocabularyTest(absltest.TestCase):
       res = _decode_tf(vocab, (ids, ids))
       exp = [expected_str] * 2
       self.assertEqual(exp, res)
+
+  @parameterized.named_parameters(
+      ("1-dim empty", [], b""),
+      ("1-dim nonempty", [11], b"th"),
+      ("2-dim 1 empty", [[]], [b""]),
+      ("2-dim 1 nonempty", [[11]], [b"th"]),
+      ("2-dim 2 empty", [[], []], [b"", b""]),
+      ("2-dim 1 empty 1 nonempty", [[], [11]], [b"", b"th"]),
+      ("2-dim 1 nonempty 1 empty", [[11], []], [b"th", b""]),
+      ("2-dim 2 nonempty", [[11], [8]], [b"th", b"i"]),
+  )
+  def test_decode_tf_small_examples(self, arg_elems, expected_elems):
+    vocab = test_utils.sentencepiece_vocab()
+
+    actual = vocab.decode_tf(tf.ragged.constant(arg_elems, dtype=tf.int32))
+
+    expected = tf.ragged.constant(expected_elems, dtype=tf.string)
+    self.assertEqual(expected.shape, actual.shape)
+    self.assertIs(expected.dtype, actual.dtype)
+    eq = tf.equal(actual, expected)
+    if not eq.numpy().all():
+      err = []
+      err.append("Mismatched tensors:")
+      err.append(f"  {expected=}")
+      err.append(f"  {actual=}")
+      err.append(f"  tf.equal result: {eq}")
+      self.fail("\n".join(err))
 
   def test_vocab(self):
     vocab = test_utils.sentencepiece_vocab()
