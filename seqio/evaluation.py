@@ -519,7 +519,7 @@ class Evaluator:
           "non-empty."
       )
     if not logger_cls:
-      logging.warn(
+      logging.warning(
           "'logger_cls' is empty so seqio.Evaluator will not log its results."
       )
     self._loggers = tuple(cls(output_dir=log_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
