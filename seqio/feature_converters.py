@@ -185,6 +185,19 @@ def non_padding_position(
   return tf.cast(tf.not_equal(tensor, pad_id), dtype=dtype)
 
 
+def unnest(mapping):
+  """Unnest a mapping."""
+  def _flatten(element, prefix=None):
+    if isinstance(element, dict):
+      for key, val in element.items():
+        new_prefix = key if prefix is None else f"{prefix}/{key}"
+        yield from _flatten(val, new_prefix)
+    else:
+      yield (prefix, element)
+
+  return dict(_flatten(mapping))
+
+
 def _check_exact_match(
     expected_features: Sequence[str],
     actual_features: Sequence[str],
@@ -341,7 +354,7 @@ class FeatureConverter(abc.ABC):
     Returns:
       ds: the same dataset as but with the assertion ops attached.
     """
-    element_spec = ds.element_spec
+    element_spec = unnest(ds.element_spec)
     for feat in expected_features:
       if feat not in element_spec:
         raise ValueError(
@@ -521,7 +534,7 @@ class FeatureConverter(abc.ABC):
     # Validation 5
     _check_exact_match(
         expected_features=list(expected_features),
-        actual_features=list(ds.element_spec),
+        actual_features=list(unnest(ds.element_spec)),
         expected_feature_source="model_feature_names",
         actual_feature_source="output_dataset",
     )
