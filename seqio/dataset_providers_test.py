@@ -1384,6 +1384,7 @@ class MixturesTest(test_utils.FakeTaskTest):
     res = sum(int(item["feature"][0]) for item in mix_ds.as_numpy_iterator())
     self.assertEqual(res, 2481)
 
+
   def test_copy_pretokenized(self):
     @utils.map_over_dataset
     def _constant_preprocessor(unused_x, val):
