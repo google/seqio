@@ -59,9 +59,8 @@ def mixture_or_task_with_new_vocab(
       mix_or_task.output_features["f1"], vocaulary=f1_vocab, add_eos=True)
       new_output_features["f2"] = dataclasses.replace(
       mix_or_task.output_features["f2"], vocaulary=f2_vocab) ```
-    add_to_seqio_registry: If True, adds the new Task/Mixture to the SeqIO
-      Registry. For Mixtures, sub-Tasks/Mixtures are always registered so that
-      the new Mixture can refer to these.
+    add_to_seqio_registry: If True, adds the new Task/Mixture and all
+      sub-Tasks/Mixtures to the SeqIO Registry.
     add_cache_placeholder: If True, adds CacheDatasetPlaceholder in new tasks if
       their old tasks do not have it.
     validate_features: Whether to validate the new feature set is compatible
