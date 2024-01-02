@@ -22,6 +22,7 @@ import inspect
 from typing import Mapping, Optional, Sequence, Union
 
 from seqio import dataset_providers as dp
+from seqio import metrics as metrics_lib
 from seqio import vocabularies as vc
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
@@ -33,6 +34,8 @@ def mixture_or_task_with_new_vocab(
     *,
     new_vocab: Optional[vc.Vocabulary] = None,
     new_output_features: Optional[Mapping[str, dp.Feature]] = None,
+    new_metric_fns: Optional[Sequence[metrics_lib.MetricFnCallable]] = None,
+    new_metric_objs: Optional[Sequence[metrics_lib.Metric]] = None,
     add_to_seqio_registry: bool = True,
     add_cache_placeholder: bool = False,
     validate_features=True,
@@ -59,6 +62,10 @@ def mixture_or_task_with_new_vocab(
       mix_or_task.output_features["f1"], vocaulary=f1_vocab, add_eos=True)
       new_output_features["f2"] = dataclasses.replace(
       mix_or_task.output_features["f2"], vocaulary=f2_vocab) ```
+    new_metric_fns: A sequence of new metric_fns to add to the SeqIO
+      Task/Mixture and all sub-Tasks/Mixtures.
+    new_metric_objs: A sequence of new metric_objs to add to the SeqIO
+      Task/Mixture and all sub-Tasks/Mixtures.
     add_to_seqio_registry: If True, adds the new Task/Mixture and all
       sub-Tasks/Mixtures to the SeqIO Registry.
     add_cache_placeholder: If True, adds CacheDatasetPlaceholder in new tasks if
@@ -130,13 +137,21 @@ def mixture_or_task_with_new_vocab(
             break
         preprocessors.insert(insert_pos, dp.CacheDatasetPlaceholder())
 
+    metric_fns = mixture_or_task._metric_fn_constructor_args
+    metric_objs = mixture_or_task._metric_objs_constructor_args
+    if new_metric_fns is not None:
+      metric_fns += new_metric_fns  # pytype: disable=unsupported-operands
+    if new_metric_objs is not None:
+      metric_fns += new_metric_objs  # pytype: disable=unsupported-operands
+
     new_task = dp.Task(
         new_mixture_or_task_name,
         source=mixture_or_task.source,
         output_features=new_output_features,
         preprocessors=preprocessors,
         postprocess_fn=mixture_or_task.postprocessor,
-        metric_fns=mixture_or_task.metric_fns,
+        metric_fns=metric_fns,
+        metric_objs=metric_objs,
         shuffle_buffer_size=mixture_or_task._shuffle_buffer_size,
     )
     if add_to_seqio_registry:
@@ -153,6 +168,8 @@ def mixture_or_task_with_new_vocab(
         new_task_name,
         new_vocab=new_vocab,
         new_output_features=new_output_features,
+        new_metric_fns=new_metric_fns,
+        new_metric_objs=new_metric_objs,
         add_to_seqio_registry=add_to_seqio_registry,
     )
     new_tasks_and_rates.append((new_task, rate))
