@@ -712,7 +712,8 @@ class Evaluator:
         if isinstance(model_output, tuple):
           prediction_or_score, aux_value = model_output
           aux_value = jax.tree_map(
-              np.array, aux_value,
+              np.array,
+              aux_value,
               is_leaf=lambda x: isinstance(x, list),
           )
           model_output = (np.array(prediction_or_score), aux_value)
@@ -729,7 +730,8 @@ class Evaluator:
               tfds.as_numpy(task_dataset),
               task.output_features,
               self._target_field_name,
-              self._cached_targets[task.name])
+              self._cached_targets[task.name],
+          )
           self._cached_targets[task.name] = targets_and_inferences["targets"]
         else:
           metric_value = metric_instance.compute()
@@ -741,9 +743,11 @@ class Evaluator:
         # common ones are score, output, prediction.
         if targets_and_inferences:
           for key, val in targets_and_inferences.items():
-            if key == "targets": continue
-            inferences[key] = (val.tolist()
-                               if isinstance(val, np.ndarray) else val)
+            if key == "targets":
+              continue
+            inferences[key] = (
+                val.tolist() if isinstance(val, np.ndarray) else val
+            )
       # Records targets for legacy logging compatibility.
       # Each targets_and_inferences should have identical targets.
       # Chooses the last targets_and_inferences for this recording purpose.
@@ -819,13 +823,15 @@ class MetricManager:
 
       for model_output_type in metrics_per_output_type:
         metric_objs = metrics_per_output_type[model_output_type]
-        metrics_collection = clu.metrics.Collection.create(
-            **{type(metric).__name__ + f"_{idx}": type(metric)
-               for idx, metric in enumerate(metric_objs)})
+        metrics_collection = clu.metrics.Collection.create(**{
+            type(metric).__name__ + f"_{idx}": type(metric)
+            for idx, metric in enumerate(metric_objs)
+        })
         self.metric_registry[task.name][model_output_type] = metrics_collection
 
-  def initialize_metrics(self, task_name: str,
-                         model_output_type: ModelOutputType):
+  def initialize_metrics(
+      self, task_name: str, model_output_type: ModelOutputType
+  ):
     """Initializes metrics associated with the task name and model_output_type.
 
     This happens at the start of metric evaluation.
@@ -836,20 +842,21 @@ class MetricManager:
       model_output_type: we initialize metrics by the same model output type.
     """
     metrics_collection = self.metric_registry[task_name][model_output_type]
-    self.output_metrics_collections[task_name][model_output_type] = (
-        metrics_collection.empty()
-    )
+    self.output_metrics_collections[task_name][
+        model_output_type
+    ] = metrics_collection.empty()
 
-  def from_model_output(self,
-                        task_name: str,
-                        model_output_type: ModelOutputType,
-                        inputs: Sequence[Mapping[str, Any]],
-                        model_output: Union[np.ndarray,
-                                            Tuple[np.ndarray, np.ndarray]],
-                        features: Mapping[str, utils.Feature],
-                        target_field_name: str = "targets",
-                        mask: Optional[np.ndarray] = None,
-                        indices_2d: Optional[np.ndarray] = None):
+  def from_model_output(
+      self,
+      task_name: str,
+      model_output_type: ModelOutputType,
+      inputs: Sequence[Mapping[str, Any]],
+      model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
+      features: Mapping[str, utils.Feature],
+      target_field_name: str = "targets",
+      mask: Optional[np.ndarray] = None,
+      indices_2d: Optional[np.ndarray] = None,
+  ):
     """Calculates the metrics associated with the given task name and model output type.
 
     Args:
@@ -867,7 +874,6 @@ class MetricManager:
         dimension is shard id, the second is the example id within that shard.
 
     Returns:
-
     """
     metrics_collection = self.metric_registry[task_name][model_output_type]
     metric_batch = metrics_collection.single_from_model_output(
@@ -876,12 +882,17 @@ class MetricManager:
         indices_2d=indices_2d,
         features=features,
         target_field_name=target_field_name,
-        mask=mask)
+        mask=mask,
+    )
 
     return metric_batch
 
-  def merge(self, metrics_collection: clu.metrics.Collection,
-            task_name: str, model_output_type: ModelOutputType):
+  def merge(
+      self,
+      metrics_collection: clu.metrics.Collection,
+      task_name: str,
+      model_output_type: ModelOutputType,
+  ):
     """Updates the metrics for the given task and model output type.
 
     Args:
@@ -914,4 +925,5 @@ class MetricManager:
     ]
     gathered = multihost_utils.process_allgather(curr_metrics_collection)
     self.output_metrics_collections[task_name][
-        model_output_type] = gathered.reduce()
+        model_output_type
+    ] = gathered.reduce()

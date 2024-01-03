@@ -13,8 +13,8 @@
 # limitations under the License.
 
 """Tests for asserts."""
-from absl.testing import absltest
 
+from absl.testing import absltest
 from seqio import dataset_providers
 from seqio.test_utils import assert_dataset
 from seqio.test_utils import DataInjector

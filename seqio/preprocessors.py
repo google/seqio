@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Preprocessors for SeqIO Tasks."""
+
 import dataclasses
 import functools
 import re
@@ -425,8 +426,8 @@ def preprocess_tensorflow_examples(example, inputs_format, targets_format):
       inputs. The format string can include placeholder fields surrounded by
       curly braces, which will be replaced by the corresponding values from the
       example dictionary. For example, if the inputs_format is "Summarize this
-      {text}", the format string "{text}" will be replaced by the actual
-      tensor value.
+      {text}", the format string "{text}" will be replaced by the actual tensor
+      value.
     targets_format (str): A format string specifying how to preprocess the
       targets. It follows the same rules as the `inputs_format`.
 

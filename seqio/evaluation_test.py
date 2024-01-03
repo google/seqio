@@ -13,11 +13,12 @@
 # limitations under the License.
 
 """Tests for seqio.evaluation."""
+
 # pylint:disable=g-bare-generic,g-long-lambda
 
 import concurrent
 import functools
-from typing import Any, Callable, Sequence, Mapping, Optional, Tuple
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
 from unittest import mock
 
 import numpy as np

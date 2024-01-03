@@ -8,7 +8,8 @@
 ## Overview
 
 **SeqIO** is a library for processing sequential data to be fed into downstream
-sequence models. It uses [`tf.data.Dataset`](https://www.tensorflow.org/api_docs/python/tf/data/Dataset)
+sequence models. It uses
+[`tf.data.Dataset`](https://www.tensorflow.org/api_docs/python/tf/data/Dataset)
 to create scalable data pipelines but requires minimal use of TensorFlow. In
 particular, with one line of code, the returned dataset can be transformed to a
 numpy iterator and hence it is fully compatible with other frameworks such as
@@ -63,17 +64,20 @@ We will look at each of these steps in detail.
 
 ### Defining a `Task`
 
-The most important class in SeqIO is the `Task`. It is an abstraction that combines:
+The most important class in SeqIO is the `Task`. It is an abstraction that
+combines:
 
   * a raw *data source*
   * one or more *preprocessing* steps
-  * a *vocabulary* to tokenize/detokenize each preprocessed feature for the model
-  * a *postprocessor* to convert detokenized model outputs into a format for evaluation
+  * a *vocabulary* to tokenize/detokenize each preprocessed feature for the
+  model
+  * a *postprocessor* to convert detokenized model outputs into a format for
+  evaluation
   * one or more *metrics* to evaluate with
 
 Oftentimes a `Task` lines up with a common benchmark. In this tutorial, we use
-[WMT 19 English-German](http://www.statmt.org/wmt19/translation-task.html) machine
-translation task. In the end, our `Task` will look like this:
+[WMT 19 English-German](http://www.statmt.org/wmt19/translation-task.html)
+machine translation task. In the end, our `Task` will look like this:
 
 
 ```py
@@ -112,17 +116,26 @@ We'll now break down each part of the task definition.
 
 Data sources are the first step in your pipeline, providing a way to load raw
 data in many formats as a `tf.data.Dataset`.
-All data sources are subclasses of the `DataSource` base class and are defined in
+All data sources are subclasses of the `DataSource` base class and are defined
+in
 [dataset_providers](https://github.com/google/seqio/tree/main/seqio/dataset_providers.py).
 
 Existing implementations include:
 
-  * `TfdsDataSource` for loading examples from [TensorFlow Datasets](https://www.tensorflow.org/datasets).
+  * `TfdsDataSource` for loading examples from
+  [TensorFlow Datasets](https://www.tensorflow.org/datasets).
   * `TextLineDataSource` for loading examples from text files (e.g., tsv).
-  * `TFExampleDataSource` for loading [`tf.train.Example`](https://www.tensorflow.org/tutorials/load_data/tfrecord) protos from a file (e.g. a `TFRecord` file.)
-  * `FunctionDataSource` for providing an custom function that returns a `tf.data.Dataset`.
+  * `TFExampleDataSource` for loading
+  [`tf.train.Example`](https://www.tensorflow.org/tutorials/load_data/tfrecord)
+  protos from a file (e.g. a `TFRecord` file.)
+  * `FunctionDataSource` for providing an custom function that returns a
+  `tf.data.Dataset`.
 
-In our example, we are using the `TfdsDataSource`. We specify the name of the WMT dataset in TFDS ([`"wmt19_translate"`](https://www.tensorflow.org/datasets/catalog/wmt19_translate)), the specific config for the language pair that excludes the context for the open domain setting (`"de-en"`), and the version number (`"1.0.0"`).
+In our example, we are using the `TfdsDataSource`. We specify the name of the
+WMT dataset in TFDS
+([`"wmt19_translate"`](https://www.tensorflow.org/datasets/catalog/wmt19_translate)),
+the specific config for the language pair that excludes the context for the open
+domain setting (`"de-en"`), and the version number (`"1.0.0"`).
 
 #### Output Features
 
@@ -171,8 +184,8 @@ def translate(dataset: tf.data.Dataset,
 
     For example, say the dataset returns examples of this format:
       {'de': 'Das ist gut.', 'en': 'That is good.'}
-    If source_language = 'de', target_language = 'en', then the outputs will have
-    the format:
+    If source_language = 'de', target_language = 'en', then the outputs will
+    have the format:
       {'inputs': 'translate de to en: Das ist gut.',
       'targets': 'That is good.'}
 
@@ -247,8 +260,8 @@ A few **important** notes:
 
       For example, say the dataset returns examples of this format:
         {'de': 'Das ist gut.', 'en': 'That is good.'}
-      If source_language = 'de', target_language = 'en', then the outputs will have
-      the format:
+      If source_language = 'de', target_language = 'en', then the outputs will
+      have the format:
         {'inputs': 'translate German to English: Das ist gut.',
         'targets': 'That is good.'}
 
@@ -283,7 +296,7 @@ A few **important** notes:
       dataset: tf.data.Dataset,
       sequence_length: Mapping[str, int]
     ) -> tf.data.Dataset:
-    """Takes a random chunk out of each feature the size of `sequence_length`."""
+    """Takes a random chunk out of each feature with size `sequence_length`."""
 
       @seqio.map_over_dataset(num_seeds=1)
       def take_chunk(
@@ -655,7 +668,9 @@ The resulting dataset object has the following 7 fields
 |----------------------|---------------------------|
 |`encoder_input_tokens` | Input tokens to the encoder. |
 |`encoder_positions`    | Position index in the sequence before packing.|
-|`encoder_segment_ids`  | Sequence membership before packing. Two positions with the same positive integer mean that they belong to the same sequence before packing. |
+|`encoder_segment_ids`  | Sequence membership before packing. Two positions with
+the same positive integer mean that they belong to the same sequence before
+packing. |
 |`decoder_input_tokens` | Input tokens to the decoder. |
 |`decoder_target_tokens`| Output tokens from the decoder. |
 |`decoder_loss_weights` | A weight on each position that can be used as a mask. |
@@ -720,10 +735,12 @@ The output dataset has the following model features.
 |`decoder_input_tokens` | Input tokens to the decoder |
 |`decoder_loss_weights` | Binary mask to indicate where the loss should be taken |
 |`decoder_positions`    | Position index in the sequence before packing|
-|`decoder_segment_ids`  | Sequence membership before packing. Two positions with the same positive integer mean that they belong to the same sequence before packing. |
+|`decoder_segment_ids`  | Sequence membership before packing. Two positions with
+the same positive integer mean that they belong to the same sequence before
+packing. |
 
-The `decoder_target_tokens` is a shifted version of `decoder_input_tokens` for the
-standard teacher-forced autoregressive training.
+The `decoder_target_tokens` is a shifted version of `decoder_input_tokens` for
+the standard teacher-forced autoregressive training.
 
 
 
@@ -838,10 +855,14 @@ additional feature is `decoder_causal_attention`.
 |----------------------|---------------------------|
 |`decoder_target_tokens`| Output tokens from the decoder |
 |`decoder_input_tokens` | Input tokens to the decoder |
-|`decoder_loss_weights` | Binary mask to indicate where the loss should be taken |
+|`decoder_loss_weights` | Binary mask to indicate where the loss should be
+taken |
 |`decoder_positions`    | Position index in the sequence before packing|
-|`decoder_segment_ids`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
-|`decoder_causal_attention`| Binary mask denoting which tokens are in the non-causal masking region.|
+|`decoder_segment_ids`  | Sequence membership before packing. Two positions with
+the ` same positive integer mean that they belong to the same sequence before
+packing. |
+|`decoder_causal_attention`| Binary mask denoting which tokens are in the
+non-causal masking region.|
 
 ###### Encoder-only architecture
 Like decoder-only architecture, this one is a single stack, but not
@@ -906,7 +927,9 @@ The resulting dataset object has the following 5 fields
 |----------------------|---------------------------|
 |`encoder_input_tokens` | Input tokens to the encoder |
 |`encoder_positions`    | Position index in the sequence before packing|
-|`encoder_segment_ids`  | Sequence membership before packing. Two positions with the ` same positive integer mean that they belong to the same sequence before packing. |
+|`encoder_segment_ids`  | Sequence membership before packing. Two positions with
+the ` same positive integer mean that they belong to the same sequence before
+packing. |
 |`encoder_target_tokens`| Output tokens from the encoder |
 |`encoder_loss_weights` | Binary mask to indicate where the loss should be taken |                                          :
 
@@ -998,7 +1021,8 @@ There are 2 steps involved in the evaluation using scores:
     targets.
 
 Training codebases like T5X provide integration with SeqIO evaluation to allow 
-evaluating checkpoints on SeqIO Tasks and Mixtures. See [T5X Eval](https://github.com/google-research/t5x/blob/main/docs/usage/eval.md)
+evaluating checkpoints on SeqIO Tasks and Mixtures. See
+[T5X Eval](https://github.com/google-research/t5x/blob/main/docs/usage/eval.md)
 for instructions.
 
 ## Differences from `t5.data`
@@ -1198,7 +1222,18 @@ Please use the following bibtex entry to cite SeqIO.
 ```
 @article{roberts2022t5x,
   url = {https://arxiv.org/abs/2203.17189},
-  author = {Roberts, Adam and Chung, Hyung Won and Levskaya, Anselm and Mishra, Gaurav and Bradbury, James and Andor, Daniel and Narang, Sharan and Lester, Brian and Gaffney, Colin and Mohiuddin, Afroz and Hawthorne, Curtis and Lewkowycz, Aitor and Salcianu, Alex and van Zee, Marc and Austin, Jacob and Goodman, Sebastian and Soares, Livio Baldini and Hu, Haitang and Tsvyashchenko, Sasha and Chowdhery, Aakanksha and Bastings, Jasmijn and Bulian, Jannis and Garcia, Xavier and Ni, Jianmo and Chen, Andrew and Kenealy, Kathleen and Clark, Jonathan H. and Lee, Stephan and Garrette, Dan and Lee-Thorp, James and Raffel, Colin and Shazeer, Noam and Ritter, Marvin and Bosma, Maarten and Passos, Alexandre and Maitin-Shepard, Jeremy and Fiedel, Noah and Omernick, Mark and Saeta, Brennan and Sepassi, Ryan and Spiridonov, Alexander and Newlan, Joshua and Gesmundo, Andrea},
+  author = {Roberts, Adam and Chung, Hyung Won and Levskaya, Anselm and Mishra,
+  Gaurav and Bradbury, James and Andor, Daniel and Narang, Sharan and Lester,
+  Brian and Gaffney, Colin and Mohiuddin, Afroz and Hawthorne, Curtis and
+  Lewkowycz, Aitor and Salcianu, Alex and van Zee, Marc and Austin, Jacob and
+  Goodman, Sebastian and Soares, Livio Baldini and Hu, Haitang and
+  Tsvyashchenko, Sasha and Chowdhery, Aakanksha and Bastings, Jasmijn and
+  Bulian, Jannis and Garcia, Xavier and Ni, Jianmo and Chen, Andrew and Kenealy,
+  Kathleen and Clark, Jonathan H. and Lee, Stephan and Garrette, Dan and
+  Lee-Thorp, James and Raffel, Colin and Shazeer, Noam and Ritter, Marvin and
+  Bosma, Maarten and Passos, Alexandre and Maitin-Shepard, Jeremy and Fiedel,
+  Noah and Omernick, Mark and Saeta, Brennan and Sepassi, Ryan and Spiridonov,
+  Alexander and Newlan, Joshua and Gesmundo, Andrea},
   title = {Scaling Up Models and Data with $\texttt{t5x}$ and $\texttt{seqio}$},
   journal={arXiv preprint arXiv:2203.17189},
   year = {2022},

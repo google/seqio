@@ -147,7 +147,8 @@ class PreprocessTask(beam.PTransform):
     ds = ds.prefetch(tf.data.AUTOTUNE)
 
     def _add_provenance(
-        index_within_shard: int, ex: Dict[str, Any]) -> Dict[str, Any]:
+        index_within_shard: int, ex: Dict[str, Any]
+    ) -> Dict[str, Any]:
       ex.update({
           TASK_PROVENANCE_KEY: self._task_name,
           SOURCE_SHARD_PROVENANCE_KEY: shard_name,
@@ -299,8 +300,10 @@ class _CountTokens(beam.DoFn):
     for name, feat in self._output_features.items():
       if (
           name in ex
-          and (isinstance(ex[name], np.ndarray)
-               or isinstance(ex[name], tf.Tensor))
+          and (
+              isinstance(ex[name], np.ndarray)
+              or isinstance(ex[name], tf.Tensor)
+          )
           and ex[name].dtype in (np.int32, np.int64)
       ):
         if isinstance(ex[name], tf.Tensor):

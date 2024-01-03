@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Tests for seqio.metrics."""
+
 from unittest import mock
 
 from absl.testing import absltest
@@ -27,42 +28,29 @@ class MetricsTest(absltest.TestCase):
 
   def test_remove_padding_examples(self):
     mask = np.array([1, 1, 0])
-    indices_2d = np.array(
-        [[0, 1], [0, 2], [0, 0]]
-    )
-    model_output = np.array(
-        [[1, 2, 3],
-         [1, 3, 4],
-         [1, 2, 3]]
-    )
+    indices_2d = np.array([[0, 1], [0, 2], [0, 0]])
+    model_output = np.array([[1, 2, 3], [1, 3, 4], [1, 2, 3]])
     indices_2d_cleaned, model_output_cleaned = metrics.remove_padding_examples(
-        model_output, indices_2d, mask)
+        model_output, indices_2d, mask
+    )
 
-    np.testing.assert_array_equal(indices_2d_cleaned, np.array(
-        [[0, 1], [0, 2]]
-    ))
-    np.testing.assert_array_equal(model_output_cleaned, np.array(
-        [[1, 2, 3],
-         [1, 3, 4]]
-    ))
+    np.testing.assert_array_equal(
+        indices_2d_cleaned, np.array([[0, 1], [0, 2]])
+    )
+    np.testing.assert_array_equal(
+        model_output_cleaned, np.array([[1, 2, 3], [1, 3, 4]])
+    )
 
   def test_globally_sort_model_output(self):
-    indices_2d = np.array(
-        [[0, 1], [0, 2], [0, 0]]
-    )
-    model_output = np.array(
-        [[1, 2, 3],
-         [1, 3, 4],
-         [1, 2, 3]]
-    )
+    indices_2d = np.array([[0, 1], [0, 2], [0, 0]])
+    model_output = np.array([[1, 2, 3], [1, 3, 4], [1, 2, 3]])
     model_output_sorted = metrics.globally_sort_model_output(
-        model_output, indices_2d)
+        model_output, indices_2d
+    )
 
-    np.testing.assert_array_equal(model_output_sorted, np.array(
-        [[1, 2, 3],
-         [1, 2, 3],
-         [1, 3, 4]]
-    ))
+    np.testing.assert_array_equal(
+        model_output_sorted, np.array([[1, 2, 3], [1, 2, 3], [1, 3, 4]])
+    )
 
 
 class MetricsComputeTest(parameterized.TestCase):
@@ -94,6 +82,7 @@ class MetricsComputeTest(parameterized.TestCase):
         task_batch, output_features
     )
     self.assertEqual(metric_value["accuracy"], 1.0)
+
 
 if __name__ == "__main__":
   absltest.main()

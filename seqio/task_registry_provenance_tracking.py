@@ -19,6 +19,7 @@ this code is run at module import time. This usage pattern can make
 it difficult to determine where a particular task or mixture is being
 registered. This module helps to alleviate difficulty with this pattern.
 """
+
 import inspect
 import itertools
 from typing import Any

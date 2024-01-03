@@ -309,7 +309,7 @@ class SentencePieceVocabulary(Vocabulary):
       reverse_extra_ids: if True, extra_ids are numbered in descending order, so
         the first extra_id has the highest number. This is done for
         compatibility with span_corruption mask generation in T5.
-      use_fast_tokenizer: use the tf_text fastsentencepiecetokenizer 
+      use_fast_tokenizer: use the tf_text fastsentencepiecetokenizer
         implementation which runs much faster.
     """
     self._sentencepiece_model_file = sentencepiece_model_file

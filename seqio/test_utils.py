@@ -92,10 +92,10 @@ def _make_fake_datasets():
     return
 
   empty_ragged_tensor = tf.ragged.constant([[]], ragged_rank=1, dtype=tf.int32)
-  empty_ragged_tensor = tf.expand_dims(tf.concat(
-      [empty_ragged_tensor, empty_ragged_tensor], 0), 2)
-  empty_ragged_tensor = tf.concat(
-      [empty_ragged_tensor, empty_ragged_tensor], 2)
+  empty_ragged_tensor = tf.expand_dims(
+      tf.concat([empty_ragged_tensor, empty_ragged_tensor], 0), 2
+  )
+  empty_ragged_tensor = tf.concat([empty_ragged_tensor, empty_ragged_tensor], 2)
   _FAKE_DATASET = {
       "train": [
           {
@@ -106,7 +106,8 @@ def _make_fake_datasets():
               "ragged_feature": tf.RaggedTensor.from_row_splits(
                   tf.constant([[3, 1], [4, 1], [5, 9], [2, 6]]),
                   row_splits=[0, 2, 4],
-                  validate=True),
+                  validate=True,
+              ),
           },
           {
               "prefix": "that",
@@ -116,7 +117,8 @@ def _make_fake_datasets():
               "ragged_feature": tf.RaggedTensor.from_row_splits(
                   tf.constant([[3, 1], [4, 1], [5, 9]]),
                   row_splits=[0, 1, 3],
-                  validate=True),
+                  validate=True,
+              ),
           },
           {
               "prefix": "those",
@@ -139,7 +141,8 @@ def _make_fake_datasets():
               "ragged_feature": tf.RaggedTensor.from_row_splits(
                   tf.constant([[6, 2], [9, 0], [3, 3]]),
                   row_splits=[0, 1, 3],
-                  validate=True),
+                  validate=True,
+              ),
           },
           {
               "idx": 1,
@@ -153,7 +156,8 @@ def _make_fake_datasets():
               "ragged_feature": tf.RaggedTensor.from_row_splits(
                   tf.constant([[0, 9], [8, 7], [2, 4], [6, 5]]),
                   row_splits=[0, 2, 4],
-                  validate=True),
+                  validate=True,
+              ),
           },
       ],
   }
@@ -417,11 +421,13 @@ def _make_fake_datasets():
               "ragged_feature": tf.RaggedTensor.from_row_splits(
                   tf.constant([[3, 1], [4, 1], [5, 9], [2, 6]]),
                   row_splits=[0, 2, 4],
-                  validate=True),
+                  validate=True,
+              ),
               "ragged_feature_pretokenized": tf.RaggedTensor.from_row_splits(
                   tf.constant([[3, 1], [4, 1], [5, 9], [2, 6]]),
                   row_splits=[0, 2, 4],
-                  validate=True),
+                  validate=True,
+              ),
           },
           {
               "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 50),
@@ -431,11 +437,13 @@ def _make_fake_datasets():
               "ragged_feature": tf.RaggedTensor.from_row_splits(
                   tf.constant([[3, 1], [4, 1], [5, 9]]),
                   row_splits=[0, 1, 3],
-                  validate=True),
+                  validate=True,
+              ),
               "ragged_feature_pretokenized": tf.RaggedTensor.from_row_splits(
                   tf.constant([[3, 1], [4, 1], [5, 9]]),
                   row_splits=[0, 1, 3],
-                  validate=True),
+                  validate=True,
+              ),
           },
           {
               "inputs": (3, 13, 7, 14, 15, 9, 4, 50, 12, 11, 7, 6, 4),
@@ -459,11 +467,13 @@ def _make_fake_datasets():
               "ragged_feature": tf.RaggedTensor.from_row_splits(
                   tf.constant([[6, 2], [9, 0], [3, 3]]),
                   row_splits=[0, 1, 3],
-                  validate=True),
+                  validate=True,
+              ),
               "ragged_feature_pretokenized": tf.RaggedTensor.from_row_splits(
                   tf.constant([[6, 2], [9, 0], [3, 3]]),
                   row_splits=[0, 1, 3],
-                  validate=True),
+                  validate=True,
+              ),
           },
           {
               "idx": 1,
@@ -499,11 +509,13 @@ def _make_fake_datasets():
               "ragged_feature": tf.RaggedTensor.from_row_splits(
                   tf.constant([[0, 9], [8, 7], [2, 4], [6, 5]]),
                   row_splits=[0, 2, 4],
-                  validate=True),
+                  validate=True,
+              ),
               "ragged_feature_pretokenized": tf.RaggedTensor.from_row_splits(
                   tf.constant([[0, 9], [8, 7], [2, 4], [6, 5]]),
                   row_splits=[0, 2, 4],
-                  validate=True),
+                  validate=True,
+              ),
           },
       ],
   }
@@ -540,34 +552,28 @@ def get_fake_dataset(
       "suffix": tf.TensorSpec(shape=(), dtype=tf.string),
   }
   if split == "validation":
-    output_signature.update(
-        {
-            "idx": tf.TensorSpec(shape=(), dtype=tf.int64),
-            "idxs": tf.TensorSpec(shape=[None], dtype=tf.int32),
-            "id": tf.TensorSpec(shape=(), dtype=tf.string),
-            "ids": tf.TensorSpec(shape=[None], dtype=tf.string),
-        }
-    )
+    output_signature.update({
+        "idx": tf.TensorSpec(shape=(), dtype=tf.int64),
+        "idxs": tf.TensorSpec(shape=[None], dtype=tf.int32),
+        "id": tf.TensorSpec(shape=(), dtype=tf.string),
+        "ids": tf.TensorSpec(shape=[None], dtype=tf.string),
+    })
 
   if ndfeatures:
     # If we are using ndfeatures fake dataset add the info.
-    output_signature.update(
-        {
-            "2d_feature": tf.TensorSpec(shape=(None, 3), dtype=tf.int32),
-            "3d_feature": tf.TensorSpec(shape=(None, 2, 3), dtype=tf.int32),
-        }
-    )
+    output_signature.update({
+        "2d_feature": tf.TensorSpec(shape=(None, 3), dtype=tf.int32),
+        "3d_feature": tf.TensorSpec(shape=(None, 2, 3), dtype=tf.int32),
+    })
 
   if ragged_features:
-    output_signature.update(
-        {
-            "ragged_feature": tf.RaggedTensorSpec(
-                shape=(2, None, 2),
-                dtype=tf.int32,
-                ragged_rank=1,
-            ),
-        }
-    )
+    output_signature.update({
+        "ragged_feature": tf.RaggedTensorSpec(
+            shape=(2, None, 2),
+            dtype=tf.int32,
+            ragged_rank=1,
+        ),
+    })
 
   # Keep only defined features.
   examples = list(
@@ -575,7 +581,8 @@ def get_fake_dataset(
   )
 
   ds = tf.data.Dataset.from_generator(
-      lambda: examples, output_signature=output_signature,
+      lambda: examples,
+      output_signature=output_signature,
   )
   if shard_info:
     ds = ds.shard(num_shards=shard_info.num_shards, index=shard_info.index)
@@ -830,6 +837,7 @@ def _assert_compare_to_fake_dataset(
 
   actual_examples = _get_comparable_examples_from_ds(ds)
   expected_examples = [tuple(sorted(ex.items())) for ex in fake_examples]
+
   # Replace RaggedTensors in a nested way.
   def recursive_ragged_tensor_to_list(x: Any):
     if isinstance(x, tf.RaggedTensor):
@@ -838,6 +846,7 @@ def _assert_compare_to_fake_dataset(
     if isinstance(x, dict) or isinstance(x, list) or isinstance(x, tuple):
       return tf.nest.map_structure(recursive_ragged_tensor_to_list, x)
     return x
+
   actual_examples = recursive_ragged_tensor_to_list(actual_examples)
   expected_examples = recursive_ragged_tensor_to_list(expected_examples)
   _pyunit_proxy.assertCountEqual(expected_examples, actual_examples)

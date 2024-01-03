@@ -25,6 +25,7 @@ registration_provenance \
   --registration_module_import=my.tasks
   --registration_provenance_out_filename=/some/file/path.tsv
 """
+
 import importlib
 from typing import List
 

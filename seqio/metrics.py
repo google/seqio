@@ -17,7 +17,7 @@
 import dataclasses
 import enum
 import inspect
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union, List
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import clu.metrics
 import flax
@@ -129,7 +129,8 @@ class Metric(clu.metrics.Metric):
       features: Mapping[str, utils.Feature],
       target_field_name: str = "targets",
       mask: Optional[np.ndarray] = None,
-      indices_2d: Optional[np.ndarray] = None) -> "Metric":
+      indices_2d: Optional[np.ndarray] = None,
+  ) -> "Metric":
     """Creates a `seqio.Metric` from model outputs.
 
     Args:
@@ -162,11 +163,14 @@ class CollectingMetric(clu.metrics.CollectingMetric):
       features: Mapping[str, utils.Feature],
       target_field_name: str = "targets",
       mask: Optional[np.ndarray] = None,
-      indices_2d: Optional[np.ndarray] = None):
-
+      indices_2d: Optional[np.ndarray] = None,
+  ):
     del inputs, features, target_field_name
-    num_examples = len(model_output[0]) if isinstance(
-        model_output, tuple) else len(model_output)
+    num_examples = (
+        len(model_output[0])
+        if isinstance(model_output, tuple)
+        else len(model_output)
+    )
 
     if mask is None:
       mask = jnp.ones((num_examples,), jnp.int32)
@@ -175,17 +179,24 @@ class CollectingMetric(clu.metrics.CollectingMetric):
       indices_2d = jnp.transpose(
           jnp.stack([
               jnp.zeros((num_examples,), jnp.int32),
-              jnp.arange(num_examples, dtype=jnp.int32)
-          ]))
-    return cls(values={
-        "model_output": model_output,
-        "indices_2d": indices_2d,
-        "mask": mask
-    })
+              jnp.arange(num_examples, dtype=jnp.int32),
+          ])
+      )
+    return cls(
+        values={
+            "model_output": model_output,
+            "indices_2d": indices_2d,
+            "mask": mask,
+        }
+    )
 
-  def actual_compute(self, task_dataset_as_numpy, task_output_features,
-                     target_field_name: str = "targets",
-                     cached_targets: Optional[List[str]] = None):
+  def actual_compute(
+      self,
+      task_dataset_as_numpy,
+      task_output_features,
+      target_field_name: str = "targets",
+      cached_targets: Optional[List[str]] = None,
+  ):
     """Implements the metric computation logics for CollectingMetric.
 
     Args:
@@ -221,7 +232,8 @@ class LegacyMetric(Metric):
         key
         for key, param in inspect.signature(metric_fn).parameters.items()
         if param.default == inspect.Parameter.empty
-        and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
+    )
     if pos_args == ("targets", "scores"):
       model_output_type = ModelOutputType.SCORE
     elif pos_args == ("targets", "predictions"):
@@ -233,7 +245,8 @@ class LegacyMetric(Metric):
           "Metric functions must have positional arguments matching either "
           "('targets', 'scores'), ('targets', 'predictions') or "
           "('targets', 'predictions', 'aux_values'). "
-          f"Got: {pos_args}")
+          f"Got: {pos_args}"
+      )
 
     return cls(
         _metric_fn=metric_fn,
@@ -357,7 +370,7 @@ def globally_sort_model_output(model_output, indices_2d):
   permutation = np.lexsort((indices_2d[:, 1], indices_2d[:, 0]))
 
   def _sort_by_permutation(x):
-    return np.array([x[permutation[i]]for i in range(len(permutation))])
+    return np.array([x[permutation[i]] for i in range(len(permutation))])
 
   model_output = jax.tree_map(_sort_by_permutation, model_output)
 
@@ -369,9 +382,11 @@ class PassthroughLegacyMetric(CollectingMetric):
   """Makes PassthroughLegacyMetric from metric functions."""
 
   @classmethod
-  def from_metric_fn(cls,
-                     metric_fn: MetricFnCallable,
-                     postprocess_fn: Optional[Callable[..., Any]] = None):
+  def from_metric_fn(
+      cls,
+      metric_fn: MetricFnCallable,
+      postprocess_fn: Optional[Callable[..., Any]] = None,
+  ):
     """Creates `PassthroughLegacyMetric` from `metric_fn` and `postprocess_fn`.
 
     Example:
@@ -396,7 +411,8 @@ class PassthroughLegacyMetric(CollectingMetric):
           key
           for key, param in inspect.signature(metric_fn).parameters.items()
           if param.default == inspect.Parameter.empty
-          and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
+          and param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
+      )
       if pos_args == ("targets", "scores"):
         model_output_type = ModelOutputType.SCORE
       elif pos_args == ("targets", "predictions"):
@@ -408,7 +424,8 @@ class PassthroughLegacyMetric(CollectingMetric):
             "Metric functions must have positional arguments matching either "
             "('targets', 'scores'), ('targets', 'predictions') or "
             "('targets', 'predictions', 'aux_values'). "
-            f"Got: {pos_args}")
+            f"Got: {pos_args}"
+        )
 
       return model_output_type
 
@@ -419,15 +436,20 @@ class PassthroughLegacyMetric(CollectingMetric):
       model_output_type: ModelOutputType = _get_model_output_type()
 
       @classmethod
-      def postprocess(cls, targets_or_predictions: Any,
-                      **postprocess_kwargs) -> Any:
+      def postprocess(
+          cls, targets_or_predictions: Any, **postprocess_kwargs
+      ) -> Any:
         """Applies the postprocessing to targets or predictions."""
         if postprocess_fn:
           return postprocess_fn(targets_or_predictions, **postprocess_kwargs)
         return targets_or_predictions
 
-      def postprocess_targets(self, task_dataset_as_numpy, task_output_features,
-                              target_field_name: str = "targets"):
+      def postprocess_targets(
+          self,
+          task_dataset_as_numpy,
+          task_output_features,
+          target_field_name: str = "targets",
+      ):
         """Applies the postprocessing to targets."""
         # Postprocesses the targets here.
         postprocessed_targets = []
@@ -436,9 +458,9 @@ class PassthroughLegacyMetric(CollectingMetric):
           if pretokenized_target_field_name in ex:
             target = ex[pretokenized_target_field_name]
           else:
-            target = task_output_features[
-                target_field_name
-            ].vocabulary.decode(list(ex[target_field_name]))
+            target = task_output_features[target_field_name].vocabulary.decode(
+                list(ex[target_field_name])
+            )
           if isinstance(target, bytes):
             target = target.decode("utf-8")
 
@@ -447,13 +469,18 @@ class PassthroughLegacyMetric(CollectingMetric):
           )
         return postprocessed_targets
 
-      def actual_compute(self, task_dataset_as_numpy, task_output_features,
-                         target_field_name: str = "targets",
-                         cached_targets: Optional[List[str]] = None):
+      def actual_compute(
+          self,
+          task_dataset_as_numpy,
+          task_output_features,
+          target_field_name: str = "targets",
+          cached_targets: Optional[List[str]] = None,
+      ):
         # Postprocesses the targets here.
         if not cached_targets:
           postprocessed_targets = self.postprocess_targets(
-              task_dataset_as_numpy, task_output_features, target_field_name)
+              task_dataset_as_numpy, task_output_features, target_field_name
+          )
         else:
           postprocessed_targets = cached_targets
 
@@ -480,8 +507,10 @@ class PassthroughLegacyMetric(CollectingMetric):
           targets_and_inferences["score"] = model_output
         else:
           vocab = task_output_features[target_field_name].vocabulary
-          if type(
-              self).model_output_type == ModelOutputType.PREDICTION_WITH_AUX:
+          if (
+              type(self).model_output_type
+              == ModelOutputType.PREDICTION_WITH_AUX
+          ):
             metric_fn_kwargs["aux_values"] = model_output[1]
             targets_and_inferences["aux_value"] = model_output[1]
             predictions = [vocab.decode(tokens) for tokens in model_output[0]]

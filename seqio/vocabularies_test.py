@@ -328,7 +328,8 @@ class SentencepieceVocabularyTest(parameterized.TestCase):
 
   def test_fast_tokenizer(self):
     vocab = test_utils.sentencepiece_vocab(
-        extra_ids=10, use_fast_tokenizer=True)
+        extra_ids=10, use_fast_tokenizer=True
+    )
     self.assertEqual(36, vocab.vocab_size)
     self.assertEqual("v", vocab.decode([25]))
     test_string = "<extra_id_0> <extra_id_1> v <extra_id_9>"

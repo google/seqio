@@ -49,7 +49,7 @@ class Count(metrics_lib.Metric):
       target_field_name: str = "targets",
       mask: Optional[np.ndarray] = None,
       indices_2d: Optional[np.ndarray] = None,
-    ) -> "Count":
+  ) -> "Count":
 
     if mask is None:
       mask = np.ones((len(inputs),))
@@ -108,11 +108,12 @@ class MetricManagerTest(absltest.TestCase):
 
     self.assertSequenceEqual(
         list(self.metric_manager.output_metrics_collections.keys()),
-        ["dummy_task"]
+        ["dummy_task"],
     )
     self.assertSequenceEqual(
-        list(self.metric_manager.output_metrics_collections[
-            "dummy_task"].keys()),
+        list(
+            self.metric_manager.output_metrics_collections["dummy_task"].keys()
+        ),
         [model_output_type],
     )
 
@@ -182,17 +183,23 @@ class MetricManagerTest(absltest.TestCase):
     # The first two metrics are CollectingMetric's, so they are just passing
     # through model outputs.
     np.testing.assert_array_equal(
-        metrics.FromMetricFun_0.values["indices_2d"], batch_indices_2d)
+        metrics.FromMetricFun_0.values["indices_2d"], batch_indices_2d
+    )
     np.testing.assert_array_equal(
-        metrics.FromMetricFun_0.values["mask"], np.array([True, True]))
+        metrics.FromMetricFun_0.values["mask"], np.array([True, True])
+    )
     np.testing.assert_array_equal(
-        metrics.FromMetricFun_0.values["model_output"], batch_result)
+        metrics.FromMetricFun_0.values["model_output"], batch_result
+    )
     np.testing.assert_array_equal(
-        metrics.FromMetricFun_1.values["indices_2d"], batch_indices_2d)
+        metrics.FromMetricFun_1.values["indices_2d"], batch_indices_2d
+    )
     np.testing.assert_array_equal(
-        metrics.FromMetricFun_1.values["mask"], np.array([True, True]))
+        metrics.FromMetricFun_1.values["mask"], np.array([True, True])
+    )
     np.testing.assert_array_equal(
-        metrics.FromMetricFun_1.values["model_output"], batch_result)
+        metrics.FromMetricFun_1.values["model_output"], batch_result
+    )
     # The last metric is batch-update enabled metric.
     self.assertEqual(metrics.Count_2.count, 2)
 
@@ -212,22 +219,28 @@ class MetricManagerTest(absltest.TestCase):
     # through model outputs.
     np.testing.assert_array_equal(
         metrics.FromMetricFun_0.values["indices_2d"],
-        np.concatenate([batch_indices_2d, batch_indices_2d], axis=0))
+        np.concatenate([batch_indices_2d, batch_indices_2d], axis=0),
+    )
     np.testing.assert_array_equal(
         metrics.FromMetricFun_0.values["mask"],
-        np.array([True, True, True, True]))
+        np.array([True, True, True, True]),
+    )
     np.testing.assert_array_equal(
         metrics.FromMetricFun_0.values["model_output"],
-        np.concatenate([batch_result, batch_result], axis=0))
+        np.concatenate([batch_result, batch_result], axis=0),
+    )
     np.testing.assert_array_equal(
         metrics.FromMetricFun_1.values["indices_2d"],
-        np.concatenate([batch_indices_2d, batch_indices_2d], axis=0))
+        np.concatenate([batch_indices_2d, batch_indices_2d], axis=0),
+    )
     np.testing.assert_array_equal(
         metrics.FromMetricFun_1.values["mask"],
-        np.array([True, True, True, True]))
+        np.array([True, True, True, True]),
+    )
     np.testing.assert_array_equal(
         metrics.FromMetricFun_1.values["model_output"],
-        np.concatenate([batch_result, batch_result], axis=0))
+        np.concatenate([batch_result, batch_result], axis=0),
+    )
     # The last metric is batch-update enabled metric.
     self.assertEqual(metrics.Count_2.count, 4)
 

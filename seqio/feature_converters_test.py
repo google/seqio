@@ -1484,7 +1484,8 @@ class PrefixSuffixLMFeatureConverter(tf.test.TestCase):
   def test_prefix_suffix_lm_unpacked(self):
     x = [{"inputs": [9, 4, 6, 1], "targets": [3, 9], "suffixes": [2, 1]}]
     ds = create_default_dataset(
-        x, feature_names=("inputs", "targets", "suffixes"))
+        x, feature_names=("inputs", "targets", "suffixes")
+    )
 
     task_feature_lengths = {"inputs": 5, "targets": 4, "suffixes": 3}
     converter = feature_converters.PrefixSuffixLMFeatureConverter(pack=False)
@@ -1503,7 +1504,8 @@ class PrefixSuffixLMFeatureConverter(tf.test.TestCase):
   def test_prefix_suffix_lm_unpacked_trivial_targets(self):
     x = [{"inputs": [9, 4, 6, 1], "targets": [], "suffixes": [2, 1]}]
     ds = create_default_dataset(
-        x, feature_names=("inputs", "targets", "suffixes"))
+        x, feature_names=("inputs", "targets", "suffixes")
+    )
 
     task_feature_lengths = {"inputs": 5, "targets": 4, "suffixes": 3}
 
@@ -1522,7 +1524,8 @@ class PrefixSuffixLMFeatureConverter(tf.test.TestCase):
   def test_prefix_suffix_lm_unpacked_trivial_suffixes(self):
     x = [{"inputs": [9, 4, 6, 1], "targets": [2, 1], "suffixes": []}]
     ds = create_default_dataset(
-        x, feature_names=("inputs", "targets", "suffixes"))
+        x, feature_names=("inputs", "targets", "suffixes")
+    )
 
     task_feature_lengths = {"inputs": 5, "targets": 4, "suffixes": 3}
 
@@ -1542,10 +1545,20 @@ class PrefixSuffixLMFeatureConverter(tf.test.TestCase):
   def test_prefix_suffix_lm_packed(self):
     x = [
         {"inputs": [9, 4, 6], "targets": [3, 9], "suffixes": [2, 1]},
-        {"inputs": [3, 2,], "targets": [4,], "suffixes": [1]}
+        {
+            "inputs": [
+                3,
+                2,
+            ],
+            "targets": [
+                4,
+            ],
+            "suffixes": [1],
+        },
     ]
     ds = create_default_dataset(
-        x, feature_names=("inputs", "targets", "suffixes"))
+        x, feature_names=("inputs", "targets", "suffixes")
+    )
 
     task_feature_lengths = {"inputs": 8, "targets": 4, "suffixes": 3}
     converter = feature_converters.PrefixSuffixLMFeatureConverter(pack=True)
@@ -1559,17 +1572,42 @@ class PrefixSuffixLMFeatureConverter(tf.test.TestCase):
         "decoder_positions": [0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 0, 0, 0, 0],
         "decoder_segment_ids": [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 0, 0, 0, 0],
         "decoder_causal_attention": [
-            1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+            1,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ],
     }
     assert_dataset(converted_ds, expected)
 
   def test_prefix_suffix_lm_packed_trivial_suffoxes(self):
     x = [
         {"inputs": [9, 4, 6], "targets": [3, 9], "suffixes": [2, 1]},
-        {"inputs": [3, 2,], "targets": [4,], "suffixes": []}
+        {
+            "inputs": [
+                3,
+                2,
+            ],
+            "targets": [
+                4,
+            ],
+            "suffixes": [],
+        },
     ]
     ds = create_default_dataset(
-        x, feature_names=("inputs", "targets", "suffixes"))
+        x, feature_names=("inputs", "targets", "suffixes")
+    )
 
     task_feature_lengths = {"inputs": 8, "targets": 4, "suffixes": 3}
     converter = feature_converters.PrefixSuffixLMFeatureConverter(pack=True)
@@ -1583,7 +1621,22 @@ class PrefixSuffixLMFeatureConverter(tf.test.TestCase):
         "decoder_positions": [0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 0, 0, 0, 0, 0],
         "decoder_segment_ids": [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0, 0],
         "decoder_causal_attention": [
-            1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+            1,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ],
     }
     assert_dataset(converted_ds, expected)
 

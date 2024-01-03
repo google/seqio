@@ -36,10 +36,8 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           if isinstance(v, np.ndarray):
             v = v.tolist()
         return v
-      return {
-          k: _convert_value(v)
-          for k, v in ex.items()
-      }
+
+      return {k: _convert_value(v) for k, v in ex.items()}
 
     with TestPipeline() as p:
       pcoll = (
@@ -152,7 +150,8 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
         "ragged_shape": tf.RaggedTensor.from_row_splits(
             tf.constant([[3, 1], [4, 1], [5, 9]]),
             row_splits=[0, 1, 3],
-            validate=True),
+            validate=True,
+        ),
     }]
     with TestPipeline() as p:
       pcoll = p | beam.Create(input_examples) | beam_utils.GetInfo(num_shards=3)
@@ -217,9 +216,7 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
           | beam_utils.GetStats(output_features=output_features)
       )
 
-      util.assert_that(
-          pcoll, util.equal_to([{"examples": 2}])
-      )
+      util.assert_that(pcoll, util.equal_to([{"examples": 2}]))
 
   def test_get_stats_tokenized_dataset(self):
     # These examples are assumed to be decoded by
@@ -340,11 +337,9 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
       )
 
   def test_count_characters_tokenized_dataset_with_non_spm_vocab(self):
-    input_examples = [
-        {
-            "feature": np.array([4, 5]),
-        }
-    ]
+    input_examples = [{
+        "feature": np.array([4, 5]),
+    }]
     output_features = {
         "feature": seqio.Feature(
             seqio.PassThroughVocabulary(1), dtype=tf.int32, rank=1

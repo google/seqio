@@ -79,12 +79,12 @@ input dataset.
   - If EOS tokens are required, they are already appended in the input dataset.
   - The input dataset is not batched.
 """
+
 import abc
 import dataclasses
 import functools
 from typing import Mapping, Optional, Sequence
 from absl import logging
-
 from seqio import utils
 import tensorflow.compat.v2 as tf
 
@@ -282,7 +282,8 @@ class FeatureConverter(abc.ABC):
       apply_length_check: bool = True,
       bos_id: int = 0,
       passthrough_features: Optional[
-          Mapping[str, "FeatureConverter.FeatureSpec"]] = None,
+          Mapping[str, "FeatureConverter.FeatureSpec"]
+      ] = None,
   ):
     self._pack = pack
     self._use_custom_packing_ops = use_custom_packing_ops
@@ -1118,8 +1119,10 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
       self, task_feature_lengths: Mapping[str, int]
   ) -> Mapping[str, int]:
     concat_length = sum(
-        v for k, v in task_feature_lengths.items()
-        if k not in self._passthrough_features)
+        v
+        for k, v in task_feature_lengths.items()
+        if k not in self._passthrough_features
+    )
     task_lengths = {
         "targets": concat_length,
         "inputs_width": concat_length,
@@ -1183,8 +1186,10 @@ class PrefixLMFeatureConverter(LMFeatureConverter):
   ) -> Mapping[str, int]:
     """Define the length relationship between task and model features."""
     decoder_length = sum(
-        v for k, v in task_feature_lengths.items()
-        if k not in self._passthrough_features)
+        v
+        for k, v in task_feature_lengths.items()
+        if k not in self._passthrough_features
+    )
     concat_length = {"targets": decoder_length}
     lm_model_feature_lengths = super().get_model_feature_lengths(concat_length)
     model_feature_lengths = dict(lm_model_feature_lengths)
@@ -1254,7 +1259,8 @@ class PrefixSuffixLMFeatureConverter(PrefixLMFeatureConverter):
     d = dict(lm_features)
     target_suffix_weights = tf.cast(
         tf.equal(features["target_suffix_weights"], 2),
-        dtype=d["decoder_loss_weights"].dtype)
+        dtype=d["decoder_loss_weights"].dtype,
+    )
     d["target_suffix_weights"] = target_suffix_weights
     return d
 
@@ -1284,12 +1290,30 @@ class PrefixSuffixLMFeatureConverter(PrefixLMFeatureConverter):
     )
 
     target_weights_with_suffix = tf.concat(
-        [tf.ones_like(inputs),
-         tf.ones_like(targets),
-         tf.fill([tf.size(suffixes),], 2)], axis=-1)
+        [
+            tf.ones_like(inputs),
+            tf.ones_like(targets),
+            tf.fill(
+                [
+                    tf.size(suffixes),
+                ],
+                2,
+            ),
+        ],
+        axis=-1,
+    )
     target_weights_without_suffix = tf.concat(
-        [tf.ones_like(inputs),
-         tf.fill([tf.size(target_suffixes),], 2)], axis=-1)
+        [
+            tf.ones_like(inputs),
+            tf.fill(
+                [
+                    tf.size(target_suffixes),
+                ],
+                2,
+            ),
+        ],
+        axis=-1,
+    )
 
     target_weights = tf.cond(
         tf.size(suffixes) > 0,
@@ -1300,12 +1324,12 @@ class PrefixSuffixLMFeatureConverter(PrefixLMFeatureConverter):
         "targets": tf.concat([inputs, target_suffixes], axis=-1),
         "inputs_width": inputs_width,
         "inputs_width_add_pos": inputs_width_add_pos,
-        "target_suffix_weights": target_weights
+        "target_suffix_weights": target_weights,
     }
 
   def get_model_feature_lengths(
       self, task_feature_lengths: Mapping[str, int]
-      ) -> Mapping[str, int]:
+  ) -> Mapping[str, int]:
     """Define the length relationship between task and model features."""
     decoder_length = sum(task_feature_lengths.values())
     concat_length = {"targets": decoder_length}
@@ -1362,7 +1386,8 @@ class DecoderFeatureConverter(FeatureConverter):
       apply_length_check: bool = True,
       bos_id: int = 0,
       passthrough_features: Optional[
-          Mapping[str, FeatureConverter.FeatureSpec]] = None,
+          Mapping[str, FeatureConverter.FeatureSpec]
+      ] = None,
   ) -> None:
     self._loss_on_targets_only = loss_on_targets_only
     super().__init__(
@@ -1607,6 +1632,7 @@ class PrePackedLMFeatureConverter(PassThroughFeatureConverter):
         additional features to be filtered out.
       task_feature_lengths: Dictionary of feature lengths. Must include a
         targets key, used for all decoder features.
+
     Returns: A dataset filtered to BATCH_FEATURES and with fixed set length.
     """
     return ds.map(
