@@ -378,35 +378,6 @@ def apply_feature_converter(
 
 
 @utils.map_over_dataset
-def hash_and_tile_subtask_id(ex, num_buckets=1e9):
-  """Converts scalar-str task name to 1D-int id matching input+target lengths.
-
-  (1) str to int conversion is done using tf.strings.to_hash_bucket_fast. A
-  default num_buckets=1e9 ensures minimal chance of collisions (there are O(100)
-  tasks in general).
-  (2) Next, the scalar int task id is tiled to create a 1-D array with shape
-  len(inputs) + len(targets) (inputs can be empty). This ensures that this
-  feature can be packed the same way as targets (for LM) such that each target
-  token has a corresponding task id.
-
-  Args:
-    ex: the example containing a "provenance/task" field.
-    num_buckets: number of hash-buckets to use for str->int conversion.
-
-  Returns:
-    The given example with a hased and tiled "provenance/task_id" field.
-  """
-  # Step 1: str -> int
-  task_id = tf.strings.to_hash_bucket_fast(ex['provenance/task'], num_buckets)
-  # Step 2: shape [] -> [len(inputs) + len(targets)]
-  tiled = ex['targets']
-  if 'inputs' in ex:
-    tiled = tf.concat([ex['targets'], ex['inputs']], axis=-1)
-  ex['provenance/task_id'] = tf.experimental.numpy.full_like(tiled, task_id)
-  return ex
-
-
-@utils.map_over_dataset
 def preprocess_tensorflow_examples(example, inputs_format, targets_format):
   """Parse dict of tf.tensors into inputs and targets.
 

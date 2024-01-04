@@ -163,18 +163,6 @@ def apply_feature_converter(state):
     )
 
 
-# TODO(b/315985098): Ask mishragaurav@ for a good example and create a test.
-# @google_benchmark.register
-# def hash_and_tile_subtask_id(state):
-#   og_dataset = tf.data.Dataset.from_tensors({
-#       'inputs': 'This is',
-#       'targets': 'a test.',
-#       'provenance/task': 'test_task_name',
-#   })
-#   while state:
-#     _ = preprocessors.hash_and_tile_subtask_id(og_dataset)
-
-
 @google_benchmark.register
 def preprocess_tensorflow_examples(state):
   og_dataset = tf.data.Dataset.from_tensors({'text': 'Hello', 'label': 'World'})
