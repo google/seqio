@@ -146,7 +146,7 @@ def mixture_or_task_with_new_vocab(
   # This is a Mixture. Create and register new sub-Tasks/Mixtures with the
   # provided vocab/output_features, then create a new Mixture.
   new_tasks_and_rates = []
-  for task_name, rate in mixture_or_task.rate_per_task_name.items():
+  for task_name, rate in mixture_or_task._task_to_rate.items():
     new_task_name = f"{new_mixture_or_task_name}.{task_name}"
     new_task = mixture_or_task_with_new_vocab(
         task_name,
@@ -306,7 +306,7 @@ def mixture_or_task_with_truncated_data(
     # This is a Mixture. Create and register new sub-Tasks/Mixtures with the
     # provided vocab/output_features, then create a new Mixture.
     new_tasks_and_rates = []
-    for task_name, rate in mixture_or_task.rate_per_task_name.items():
+    for task_name, rate in mixture_or_task._task_to_rate.items():
       new_task = mixture_or_task_with_truncated_data(
           task_name,
           f"{new_mixture_or_task_name}.{task_name}",
@@ -354,7 +354,7 @@ def mixture_with_missing_task_splits_removed(
   """
   og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_name)  # pytype: disable=annotation-type-mismatch  # always-use-return-annotations
   new_tasks_and_rates = []
-  for task_name, rate in og_mix.rate_per_task_name.items():
+  for task_name, rate in og_mix._task_to_rate.items():
     subtask: dp.Task = dp.get_mixture_or_task(task_name)  # pytype: disable=annotation-type-mismatch  # always-use-return-annotations
     if split in subtask.splits:
       new_tasks_and_rates.append((subtask.name, rate))
