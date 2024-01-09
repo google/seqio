@@ -149,14 +149,14 @@ class HelpersTest(test_utils.FakeTaskTest):
 
     # Step 5: Verify mixing rates for new mixtures.
     self.assertDictEqual(
-        new_mix._task_to_rate,
+        new_mix.rate_per_task_name,
         {
             "my_new_test_mix2.my_test_task1": 1.0,
             "my_new_test_mix2.my_test_mix1": 1.0,
         },
     )
     self.assertDictEqual(
-        new_submix._task_to_rate,
+        new_submix.rate_per_task_name,
         {
             "my_new_test_mix2.my_test_mix1.my_test_task1": 0.5,
             "my_new_test_mix2.my_test_mix1.my_test_task2": 1.0,
@@ -269,14 +269,14 @@ class HelpersTest(test_utils.FakeTaskTest):
 
     # Step 5: Verify mixing rates for new mixtures.
     self.assertDictEqual(
-        new_mix._task_to_rate,
+        new_mix.rate_per_task_name,
         {
             "my_new_test_mix2.my_test_task1": 1.0,
             "my_new_test_mix2.my_test_mix1": 1.0,
         },
     )
     self.assertDictEqual(
-        new_submix._task_to_rate,
+        new_submix.rate_per_task_name,
         {
             "my_new_test_mix2.my_test_mix1.my_test_task1": 0.5,
             "my_new_test_mix2.my_test_mix1.my_test_task2": 1.0,
@@ -453,11 +453,11 @@ class HelpersTest(test_utils.FakeTaskTest):
     self.assertNotIn("super_mix_train", list(dp.MixtureRegistry.names()))
     self.assertIn("super_mix_test", list(dp.MixtureRegistry.names()))
     self.assertDictEqual(
-        mix_train._task_to_rate,
+        mix_train.rate_per_task_name,
         {"my_test_task_train_test": 0.3, "my_test_task_train": 0.9},
     )
     self.assertDictEqual(
-        mix_test._task_to_rate,
+        mix_test.rate_per_task_name,
         {"my_test_task_train_test": 0.3, "my_test_task_test": 0.7},
     )
 

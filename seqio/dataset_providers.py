@@ -1855,8 +1855,17 @@ class Mixture(DatasetProviderBase):
   def total_rate(self) -> float:
     return sum(
         float(rate(self._task_map[name]) if callable(rate) else rate)
-        for name, rate in self._task_to_rate.items()
+        for name, rate in self.rate_per_task_name.items()
     )
+
+  @property
+  def rate_per_task_name(self) -> Mapping[str, MixtureRate]:
+    """Returns the rate for each task.
+
+    Note that sub-mixtures are included as tasks and that the tasks part of
+    these sub-mixtures are not in the mapping.
+    """
+    return self._task_to_rate
 
   def get_rate(self, task: Task) -> float:
     """Computes the mixing rate for the given task."""
@@ -1867,15 +1876,15 @@ class Mixture(DatasetProviderBase):
         rate = self._get_submixture_rate(mix)
         value += rate * mix.get_rate(task) / mix.total_rate
 
-    if task.name in self._task_to_rate:
-      rate = self._task_to_rate[task.name]
+    if task.name in self.rate_per_task_name:
+      rate = self.rate_per_task_name[task.name]
       value += float(rate(task) if callable(rate) else rate)
 
     return value
 
   def _get_submixture_rate(self, mix: "Mixture") -> float:
     """Returns the rate for a sub mixture by name."""
-    rate = self._task_to_rate[mix.name]
+    rate = self.rate_per_task_name[mix.name]
     if not isinstance(rate, numbers.Number):
       raise ValueError(
           f"'rate' for sub-mixture {repr(mix.name)} must be a number."
@@ -1931,6 +1940,7 @@ class Mixture(DatasetProviderBase):
       try_in_mem_cache: bool = True,
   ) -> tf.data.Dataset:
     """."""
+
     def filter_features(ex):
       return {k: v for k, v in ex.items() if k in output_feature_keys}
 
@@ -2114,7 +2124,7 @@ class PyGloveTunableMixture(Mixture):
 
   def _get_submixture_rate(self, mix: "Mixture") -> float:
     """Overrides this method to make submixture ratio tunable."""
-    rate = self._task_to_rate[mix.name]
+    rate = self.rate_per_task_name[mix.name]
     if callable(rate):
       rate = rate(mix)
     return float(rate)
