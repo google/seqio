@@ -61,6 +61,7 @@ setuptools.setup(
         # sentencepiece package.
         'protobuf<=3.20.3',
     ],
+    requires_python='>=3.9',
     extras_require={
         'gcp': [
             'gevent',
