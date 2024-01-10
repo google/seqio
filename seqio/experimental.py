@@ -206,7 +206,7 @@ def add_fully_cached_mixture(
   return MixtureRegistry.add(
       new_name,
       [
-          (new_t.name, mixture._task_to_rate[old_t.name])  # pylint:disable=protected-access
+          (new_t.name, mixture.rate_per_task_name[old_t.name])
           for old_t, new_t in zip(mixture.tasks, new_tasks)
       ],
   )
