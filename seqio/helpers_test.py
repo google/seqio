@@ -47,6 +47,7 @@ class HelpersTest(test_utils.FakeTaskTest):
             "feature_a": dp.Feature(VOCAB1),
             "feature_b": dp.Feature(VOCAB1, add_eos=False),
         },
+        source_info=dp.SourceInfo(file_path="my_task.py"),
     )
     helpers.mixture_or_task_with_new_vocab(
         "my_test_task", "my_new_test_task", new_vocab=VOCAB2
@@ -61,6 +62,7 @@ class HelpersTest(test_utils.FakeTaskTest):
             "feature_b": dp.Feature(VOCAB2, add_eos=False),
         },
     )
+    self.assertEqual(new_task.source_info.file_path, "my_task.py")
 
   def test_task_new_output_features(self):
     task_dataset_fn = functools.partial(_dataset_fn, data=["this is", "a test"])
@@ -110,6 +112,7 @@ class HelpersTest(test_utils.FakeTaskTest):
         source=dp.FunctionDataSource(test_dataset_fn1, splits=["train"]),
         preprocessors=[pr.tokenize],
         output_features=og_output_features,
+        source_info=dp.SourceInfo(file_path="my_test_task1.py"),
     )
     test_task2 = dp.TaskRegistry.add(
         "my_test_task2",
@@ -123,9 +126,13 @@ class HelpersTest(test_utils.FakeTaskTest):
         "my_test_mix1",
         [("my_test_task1", 0.5), "my_test_task2"],
         default_rate=1.0,
+        source_info=dp.SourceInfo(file_path="my_test_mix1.py"),
     )
     dp.MixtureRegistry.add(
-        "my_test_mix2", ["my_test_task1", "my_test_mix1"], default_rate=1.0
+        "my_test_mix2",
+        ["my_test_task1", "my_test_mix1"],
+        default_rate=1.0,
+        source_info=dp.SourceInfo(file_path="my_test_mix2.py"),
     )
 
     # Step 3: Call helper to convert the mixture
@@ -169,7 +176,9 @@ class HelpersTest(test_utils.FakeTaskTest):
         "feature_b": dp.Feature(VOCAB2, add_eos=False),
     }
     self.assertDictEqual(new_mix.output_features, expected_output_features)
+    self.assertEqual(new_mix.source_info.file_path, "my_test_mix2.py")
     self.assertDictEqual(new_submix.output_features, expected_output_features)
+    self.assertEqual(new_submix.source_info.file_path, "my_test_mix1.py")
     self.assertDictEqual(
         new_submix_subtask1.output_features, expected_output_features
     )
@@ -182,6 +191,9 @@ class HelpersTest(test_utils.FakeTaskTest):
     self.assertEqual(new_submix_subtask1.source, test_task1.source)
     self.assertEqual(
         new_submix_subtask1.preprocessors, test_task1.preprocessors
+    )
+    self.assertEqual(
+        new_submix_subtask1.source_info.file_path, "my_test_task1.py"
     )
     self.assertEqual(new_submix_subtask2.source, test_task2.source)
     self.assertEqual(

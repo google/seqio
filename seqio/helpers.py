@@ -138,6 +138,7 @@ def mixture_or_task_with_new_vocab(
         postprocess_fn=mixture_or_task.postprocessor,
         metric_fns=mixture_or_task.metric_fns,
         shuffle_buffer_size=mixture_or_task._shuffle_buffer_size,
+        source_info=mixture_or_task.source_info,
     )
     if add_to_seqio_registry:
       dp.TaskRegistry.add_provider(new_mixture_or_task_name, new_task)
@@ -162,6 +163,7 @@ def mixture_or_task_with_new_vocab(
       new_tasks_and_rates,
       default_rate=None,
       sample_fn=mixture_or_task._sample_fn,
+      source_info=mixture_or_task.source_info,
   )
   if add_to_seqio_registry:
     dp.MixtureRegistry.add_provider(new_mixture_or_task_name, new_mix)

@@ -1714,6 +1714,7 @@ class TaskRegistry(DatasetProviderRegistry):
       metric_fns: Optional[Sequence[MetricFnCallable]] = None,
       metric_objs: Optional[Sequence[clu.metrics.Metric]] = None,
       task_cls: Type[Task] = Task,
+      source_info: Optional[SourceInfo] = None,
       **kwargs,
   ) -> Task:
     """See `Task` constructor for docstring."""
@@ -1725,6 +1726,7 @@ class TaskRegistry(DatasetProviderRegistry):
         "postprocess_fn": postprocess_fn,
         "metric_fns": metric_fns,
         "metric_objs": metric_objs,
+        "source_info": source_info,
         **kwargs,
     }
 
@@ -2267,6 +2269,7 @@ class MixtureRegistry(DatasetProviderRegistry):
       tasks,
       default_rate=None,
       mixture_cls: Type[Mixture] = Mixture,
+      source_info: Optional[SourceInfo] = None,
       **kwargs,
   ) -> Mixture:
     """See `Mixture` constructor for docstring."""
@@ -2274,6 +2277,7 @@ class MixtureRegistry(DatasetProviderRegistry):
         "name": name,
         "tasks": tasks,
         "default_rate": default_rate,
+        "source_info": source_info,
         **kwargs,
     }
     return super().add(
