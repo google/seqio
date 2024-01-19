@@ -695,10 +695,16 @@ class FileDataSource(DataSource):
     if isinstance(filepattern, str):
       return _list_files(pattern=filepattern)
 
+    filepattern = list(filepattern)
+
     if not any(glob.has_magic(f) for f in filepattern):
       return filepattern
     else:
-      return _list_files(pattern=filepattern)
+      assert isinstance(filepattern, Iterable)
+      ret = []
+      for f in filepattern:
+        ret.extend(_list_files(pattern=f))
+      return ret
 
 
 
