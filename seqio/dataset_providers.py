@@ -1,4 +1,4 @@
-# Copyright 2023 The SeqIO Authors.
+# Copyright 2024 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -583,7 +583,7 @@ class FileDataSource(DataSource):
 
   def __init__(
       self,
-      read_file_fn: Callable[[tf.data.Dataset], tf.data.Dataset],
+      read_file_fn: Callable[[str], tf.data.Dataset],
       split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
       num_input_examples: Optional[Mapping[str, int]] = None,
       caching_permitted: bool = True,
