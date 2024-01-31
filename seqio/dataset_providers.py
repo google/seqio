@@ -2320,6 +2320,7 @@ def _get_closest_names(
 
 def get_mixture_or_task(task_or_mixture_name: str):
   """Return the Task or Mixture from the appropriate registry."""
+  assert isinstance(task_or_mixture_name, str), f"Got: {task_or_mixture_name!r}"
   mixtures = MixtureRegistry.names()
   tasks = TaskRegistry.names()
   if task_or_mixture_name in mixtures:
@@ -2353,12 +2354,12 @@ def maybe_get_mixture_or_task(
   if isinstance(task, str):
     return get_mixture_or_task(task)
 
-  if not isinstance(task, (Task, Mixture)):
-    raise ValueError(
-        "User passed in a task that was not a string, Task, or Mixture."
-        f"Got type: {type(task)}"
-    )
-  return task
+  if isinstance(task, (Task, Mixture)):
+    return task
+  raise ValueError(
+      "User passed in a task that was not a string, Task, or Mixture."
+      f"Got type: {type(task)}"
+  )
 
 
 def get_subtasks(task_or_mixture):
