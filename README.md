@@ -989,7 +989,7 @@ their Tasks, which are differentiated by their function signature. Metrics
 computed on the outputs of `predict_fn` (and `predict_with_aux_fn`) have the
 signature `targets` and `predictions` (and optionally `aux_values`), while
 metrics computed on the outputs of `score_fn` have the signature `targets` and
-`predictions`. The `Evaluator` takes care of calling the correct model fns and
+`scores`. The `Evaluator` takes care of calling the correct model fns and
 metric fns during evaluation. Here is an example of a metric of each type.
 
 ```
