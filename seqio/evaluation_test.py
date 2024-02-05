@@ -1175,20 +1175,29 @@ class EvaluationTest(tf.test.TestCase):
           all_outputs[task.name][metrics_lib.ModelOutputType.PREDICTION],
       )
 
+  def test_includes_task_name_in_error_message(self):
+    task = get_mocked_task(
+        name="test_task_number_42",
+        predict_metric_fns=[_accuracy_metric, _accuracy_metric],
+    )
+    with self.assertRaisesRegex(ValueError, ".*test_task_number_42*"):
+      self._evaluate_single_task(task)
+
   def test_duplicate_metric(self):
     task = get_mocked_task(
         predict_metric_fns=[_accuracy_metric, _accuracy_metric]
     )
-    with self.assertRaisesWithLiteralMatch(
-        ValueError, "Duplicate metric key 'accuracy' in Task 'mocked_test'."
+    with self.assertRaisesRegex(
+        ValueError, ".*Duplicate metric key 'accuracy' in Task 'mocked_test'.*"
     ):
       self._evaluate_single_task(task)
 
     task = get_mocked_task(
         score_metric_fns=[_sum_scores_metric, _sum_scores_metric]
     )
-    with self.assertRaisesWithLiteralMatch(
-        ValueError, "Duplicate metric key 'total_score' in Task 'mocked_test'."
+    with self.assertRaisesRegex(
+        ValueError,
+        ".*Duplicate metric key 'total_score' in Task 'mocked_test'.*",
     ):
       self._evaluate_single_task(task)
 
@@ -1196,8 +1205,8 @@ class EvaluationTest(tf.test.TestCase):
         predict_metric_fns=[_accuracy_metric],
         score_metric_fns=[lambda targets, scores: {"accuracy": 0}],
     )
-    with self.assertRaisesWithLiteralMatch(
-        ValueError, "Duplicate metric key 'accuracy' in Task 'mocked_test'."
+    with self.assertRaisesRegex(
+        ValueError, ".*Duplicate metric key 'accuracy' in Task 'mocked_test'.*"
     ):
       self._evaluate_single_task(task)
 
