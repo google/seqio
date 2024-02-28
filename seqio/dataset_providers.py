@@ -20,6 +20,7 @@ Defines Tasks, TaskRegistry, Mixture, and MixtureRegistry
 from __future__ import annotations
 
 import abc
+import asyncio
 import collections
 import dataclasses
 import functools
@@ -1458,6 +1459,7 @@ class Task(DatasetProviderBase):
     return dataset
 
   @property
+  @timeout_decorator.timeout(seconds=60)
   def cache_dir(self) -> Optional[str]:
     """Returns the cache directory (or None), initializing if needed."""
     if not self._cache_dir:
@@ -1489,6 +1491,13 @@ class Task(DatasetProviderBase):
               self.name,
               cache_dir,
               e,
+          )
+        except asyncio.TimeoutError:
+          logging.warning(
+              "Task %s: Cache directory check timeout for global cache"
+              " folder: %s",
+              self.name,
+              cache_dir,
           )
 
       if not self._cache_dir:
