@@ -59,6 +59,9 @@ class TasksTest(test_utils.FakeTaskTest):
     ):
       self.add_task("invalid/name", self.function_source)
 
+  def test_hash_in_name(self):
+    self.add_task("valid#name", self.function_source)
+
   def test_repeat_name(self):
     with self.assertRaisesWithLiteralMatch(
         ValueError, "Attempting to register duplicate provider: text_line_task"

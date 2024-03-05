@@ -52,7 +52,7 @@ import typing_extensions
 
 _DEFAULT_FEATURE_KEYS = ["inputs", "targets"]
 
-_VALID_TASK_NAME_REGEX = re.compile(r"^[\w\d\.\:_]+$")
+_VALID_TASK_NAME_REGEX = re.compile(r"^[\w\d\.\:_#]+$")
 _MAX_EXAMPLES_TO_MEM_CACHE = 10000
 SHUFFLE_BUFFER_SIZE = 1000
 
