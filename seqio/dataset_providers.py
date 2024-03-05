@@ -1921,16 +1921,21 @@ class Mixture(DatasetProviderBase):
     """Throw Exception if features across tasks have different vocabs or dtypes."""
     for name, feature in self.tasks[0].output_features.items():
       for task in self.tasks[1:]:
+        task_feature = task.output_features[name]
         if (
             hasattr(feature, "vocabulary")
-            and task.output_features[name].vocabulary != feature.vocabulary
+            and task_feature.vocabulary != feature.vocabulary
         ):
           raise ValueError(
-              "Features across tasks in a mixture must use the same vocabulary."
+              f"Features across tasks in a mixture must use the same "
+              f"vocabulary.  Got {task_feature.vocabulary} for feature "
+              f"'{name}' in task '{task}', expected {feature.vocabulary}."
           )
-        if task.output_features[name].dtype != feature.dtype:
+        if task_feature.dtype != feature.dtype:
           raise ValueError(
-              "Features across tasks in a mixture must use the same dtype."
+              f"Features across tasks in a mixture must use the same dtype.  "
+              f"Got {task_feature.dtype} for feature '{name}' in task "
+              f"'{task}', expected {feature.dtype}."
           )
 
   def get_task_dataset(
