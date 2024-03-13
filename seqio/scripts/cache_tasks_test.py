@@ -27,6 +27,7 @@ import tensorflow.compat.v2 as tf
 tf.compat.v1.enable_eager_execution()
 
 flags.FLAGS.min_shards = 0
+flags.FLAGS.output_format = "tfrecord"
 TaskRegistry = seqio.TaskRegistry
 test_utils = seqio.test_utils
 

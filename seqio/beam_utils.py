@@ -28,6 +28,8 @@ import numpy as np
 import seqio
 import tensorflow.compat.v2 as tf
 
+from array_record.python import array_record_module
+
 PROVENANCE_PREFIX = "provenance/"
 TASK_PROVENANCE_KEY = PROVENANCE_PREFIX + "task"
 SOURCE_SHARD_PROVENANCE_KEY = PROVENANCE_PREFIX + "source_shard"
@@ -199,6 +201,111 @@ class WriteExampleTfRecord(beam.PTransform):
             self._output_path,
             num_shards=self._num_shards,
             coder=beam.coders.ProtoCoder(tf.train.Example),
+        )
+    )
+
+
+class _ArrayRecordSink(beam.io.filebasedsink.FileBasedSink):
+  """Sink Class for use in Arrayrecord PTransform."""
+
+  def __init__(
+      self,
+      file_path_prefix,
+      file_name_suffix=None,
+      num_shards=0,
+      shard_name_template=None,
+      coder=beam.coders.coders.ToBytesCoder(),
+      compression_type=beam.io.filesystem.CompressionTypes.AUTO,
+      preserve_random_access: bool = False,
+  ):
+
+    super().__init__(
+        file_path_prefix,
+        file_name_suffix=file_name_suffix,
+        num_shards=num_shards,
+        shard_name_template=shard_name_template,
+        coder=coder,
+        mime_type="application/octet-stream",
+        compression_type=compression_type,
+    )
+    self._preserve_random_access = preserve_random_access
+
+  def open(self, temp_path):
+    group_size = 1 if self._preserve_random_access else self.num_shards
+    array_writer = array_record_module.ArrayRecordWriter(
+        temp_path, f"group_size:{group_size}"
+    )
+    return array_writer
+
+  def close(self, file_handle):
+    file_handle.close()
+
+  def write_encoded_record(self, file_handle, value):
+    file_handle.write(value)
+
+
+class WriteToArrayRecord(beam.transforms.PTransform):
+  """PTransform for a disk-based write to ArrayRecord."""
+
+  def __init__(
+      self,
+      file_path_prefix,
+      file_name_suffix="",
+      num_shards=0,
+      shard_name_template=None,
+      coder=beam.coders.coders.ToBytesCoder(),
+      compression_type=beam.io.filesystem.CompressionTypes.AUTO,
+      preserve_random_access: bool = False,
+  ):
+
+    self._sink = _ArrayRecordSink(
+        file_path_prefix,
+        file_name_suffix,
+        num_shards,
+        shard_name_template,
+        coder,
+        compression_type,
+        preserve_random_access,
+    )
+
+  def expand(self, pcoll):
+    return pcoll | beam.io.iobase.Write(self._sink)
+
+
+class WriteExampleArrayRecord(beam.PTransform):
+  """Writes examples (dicts) to an ArrayRecord of tf.Example protos."""
+
+  def __init__(
+      self,
+      output_path: str,
+      num_shards: Optional[int] = None,
+      preserve_random_access: bool = False,
+  ):
+    """WriteExampleArrayRecord constructor.
+
+    Args:
+      output_path: string, path to the output ArrayRecord file (w/o shard
+        suffix).
+      num_shards: (optional) int, number of shards to output or None to use
+        liquid sharding.
+      preserve_random_access: Whether to preserve the random access of the
+        written ArrayRecord. If true, set group_size=1, else, set to number of
+        shards.
+    """
+    self._output_path = output_path
+    self._num_shards = num_shards
+    self._preserve_random_access = preserve_random_access
+
+  def expand(self, pcoll):
+    return (
+        pcoll
+        | beam.Map(seqio.dict_to_tfexample)
+        | beam.Reshuffle()
+        | WriteToArrayRecord(
+            self._output_path,
+            num_shards=self._num_shards,
+            coder=beam.coders.ProtoCoder(tf.train.Example),
+            preserve_random_access=self._preserve_random_access,
         )
     )
 
