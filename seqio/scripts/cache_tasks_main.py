@@ -142,6 +142,21 @@ flags.DEFINE_boolean(
 )
 
 
+flags.DEFINE_enum(
+    "output_format",
+    "tfrecord",
+    ["arrayrecord", "tfrecord"],
+    "Output format of the cached tasks.",
+)
+flags.DEFINE_boolean(
+    "preserve_random_access",
+    False,
+    "Used only if --output_format=arrayrecord. If true, preserve the random"
+    " access by setting group_size=1, else, set group_size to number of output"
+    " shards. Be aware that preserve_random_access will significantly slow down"
+    " the process of writing to the ArrayRecord.",
+)
+
 
 def _import_modules(modules):
   for module in modules:
@@ -289,14 +304,27 @@ def run_pipeline(
           | "%s_global_example_shuffle" % label >> beam.Reshuffle()
       )
 
-      completion_values.append(
-          examples
-          | "%s_write_tfrecord" % label
-          >> beam_utils.WriteExampleTfRecord(
-              seqio.get_cached_tfrecord_prefix(output_dir, split),
-              num_shards=num_shards,
-          )
-      )
+      if FLAGS.output_format == "arrayrecord":
+        completion_values.append(
+            examples
+            | "%s_write_arrayrecord" % label
+            >> beam_utils.WriteExampleArrayRecord(
+                os.path.join(
+                    output_dir, "{split}.array_record".format(split=split)
+                ),
+                num_shards=num_shards,
+                preserve_random_access=FLAGS.preserve_random_access,
+            )
+        )
+      elif FLAGS.output_format == "tfrecord":
+        completion_values.append(
+            examples
+            | "%s_write_tfrecord" % label
+            >> beam_utils.WriteExampleTfRecord(
+                seqio.get_cached_tfrecord_prefix(output_dir, split),
+                num_shards=num_shards,
+            )
+        )
       completion_values.append(
           examples
           | "%s_info" % label >> beam_utils.GetInfo(num_shards)
