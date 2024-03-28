@@ -403,7 +403,7 @@ log-likelihood scores according to the model. The args must be named `targets`
 and `scores`.
 
 ```py
-def perplexity(targets: Sequence[str], scores: Sequence[int]):
+def perplexity(targets: Sequence[str], scores: Sequence[float]):
   return {
     "perplexity": seqio.metrics.Scalar(np.exp(np.mean(scores)))
   }
