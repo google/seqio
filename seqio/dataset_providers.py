@@ -1927,13 +1927,13 @@ class Mixture(DatasetProviderBase):
             and task_feature.vocabulary != feature.vocabulary
         ):
           raise ValueError(
-              f"Features across tasks in a mixture must use the same "
+              "Features across tasks in a mixture must use the same "
               f"vocabulary.  Got {task_feature.vocabulary} for feature "
               f"'{name}' in task '{task}', expected {feature.vocabulary}."
           )
         if task_feature.dtype != feature.dtype:
           raise ValueError(
-              f"Features across tasks in a mixture must use the same dtype.  "
+              "Features across tasks in a mixture must use the same dtype.  "
               f"Got {task_feature.dtype} for feature '{name}' in task "
               f"'{task}', expected {feature.dtype}."
           )
@@ -2353,7 +2353,7 @@ def get_mixture_or_task(task_or_mixture_name: str):
 
 
 def maybe_get_mixture_or_task(
-    task: Union[str, Task, Mixture]
+    task: Union[str, Task, Mixture],
 ) -> Union[Task, Mixture]:
   """Given a task name, Task, or Mixture object, return an object."""
   if isinstance(task, str):
