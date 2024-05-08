@@ -2022,6 +2022,8 @@ class Mixture(DatasetProviderBase):
     self._check_compatible_features()
     tasks = []
     for task in self.tasks:
+      if not task.source.splits:
+        logging.warning("Task %s has no splits defined, skipping.", task.name)
       if split not in task.splits:
         logging.warning(
             "Task %s has no '%s' split, skipping.", task.name, split
