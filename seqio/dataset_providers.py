@@ -1855,7 +1855,7 @@ class Mixture(DatasetProviderBase):
     return self._source_info
 
   @property
-  def tasks(self) -> Sequence[Task]:
+  def tasks(self) -> list[Task]:
     sub_tasks = (mix.tasks for mix in self._sub_mixtures)
     return list(sorted(set(sum(sub_tasks, self._tasks)), key=lambda t: t.name))
 
