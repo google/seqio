@@ -136,6 +136,8 @@ class PreprocessTask(beam.PTransform):
       shard_preprocessors_seed = int.from_bytes(md5_digest, "little") + (
           self._preprocessors_seed or 0
       )
+    # Truncate if still a large number.
+    shard_preprocessors_seed %= self._int64_max
 
     ds = task.source.get_dataset(
         split=self._split,
