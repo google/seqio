@@ -125,6 +125,7 @@ class BeamUtilsTest(seqio.test_utils.FakeTaskTest):
     parsed_example = tf.train.Example.FromString(next(iter(ds)).numpy())
     self.assertEqual(parsed_example, seqio.dict_to_tfexample(example))
 
+
   def test_write_json(self):
     output_path = os.path.join(self.test_data_dir, "output.json")
     data = {

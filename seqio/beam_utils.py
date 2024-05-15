@@ -19,6 +19,7 @@ import hashlib
 import importlib
 import json
 import operator
+import os
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from absl import logging
@@ -205,6 +206,8 @@ class WriteExampleTfRecord(beam.PTransform):
             coder=beam.coders.ProtoCoder(tf.train.Example),
         )
     )
+
+
 
 
 class _ArrayRecordSink(beam.io.filebasedsink.FileBasedSink):

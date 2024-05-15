@@ -24,6 +24,7 @@ import seqio
 from seqio.scripts import cache_tasks_main
 import tensorflow.compat.v2 as tf
 
+
 tf.compat.v1.enable_eager_execution()
 
 flags.FLAGS.min_shards = 0

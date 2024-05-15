@@ -145,7 +145,10 @@ flags.DEFINE_boolean(
 flags.DEFINE_enum(
     "output_format",
     "tfrecord",
-    ["arrayrecord", "tfrecord"],
+    [
+        "arrayrecord",
+        "tfrecord",
+    ],
     "Output format of the cached tasks.",
 )
 flags.DEFINE_boolean(
@@ -173,6 +176,8 @@ def run_pipeline(
     overwrite=False,
     ignore_other_caches=False,
     completed_file_contents="",
+    store_metadata_proto: bool = False,  # GOOGLE-INTERNAL,
+    output_format: str = "tfrecord",
 ):
   """Run preprocess pipeline."""
   output_dirs = []
@@ -304,7 +309,7 @@ def run_pipeline(
           | "%s_global_example_shuffle" % label >> beam.Reshuffle()
       )
 
-      if FLAGS.output_format == "arrayrecord":
+      if output_format == "arrayrecord":
         completion_values.append(
             examples
             | "%s_write_arrayrecord" % label
@@ -316,7 +321,7 @@ def run_pipeline(
                 preserve_random_access=FLAGS.preserve_random_access,
             )
         )
-      elif FLAGS.output_format == "tfrecord":
+      elif output_format == "tfrecord":
         completion_values.append(
             examples
             | "%s_write_tfrecord" % label
@@ -389,6 +394,7 @@ def main(_):
         FLAGS.module_import,
         FLAGS.overwrite,
         FLAGS.ignore_other_caches,
+        FLAGS.output_format,
     )
 
 
