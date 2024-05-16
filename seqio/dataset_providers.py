@@ -288,12 +288,14 @@ class DataSource(DatasetProviderBase):
       splits: Iterable[str],
       num_input_examples: Optional[Mapping[str, int]] = None,
       caching_permitted: bool = True,
+      performs_internal_shuffling: bool = False,
   ):
     self._splits = tuple(splits)
     self._num_input_examples = (
         dict(num_input_examples) if num_input_examples is not None else None
     )
     self._caching_permitted = caching_permitted
+    self._performs_internal_shuffling = performs_internal_shuffling
 
   @property
   def caching_permitted(self) -> bool:
@@ -318,6 +320,15 @@ class DataSource(DatasetProviderBase):
   def output_features(self) -> Mapping[str, Feature]:
     """Override unused property of `DatasetProviderBase`."""
     raise NotImplementedError
+
+  @property
+  def performs_internal_shuffling(self) -> bool:
+    """Indicates whether this data source performs internal shuffling.
+
+    Some datasets may provide internal shuffling mechanisms that could allow
+    the dataset to be shuffled without calling ds.shuffle().
+    """
+    return self._performs_internal_shuffling
 
   @abc.abstractmethod
   def list_shards(self, split: str) -> Sequence[str]:
@@ -590,6 +601,7 @@ class FileDataSource(DataSource):
       file_shuffle_buffer_size: Optional[int] = None,
       cycle_length: int = 16,
       block_length: int = 16,
+      performs_internal_shuffling: bool = False,
   ):
     """FileDataSource constructor.
 
@@ -609,6 +621,9 @@ class FileDataSource(DataSource):
         replicate earlier behavior.
       cycle_length: The cycle_length to pass to tf.data.Dataset.interleave.
       block_length: The block_length to pass to tf.data.Dataset.interleave.
+      performs_internal_shuffling: Allow enclosing task to call get_dataset with
+        shuffle_buffer_size=None. In this case, only filename shuffling will be
+        performed when shuffle==True.
     """
     self._split_to_filepattern = split_to_filepattern
     self._reader = read_file_fn
@@ -619,6 +634,7 @@ class FileDataSource(DataSource):
         splits=split_to_filepattern.keys(),
         num_input_examples=num_input_examples,
         caching_permitted=caching_permitted,
+        performs_internal_shuffling=performs_internal_shuffling,
     )
 
   @property
@@ -1663,14 +1679,16 @@ class Task(DatasetProviderBase):
       ds = self._trim_output_features(ds, sequence_length=sequence_length)
     if shuffle:
       if self._shuffle_buffer_size is None:
-        raise ValueError(
-            f"Shuffling is disallowed for Task '{self.name}' since its "
-            "`shuffle_buffer_size` was set to `None` on construction."
-        )
-      shuffle_buffer_size = shuffle_buffer_size or self._shuffle_buffer_size
-      # Shuffle before mixing since preprocessor can output multiple
-      # (correlated) examples per input.
-      ds = ds.shuffle(shuffle_buffer_size, seed=seed)
+        if not self.source.performs_internal_shuffling:
+          raise ValueError(
+              f"Shuffling is disallowed for Task '{self.name}' since its "
+              "`shuffle_buffer_size` was set to `None` on construction."
+          )
+      else:
+        shuffle_buffer_size = shuffle_buffer_size or self._shuffle_buffer_size
+        # Shuffle before mixing since preprocessor can output multiple
+        # (correlated) examples per input.
+        ds = ds.shuffle(shuffle_buffer_size, seed=seed)
 
 
     return ds.prefetch(tf.data.experimental.AUTOTUNE)

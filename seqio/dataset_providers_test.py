@@ -302,6 +302,13 @@ class TasksTest(test_utils.FakeTaskTest):
 
     task.get_dataset(None, shuffle=False)
 
+    # When the source specifies performs_internal_shuffling, it should be
+    # possible to call get_dataset with shuffle=True and
+    # shuffle_buffer_size=None. In this case, only the source's internal
+    # shuffling mechanism will be active.
+    self.function_source._performs_internal_shuffling = True
+    task.get_dataset(None, shuffle=True)
+
   def test_supports_caching(self):
     self.assertFalse(
         dataset_providers.Task(
