@@ -209,7 +209,7 @@ def _extract_model_output(cached_model_dataset, model_fn):
     sorted_order = np.argsort(indices)
 
     sorted_outputs = _permute(outputs, sorted_order)
-    sorted_aux = jax.tree_map(
+    sorted_aux = jax.tree.map(
         functools.partial(_permute, sorted_order=sorted_order),
         all_aux_values,
         is_leaf=lambda x: isinstance(x, list),
@@ -261,7 +261,7 @@ def _extract_scores(cached_model_dataset, score_fn):
       return [x[sorted_order[i]] for i in range(len(sorted_order))]
 
     sorted_scores = _permute(scores)
-    sorted_intermediates = jax.tree_map(
+    sorted_intermediates = jax.tree.map(
         _permute, intermediates, is_leaf=lambda x: isinstance(x, list)
     )
     return sorted_scores, sorted_intermediates
@@ -718,7 +718,7 @@ class Evaluator:
       # SCORE_WITH_INTERMEDIATES, model output is a tuple of two arrays/lists.
       if isinstance(model_output, tuple):
         prediction_or_score, aux_value = model_output
-        aux_value = jax.tree_map(
+        aux_value = jax.tree.map(
             np.array,
             aux_value,
             is_leaf=lambda x: isinstance(x, list),

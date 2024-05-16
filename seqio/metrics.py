@@ -349,7 +349,7 @@ def remove_padding_examples(model_output, indices_2d, mask):
     2d-indices and model outputs of all the non-padding examples.
   """
   indices_2d = indices_2d[mask == 1]
-  model_output = jax.tree_map(lambda x: x[mask == 1], model_output)
+  model_output = jax.tree.map(lambda x: x[mask == 1], model_output)
 
   return indices_2d, model_output
 
@@ -372,7 +372,7 @@ def globally_sort_model_output(model_output, indices_2d):
   def _sort_by_permutation(x):
     return np.array([x[permutation[i]] for i in range(len(permutation))])
 
-  model_output = jax.tree_map(_sort_by_permutation, model_output)
+  model_output = jax.tree.map(_sort_by_permutation, model_output)
 
   return model_output
 
