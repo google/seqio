@@ -52,7 +52,7 @@ setuptools.setup(
         'numpy',
         'packaging',
         'pyglove',
-        'sentencepiece',
+        'sentencepiece >= 0.2',
         'tensorflow-text',
         # Ping to a specific version to avoid endless backtracking during
         # pip dependency resolution.
