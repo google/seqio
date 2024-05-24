@@ -57,9 +57,6 @@ setuptools.setup(
         # Ping to a specific version to avoid endless backtracking during
         # pip dependency resolution.
         'tfds-nightly==4.9.2.dev202308090034',
-        # Remove this when sentencepiece_model_pb2 is re-generated in the
-        # sentencepiece package.
-        'protobuf<=3.20.3',
     ],
     requires_python='>=3.9',
     extras_require={
