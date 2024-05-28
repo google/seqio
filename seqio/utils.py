@@ -127,6 +127,7 @@ class LazyTfdsLoader(object):
       data_dir: Optional[str] = None,
       split_map: Union[Mapping[str, str], Mapping[str, TfdsSplit], None] = None,
       decoders=None,
+      builder_kwargs: Optional[dict[str, Any]] = None,
   ):
     """LazyTfdsLoader constructor.
 
@@ -140,12 +141,16 @@ class LazyTfdsLoader(object):
         split='train')`). If `TfdsSplit` are used then `name` must be empty.
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
         such as tfds.decode.SkipDecoding() for skipping image byte decoding.
+      builder_kwargs: `dict` (optional), keyword arguments to be passed to the
+        `tfds.core.DatasetBuilder` constructor through `tfds.load()` and
+        `tfds.builder()`.
     """
     _validate_tfds_name(name)
     self._name = name
     self._data_dir = data_dir
     self._split_map = split_map
     self._decoders = decoders
+    self._builder_kwargs = builder_kwargs
 
     self._is_custom_split_map = False
     if split_map:
@@ -302,8 +307,16 @@ class LazyTfdsLoader(object):
     builder_key = self._get_builder_key(dataset, data_dir)
     if builder_key not in LazyTfdsLoader._MEMOIZED_BUILDERS:
       if dataset:
-        builder = tfds.builder(dataset, data_dir=data_dir)
+        builder_kwargs = self._builder_kwargs if self._builder_kwargs else {}
+        builder = tfds.builder(
+            dataset, data_dir=data_dir, **builder_kwargs
+        )
       else:
+        if self._builder_kwargs:
+          raise ValueError(
+              "`builder_kwargs` should be empty when `dataset` value is not"
+              " present."
+          )
         builder = tfds.builder_from_directory(data_dir)
       LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = builder
     return LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key]
@@ -374,6 +387,7 @@ class LazyTfdsLoader(object):
         try_gcs=True,
         read_config=read_config,
         decoders=self._decoders,
+        builder_kwargs=self._builder_kwargs,
     )
 
   def load_shard(

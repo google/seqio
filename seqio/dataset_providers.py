@@ -493,6 +493,7 @@ class TfdsDataSource(DataSource):
       ] = None,
       caching_permitted: bool = True,
       decoders: Optional[tfds.typing.TreeDict[tfds.decode.Decoder]] = None,
+      tfds_builder_kwargs: Optional[dict[str, Any]] = None,
   ):
     """TfdsTask constructor.
 
@@ -514,6 +515,9 @@ class TfdsDataSource(DataSource):
         Default True.
       decoders: dict (optional), mapping from features to tfds.decode.Decoders,
         such as tfds.decode.SkipDecoding() for skipping image byte decoding.
+      tfds_builder_kwargs: `dict` (optional), keyword arguments to be passed to
+        the `tfds.core.DatasetBuilder` constructor through `tfds.load()` and
+        `tfds.builder()`.
     """
     if splits and not isinstance(splits, dict):
       splits = {k: k for k in splits}
@@ -523,6 +527,7 @@ class TfdsDataSource(DataSource):
         data_dir=tfds_data_dir,
         split_map=splits if isinstance(splits, dict) else None,
         decoders=decoders,
+        builder_kwargs=tfds_builder_kwargs,
     )
 
     # If splits are not provided, we pass an empty tuple and use the lazy

@@ -178,6 +178,7 @@ class LazyTfdsLoaderTest(absltest.TestCase):
         try_gcs=True,
         read_config=AnyArg(),
         decoders=None,
+        builder_kwargs=None,
     )
 
     # test .size()
@@ -238,6 +239,7 @@ class LazyTfdsLoaderTest(absltest.TestCase):
         try_gcs=True,
         read_config=AnyArg(),
         decoders=None,
+        builder_kwargs=None,
     )
 
     # test .size()
