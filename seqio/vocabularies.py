@@ -199,6 +199,10 @@ class PassThroughVocabulary(Vocabulary):
   def unk_id(self) -> Optional[Any]:
     return None
 
+  @property
+  def size(self) -> int:
+    return self._size
+
   def __eq__(self, other):
     if not isinstance(other, PassThroughVocabulary):
       return False
