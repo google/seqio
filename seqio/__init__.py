@@ -14,7 +14,7 @@
 
 """Import to top-level API."""
 
-# pylint:disable=wildcard-import,g-bad-import-order
+# pylint:disable=wildcard-import,g-bad-import-order,g-import-not-at-top
 
 from seqio.dataset_providers import *
 from seqio import evaluation
@@ -31,3 +31,4 @@ from seqio.vocabularies import *
 
 # Version number.
 from seqio.version import __version__
+
