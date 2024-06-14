@@ -308,9 +308,7 @@ class LazyTfdsLoader(object):
     if builder_key not in LazyTfdsLoader._MEMOIZED_BUILDERS:
       if dataset:
         builder_kwargs = self._builder_kwargs if self._builder_kwargs else {}
-        builder = tfds.builder(
-            dataset, data_dir=data_dir, **builder_kwargs
-        )
+        builder = tfds.builder(dataset, data_dir=data_dir, **builder_kwargs)
       else:
         if self._builder_kwargs:
           raise ValueError(
@@ -1555,13 +1553,21 @@ def fully_qualified_class_name(instance: Any) -> str:
 
 def function_name(function) -> str:
   """Returns the name of a (possibly partially applied) function."""
-  if inspect.isclass(function):
-    # function can be a protocol.
-    return function.__class__.__name__
-  elif isinstance(function, functools.partial):
-    # functools.partial can be applied multiple times.
-    return function_name(function.func)
-  else:
-    return function.__name__
+  try:
+    if inspect.isclass(function):
+      # function can be a protocol.
+      if hasattr(function.__class__, "__name__"):
+        return function.__class__.__name__
+      else:
+        return str(function.__class__)
+    elif isinstance(function, functools.partial):
+      # functools.partial can be applied multiple times.
+      return function_name(function.func)
+    elif hasattr(function, "__name__"):
+      return function.__name__
+  except Exception:  # pylint: disable=broad-exception-caught
+    pass
+  # Function name could not be determined.
+  return ""
 
 
