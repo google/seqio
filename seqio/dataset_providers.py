@@ -30,6 +30,7 @@ import numbers
 import operator
 import os
 import re
+import traceback
 from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple, Type, Union
 
 from absl import logging
@@ -499,12 +500,15 @@ class TfdsDataSource(DataSource):
 
     Args:
       tfds_name: The name and version number of a TFDS dataset, optionally with
-        a config. If `tfds_name` is not specified then `splits` values must be
-        instances of `TfdsSplit`.
+        a config. If `tfds_name` is not specified then either `tfds_data_dir`
+        must point to a folder that contains the data (e.g.,
+        `/data/tfds/dataset/config/1.2.3`), or `splits` values must be instances
+        of `TfdsSplit`.
       tfds_data_dir: An optional path to a specific TFDS data directory to use.
-        If provided `tfds_name` must be a valid dataset in the directory. If
-        `tfds_name` is empty `tfds_dara_dir` must point to the directory with
-        one dataset.
+        If `tfds_name` is provided, then it must be a valid dataset in the
+        `tfds_data_dir`. If `tfds_name` is empty, `tfds_dara_dir` must point to
+        the directory with one dataset (e.g.,
+        `/data/tfds/dataset/config/1.2.3`).
       splits: an iterable of allowable string split names, a dict mapping
         allowable canonical splits (e.g., 'validation') to TFDS splits or slices
         (e.g., 'train[':1%']), or `TfdsSplit` (e.g. `TfdsSplit(dataset='mnist',
@@ -537,7 +541,7 @@ class TfdsDataSource(DataSource):
   @property
   def splits(self):
     """Overrides since we can't call `info.splits` until after init."""
-    return self._splits or self._tfds_dataset.info.splits
+    return self._splits or self.tfds_dataset.info.splits
 
   @property
   def tfds_dataset(self) -> utils.LazyTfdsLoader:
@@ -1078,6 +1082,14 @@ class CacheDatasetPlaceholder(object):
 MetricFnCallable = metrics_lib.MetricFnCallable
 
 
+@dataclasses.dataclass(frozen=True)
+class StackFrameInfo:
+  filename: str
+  lineno: int | None
+  name: str
+  line: str | None
+
+
 class Task(DatasetProviderBase):
   """A class to manage a dataset and its related metrics."""
 
@@ -1124,6 +1136,17 @@ class Task(DatasetProviderBase):
         If None, shuffling will be disallowed.
       source_info: optional metadata about where this `Task` was defined.
     """
+    self.stack: list[StackFrameInfo] = []
+    for frame_info in traceback.extract_stack():
+      self.stack.append(
+          StackFrameInfo(
+              filename=frame_info.filename,
+              lineno=frame_info.lineno,
+              name=frame_info.name,
+              line=frame_info.line,
+          )
+      )
+
     if not _VALID_TASK_NAME_REGEX.match(name):
       raise ValueError(
           "Task name '%s' contains invalid characters. Must match regex: %s"

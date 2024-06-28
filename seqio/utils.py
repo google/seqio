@@ -112,7 +112,7 @@ class TfdsSplit:
     _validate_tfds_name(self.dataset)
 
 
-class LazyTfdsLoader(object):
+class LazyTfdsLoader:
   """Wrapper for TFDS datasets with memoization and additional functionality.
 
   Lazily loads info from TFDS and provides memoization to avoid expensive hidden
@@ -376,6 +376,15 @@ class LazyTfdsLoader(object):
     )
     read_config.shuffle_seed = seed
     read_config.skip_prefetch = True
+    if dataset is None and data_dir is not None:
+      # Load directly from the data dir.
+      builder = self._get_builder(split=split)
+      return builder.as_dataset(
+          split=dataset_split,
+          shuffle_files=shuffle_files,
+          read_config=read_config,
+          decoders=self._decoders,
+      )
     return tfds.load(
         dataset,
         split=dataset_split,
