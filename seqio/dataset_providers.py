@@ -499,12 +499,15 @@ class TfdsDataSource(DataSource):
 
     Args:
       tfds_name: The name and version number of a TFDS dataset, optionally with
-        a config. If `tfds_name` is not specified then `splits` values must be
-        instances of `TfdsSplit`.
+        a config. If `tfds_name` is not specified then either `tfds_data_dir`
+        must point to a folder that contains the data (e.g.,
+        `/data/tfds/dataset/config/1.2.3`), or `splits` values must be instances
+        of `TfdsSplit`.
       tfds_data_dir: An optional path to a specific TFDS data directory to use.
-        If provided `tfds_name` must be a valid dataset in the directory. If
-        `tfds_name` is empty `tfds_dara_dir` must point to the directory with
-        one dataset.
+        If `tfds_name` is provided, then it must be a valid dataset in the
+        `tfds_data_dir`. If `tfds_name` is empty, `tfds_dara_dir` must point to
+        the directory with one dataset (e.g.,
+        `/data/tfds/dataset/config/1.2.3`).
       splits: an iterable of allowable string split names, a dict mapping
         allowable canonical splits (e.g., 'validation') to TFDS splits or slices
         (e.g., 'train[':1%']), or `TfdsSplit` (e.g. `TfdsSplit(dataset='mnist',
@@ -537,7 +540,7 @@ class TfdsDataSource(DataSource):
   @property
   def splits(self):
     """Overrides since we can't call `info.splits` until after init."""
-    return self._splits or self._tfds_dataset.info.splits
+    return self._splits or self.tfds_dataset.info.splits
 
   @property
   def tfds_dataset(self) -> utils.LazyTfdsLoader:
