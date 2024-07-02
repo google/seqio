@@ -254,6 +254,20 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     with self.assertRaises(KeyError):
       ds.files(split="validation")
 
+  @mock.patch("tensorflow_datasets.builder_from_directory")
+  def test_read_from_directory(self, mock_builder_from_directory):
+    ds = utils.LazyTfdsLoader(name=None, data_dir="/data/foo")
+    mock_builder = mock.MagicMock()
+    mock_builder_from_directory.return_value = mock_builder
+    ds.load("train", shuffle_files=False, seed=42)
+    mock_builder_from_directory.assert_called_once_with("/data/foo")
+    mock_builder.as_dataset.assert_called_once_with(
+        split="train",
+        shuffle_files=False,
+        read_config=AnyArg(),
+        decoders=None,
+    )
+
   @mock.patch("tensorflow_datasets.load")
   def test_read_config_override_default(self, mock_tfds_load):
     ds = utils.LazyTfdsLoader(
