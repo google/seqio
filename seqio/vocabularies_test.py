@@ -201,17 +201,22 @@ class PassThroughVocabularyTest(absltest.TestCase):
 
 
 
-class UnigramVocabularyTest(absltest.TestCase):
+class UnigramVocabularyTest(parameterized.TestCase):
 
-  def test_encode_converts_unigrams_to_ints_correctly(self):
+  @parameterized.parameters((True,), (False,))
+  def test_encode_converts_unigrams_to_ints_correctly(self, split_on_space):
     unigrams = ["this", "that", "is", "not", "a", "the", "test", "ball"]
-    vocabulary = vocabularies.UnigramVocabulary(unigrams)
+    vocabulary = vocabularies.UnigramVocabulary(unigrams, split_on_space)
     self.assertEqual(vocabulary.unk_id, 9)
     with self.subTest(name="pure_python"):
       # Note that id 0 is reserved for padding.
       self.assertEqual(vocabulary.encode("that"), [2])
       self.assertEqual(vocabulary.encode("not"), [4])
       self.assertEqual(vocabulary.encode("apple"), [vocabulary.unk_id])
+      if split_on_space:
+        self.assertEqual(vocabulary.encode("not that"), [4, 2])
+      else:
+        self.assertEqual(vocabulary.encode("not that"), [vocabulary.unk_id])
     with self.subTest(name="tensorflow"):
       # Note that id 0 is reserved for padding.
       # Note that this test must pass under both TF1 and TF2, but the default
@@ -229,14 +234,25 @@ class UnigramVocabularyTest(absltest.TestCase):
           vocabulary.encode_tf(tf.constant("apple")).numpy(),
           [vocabulary.unk_id],
       )
+      if split_on_space:
+        np.testing.assert_array_equal(
+            vocabulary.encode_tf(tf.constant("not that")).numpy(), [4, 2]
+        )
+      else:
+        np.testing.assert_array_equal(
+            vocabulary.encode_tf(tf.constant("not that")).numpy(),
+            [vocabulary.unk_id],
+        )
 
-  def test_decode_converts_ints_to_unigrams_correctly(self):
+  @parameterized.parameters((True,), (False,))
+  def test_decode_converts_ints_to_unigrams_correctly(self, split_on_space):
     unigrams = ["this", "that", "is", "not", "a", "the", "test", "ball"]
-    vocabulary = vocabularies.UnigramVocabulary(unigrams)
+    vocabulary = vocabularies.UnigramVocabulary(unigrams, split_on_space)
     with self.subTest(name="pure_python"):
       self.assertEqual(vocabulary.decode([1]), "this")
       self.assertEqual(vocabulary.decode([3]), "is")
       self.assertEqual(vocabulary.decode([vocabulary.unk_id]), "UNK")
+      self.assertEqual(vocabulary.decode([1, 3]), "this is")
     with self.subTest(name="tensorflow"):
       # Note that this test must pass under both TF1 and TF2, but the default
       # behavior of TF1 == among tensors is to compare object references, not
@@ -248,6 +264,14 @@ class UnigramVocabularyTest(absltest.TestCase):
       self.assertEqual(
           vocabulary.decode_tf(tf.constant([vocabulary.unk_id])).numpy(), b"UNK"
       )
+      if split_on_space:
+        self.assertEqual(
+            vocabulary.decode_tf(tf.constant([4, 2])).numpy(), b"not that"
+        )
+      else:
+        self.assertEqual(
+            vocabulary.decode_tf(tf.constant([4, 2])).numpy(), b"not"
+        )
 
 
 

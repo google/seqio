@@ -215,13 +215,17 @@ class PassThroughVocabulary(Vocabulary):
 class UnigramVocabulary(Vocabulary):
   """Vocabulary that does table-lookup of unigrams."""
 
-  def __init__(self, unigrams: Sequence[str]):
+  def __init__(self, unigrams: Sequence[str], split_on_space: bool = False):
     """UnigramVocabulary constructor.
 
     Args:
       unigrams: the collection of in-vocabulary tokens. This collection should
         not include PAD or UNK, which are automatically assigned ids and managed
         as possible decode tokens.
+      split_on_space: if True, encode/decode split/join with the space
+        character. Otherwise, follows legacy behavior: encode (and encode_tf)
+        treats the input as a single token, decode splits on the space
+        character, and decode_tf decodes only the first token.
     """
 
     super().__init__()
@@ -237,19 +241,33 @@ class UnigramVocabulary(Vocabulary):
         initializer, num_oov_buckets=1
     )
     self._unigram_by_id_tf = tf.constant(self._unigram_by_id)
+    self._split_on_space = split_on_space
 
   def _encode(self, s: str) -> Sequence[int]:
-    return [self._id_by_unigram.get(s, self.unk_id)]
+    if self._split_on_space:
+      return [
+          self._id_by_unigram.get(unigram, self.unk_id)
+          for unigram in s.split(" ")
+      ]
+    else:
+      return [self._id_by_unigram.get(s, self.unk_id)]
 
   def _encode_tf(self, s: tf.Tensor) -> tf.Tensor:
-    tf_ids = self._id_by_unigram_tf.lookup(s)
-    return tf.expand_dims(tf.dtypes.cast(tf_ids, tf.int32), -1)
+    if self._split_on_space:
+      tf_ids = self._id_by_unigram_tf.lookup(tf.strings.split(s, " "))
+      return tf.dtypes.cast(tf_ids, tf.int32)
+    else:
+      tf_ids = self._id_by_unigram_tf.lookup(s)
+      return tf.expand_dims(tf.dtypes.cast(tf_ids, tf.int32), -1)
 
   def _decode(self, ids: Sequence[int]) -> str:
     return " ".join(self._unigram_by_id[id] for id in ids)
 
   def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
-    return self._unigram_by_id_tf[ids[0]]
+    if self._split_on_space:
+      return tf.strings.join(tf.gather(self._unigram_by_id_tf, ids), " ")
+    else:
+      return self._unigram_by_id_tf[ids[0]]
 
   @property
   def _base_vocab_size(self):
