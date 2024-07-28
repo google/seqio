@@ -1323,7 +1323,7 @@ class EvaluationTest(tf.test.TestCase):
             {"targets": np.ones(2**6).reshape((2, 2, 2, 2, 2, 2))},
         ],
         [
-            {"targets": np.zeros((2, 2), dtype=np.complex_)},
+            {"targets": np.zeros((2, 2), dtype=np.complex128)},
         ],
         [
             {"targets": ["hello darkness, my old friend..."]},
