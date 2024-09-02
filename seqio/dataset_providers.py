@@ -95,6 +95,7 @@ class SourceInfo:
   line_number: Optional[int] = None
 
   @classmethod
+  @functools.lru_cache(maxsize=None)
   def for_class(cls, klass) -> SourceInfo:
     """Returns info about where the given class was defined."""
     try:
