@@ -285,6 +285,41 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     # reset to default global override
     utils.set_tfds_read_config_override(None)
 
+  @mock.patch("tensorflow_datasets.builder")
+  def test_override_data_dir(self, mock_tfds_builder):
+    mock_builder1 = mock.create_autospec(tfds.core.DatasetBuilder)
+    mock_builder2 = mock.create_autospec(tfds.core.DatasetBuilder)
+    mock_builder3 = mock.create_autospec(tfds.core.DatasetBuilder)
+    mock_tfds_builder.side_effect = [
+        mock_builder1,
+        mock_builder2,
+        mock_builder3,
+    ]
+
+    orig_data_dir = "/data"
+    override1 = "/override1"
+    override2 = "/override2"
+
+    utils.set_tfds_data_dir_override(override1)
+
+    # Should use `override1` that was set globally.
+    loader = utils.LazyTfdsLoader(name="a/b:1.0.0", data_dir=orig_data_dir)
+    self.assertEqual(override1, loader.data_dir)
+    self.assertEqual(loader.builder, mock_builder1)
+
+    loader.override_data_dir(override2)
+    self.assertEqual(override2, loader.data_dir)
+    self.assertEqual(loader.builder, mock_builder2)
+
+    # Set back to original data dir and check whether the cache works.
+    loader.override_data_dir(orig_data_dir)
+    self.assertEqual(orig_data_dir, loader.data_dir)
+    self.assertEqual(loader.builder, mock_builder3)
+    self.assertEqual(mock_tfds_builder.call_count, 3)
+
+    # Unset it to not influence other tests.
+    utils.set_tfds_data_dir_override(None)
+
 
 
 class TransformUtilsTest(parameterized.TestCase):
@@ -375,7 +410,6 @@ class MapOverDatasetTest(parameterized.TestCase):
         mapped_ds = fn(ds)  # pylint: disable=no-value-for-parameter
       results = [7, 5, 6, 6, 7, 11, 12, 16, 15, 15]
       expected_ds = [{"field": results[i]} for i in range(10)]
-      print("gaurav", list(mapped_ds.as_numpy_iterator()))
       self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
 
   def test_random_map_fn_with_kwargs(self):
@@ -432,7 +466,6 @@ class MapOverDatasetTest(parameterized.TestCase):
         mapped_ds = map_fn(ds, sequence_length={"field": -1})  # pylint: disable=no-value-for-parameter
       results = [13, 15, 16, 13, 9, 16, 15, 26, 18, 16]
       expected_ds = [{"field": results[i]} for i in range(10)]
-      print("gaurav", list(mapped_ds.as_numpy_iterator()))
       self.assertListEqual(list(mapped_ds.as_numpy_iterator()), expected_ds)
 
 

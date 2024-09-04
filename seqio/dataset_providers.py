@@ -538,7 +538,7 @@ class TfdsDataSource(DataSource):
   @property
   def splits(self):
     """Overrides since we can't call `info.splits` until after init."""
-    return self._splits or self._tfds_dataset.info.splits
+    return self._splits or self.tfds_dataset.info.splits
 
   @property
   def tfds_dataset(self) -> utils.LazyTfdsLoader:

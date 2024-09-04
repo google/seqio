@@ -94,6 +94,15 @@ def _validate_tfds_name(name: str) -> None:
     raise ValueError(f"TFDS name must contain a version number, got: {name}")
 
 
+def _get_data_dir_override(tfds_name: Optional[str]) -> Optional[str]:
+  """Returns the data dir in case it is overridden."""
+  if (
+      _TFDS_DATA_DIR_OVERRIDE
+  ):
+    return _TFDS_DATA_DIR_OVERRIDE
+  return None
+
+
 @dataclasses.dataclass(frozen=True)
 class TfdsSplit:
   """Points to a specific TFDS split.
@@ -148,6 +157,7 @@ class LazyTfdsLoader(object):
     _validate_tfds_name(name)
     self._name = name
     self._data_dir = data_dir
+    self._data_dir_override = None
     self._split_map = split_map
     self._decoders = decoders
     self._builder_kwargs = builder_kwargs
@@ -238,19 +248,22 @@ class LazyTfdsLoader(object):
       )
       return None
 
+    if self._data_dir_override is None:
+      if data_dir_override := _get_data_dir_override(tfds_name=self.name):
+        self._data_dir_override = data_dir_override
 
-    if (
-        _TFDS_DATA_DIR_OVERRIDE
-    ):
-      if self._data_dir:
-        logging.warning(
-            "Overriding TFDS data directory '%s' with '%s' for dataset '%s'.",
-            self._data_dir,
-            _TFDS_DATA_DIR_OVERRIDE,
-            self.name,
-        )
-      return _TFDS_DATA_DIR_OVERRIDE
-    return self._data_dir
+    if self._data_dir_override and self._data_dir:
+      logging.warning(
+          "Overriding TFDS data directory '%s' with '%s' for dataset '%s'.",
+          self._data_dir,
+          self._data_dir_override,
+          self.name,
+      )
+
+    return self._data_dir_override or self._data_dir
+
+  def override_data_dir(self, data_dir: str) -> None:
+    self._data_dir_override = data_dir
 
   @property
   def read_config(self):
