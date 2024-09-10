@@ -146,6 +146,23 @@ class LazyTfdsLoaderTest(absltest.TestCase):
     self.assertIsNone(actual)
 
   @mock.patch("tensorflow_datasets.load")
+  @mock.patch("tensorflow_datasets.builder")
+  def test_read_only(self, mock_tfds_builder, mock_tfds_load):
+    mock_builder = mock.create_autospec(tfds.core.DatasetBuilder)
+    mock_tfds_builder.return_value = mock_builder
+    loader = utils.LazyTfdsLoader(
+        "ds/cfg:1.2.3", data_dir="/data", read_only=True
+    )
+    _ = loader.load(split="train", shuffle_files=False)
+    mock_tfds_load.assert_not_called()
+    mock_builder.as_dataset.assert_called_once_with(
+        split="train",
+        shuffle_files=False,
+        read_config=AnyArg(),
+        decoders=None,
+    )
+
+  @mock.patch("tensorflow_datasets.load")
   def test_split_map(self, mock_tfds_load):
     seed = 0
     utils.LazyTfdsLoader._MEMOIZED_BUILDERS[("ds/c1:1.0.0", None)] = mock.Mock(

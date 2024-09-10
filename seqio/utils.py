@@ -137,6 +137,7 @@ class LazyTfdsLoader(object):
       split_map: Union[Mapping[str, str], Mapping[str, TfdsSplit], None] = None,
       decoders=None,
       builder_kwargs: Optional[dict[str, Any]] = None,
+      read_only: bool = False,
   ):
     """LazyTfdsLoader constructor.
 
@@ -153,6 +154,7 @@ class LazyTfdsLoader(object):
       builder_kwargs: `dict` (optional), keyword arguments to be passed to the
         `tfds.core.DatasetBuilder` constructor through `tfds.load()` and
         `tfds.builder()`.
+      read_only: whether `get_dataset` can trigger the generation of a dataset.
     """
     _validate_tfds_name(name)
     self._name = name
@@ -161,6 +163,7 @@ class LazyTfdsLoader(object):
     self._split_map = split_map
     self._decoders = decoders
     self._builder_kwargs = builder_kwargs
+    self._read_only = read_only
 
     self._is_custom_split_map = False
     if split_map:
@@ -389,17 +392,25 @@ class LazyTfdsLoader(object):
     )
     read_config.shuffle_seed = seed
     read_config.skip_prefetch = True
-    return tfds.load(
-        dataset,
-        split=dataset_split,
-        data_dir=data_dir,
-        shuffle_files=shuffle_files,
-        download=True,
-        try_gcs=True,
-        read_config=read_config,
-        decoders=self._decoders,
-        builder_kwargs=self._builder_kwargs,
-    )
+    if self._read_only:
+      return self.builder.as_dataset(
+          split=dataset_split,
+          shuffle_files=shuffle_files,
+          read_config=read_config,
+          decoders=self._decoders,
+      )
+    else:
+      return tfds.load(
+          dataset,
+          split=dataset_split,
+          data_dir=data_dir,
+          shuffle_files=shuffle_files,
+          download=True,
+          try_gcs=True,
+          read_config=read_config,
+          decoders=self._decoders,
+          builder_kwargs=self._builder_kwargs,
+      )
 
   def load_shard(
       self,

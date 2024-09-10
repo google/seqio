@@ -495,6 +495,7 @@ class TfdsDataSource(DataSource):
       caching_permitted: bool = True,
       decoders: Optional[tfds.typing.TreeDict[tfds.decode.Decoder]] = None,
       tfds_builder_kwargs: Optional[dict[str, Any]] = None,
+      read_only: bool = False,
   ):
     """TfdsTask constructor.
 
@@ -519,6 +520,7 @@ class TfdsDataSource(DataSource):
       tfds_builder_kwargs: `dict` (optional), keyword arguments to be passed to
         the `tfds.core.DatasetBuilder` constructor through `tfds.load()` and
         `tfds.builder()`.
+      read_only: whether `get_dataset` can trigger the generation of a dataset.
     """
     if splits and not isinstance(splits, dict):
       splits = {k: k for k in splits}
@@ -529,6 +531,7 @@ class TfdsDataSource(DataSource):
         split_map=splits if isinstance(splits, dict) else None,
         decoders=decoders,
         builder_kwargs=tfds_builder_kwargs,
+        read_only=read_only,
     )
 
     # If splits are not provided, we pass an empty tuple and use the lazy
