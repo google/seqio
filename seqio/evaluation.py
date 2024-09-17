@@ -131,7 +131,12 @@ def _cache_and_measure_examples(
     for ex in tfds.as_numpy(ds):
       for k in max_sequence_length:
         sequence_dim = sequence_dims.get(k, 0)
-        sequence_length = ex[k].shape[sequence_dim]
+        if isinstance(ex[k], tf.RaggedTensor):
+          sequence_length = tf.reduce_max(
+              ex[k].row_lengths(axis=sequence_dim)
+          ).numpy()
+        else:
+          sequence_length = ex[k].shape[sequence_dim]
         max_sequence_length[k] = max(max_sequence_length[k], sequence_length)
       cnt += 1
 
