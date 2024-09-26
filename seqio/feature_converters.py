@@ -346,8 +346,9 @@ class FeatureConverter(abc.ABC):
     for feat in expected_features:
       if feat not in element_spec:
         raise ValueError(
-            "Dataset is missing an expected feature during "
-            f"{error_label} validation: '{feat}'"
+            "Dataset is missing an expected feature during"
+            f" {error_label} validation: '{feat}'. Received {element_spec},"
+            f" expected {expected_features}."
         )
 
       if expected_features[feat].dtype != element_spec[feat].dtype:
@@ -759,7 +760,7 @@ class PrePackedEncDecFeatureConverter(EncDecFeatureConverter):
     """
 
     def convert_example(
-        features: Mapping[str, tf.Tensor]
+        features: Mapping[str, tf.Tensor],
     ) -> Mapping[str, tf.Tensor]:
       # targets_segment_id is present only for a packed dataset.
       decoder_input_tokens = utils.make_autoregressive_inputs(
@@ -1540,7 +1541,7 @@ class EncoderFeatureConverter(FeatureConverter):
 
     @utils.map_over_dataset
     def convert_example(
-        features: Mapping[str, tf.Tensor]
+        features: Mapping[str, tf.Tensor],
     ) -> Mapping[str, tf.Tensor]:
       inputs = features["inputs"]
       d = {
