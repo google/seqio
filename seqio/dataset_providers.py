@@ -541,6 +541,11 @@ class TfdsDataSource(DataSource):
   @property
   def splits(self):
     """Overrides since we can't call `info.splits` until after init."""
+    logging.info(
+        "kano 14: splits: lazy lookup %s %s",
+        self.tfds_dataset,
+        self.tfds_dataset.info,
+    )
     return self._splits or self.tfds_dataset.info.splits
 
   @property
@@ -1280,6 +1285,7 @@ class Task(DatasetProviderBase):
 
   @property
   def splits(self) -> Sequence[str]:
+    logging.info("kano 14: %s source %s", self, self.source)
     s = self.source.splits
     if not s:
       raise ValueError(f"Task {self.name} has no splits")

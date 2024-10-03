@@ -93,6 +93,13 @@ class PreprocessTask(beam.PTransform):
     self._add_provenance = add_provenance
     self._tfds_data_dir = tfds_data_dir
     self._int64_max = 2**63 - 1
+    logging.info(
+        "kano 11: task/split %s/%s source:%s shards:%s",
+        self._task_name,
+        self._split,
+        type(task.source),
+        task.source.list_shards(split),
+    )
     self.shards = list(enumerate(task.source.list_shards(split)))
     if not self.shards:
       raise FileNotFoundError(f"No shards found for {task.name} {split}")
@@ -139,7 +146,9 @@ class PreprocessTask(beam.PTransform):
       )
     # Truncate if still a large number.
     shard_preprocessors_seed %= self._int64_max
-
+    logging.info(
+        "kano 300: _emit_examples gefore get_dataset %s", type(task.source)
+    )
     ds = task.source.get_dataset(
         split=self._split,
         shard_info=seqio.ShardInfo(
@@ -148,6 +157,7 @@ class PreprocessTask(beam.PTransform):
         shuffle=False,
         seed=shard_preprocessors_seed,
     )
+    logging.info("kano 301: _emit_examples after get_dataset")
     ds = task.preprocess_precache(ds, seed=shard_preprocessors_seed)
     ds = ds.prefetch(tf.data.AUTOTUNE)
 

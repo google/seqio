@@ -320,10 +320,17 @@ class LazyTfdsLoader(object):
   def _get_builder(self, split: Optional[str] = None):
     """Returns the DatasetBuilder for this TFDS dataset."""
     dataset, data_dir = self.get_split_params(split)
+    logging.info("kano 14: builder: %s %s", dataset, data_dir)
     builder_key = self._get_builder_key(dataset, data_dir)
     if builder_key not in LazyTfdsLoader._MEMOIZED_BUILDERS:
       if dataset:
         builder_kwargs = self._builder_kwargs if self._builder_kwargs else {}
+        logging.info(
+            "kano 14: loading from dir builder: %s %s %s",
+            dataset,
+            data_dir,
+            builder_kwargs,
+        )
         builder = tfds.builder(dataset, data_dir=data_dir, **builder_kwargs)
       else:
         if self._builder_kwargs:
@@ -331,12 +338,17 @@ class LazyTfdsLoader(object):
               "`builder_kwargs` should be empty when `dataset` value is not"
               " present."
           )
+        logging.info(
+            "kano 14: loading from dir builder: %s %s", dataset, data_dir
+        )
         builder = tfds.builder_from_directory(data_dir)
+      logging.info("kano 14: builder: %s %s", builder, builder.info)
       LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = builder
     return LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key]
 
   @property
   def info(self):
+    logging.info("kano 14: info: %s %s", type(self), type(self.builder))
     return self.builder.info
 
   def _map_split(self, split: str) -> Optional[str]:
