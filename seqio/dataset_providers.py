@@ -1737,6 +1737,7 @@ class TaskRegistry(DatasetProviderRegistry):
 
   # pylint: disable=arguments-renamed
   @classmethod
+  @seqio_logger.register_task()
   def add(
       cls,
       name: str,
