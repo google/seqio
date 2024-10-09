@@ -555,15 +555,7 @@ class SentencePieceVocabulary(Vocabulary):
   def __eq__(self, other):
     if not isinstance(other, SentencePieceVocabulary):
       return False
-    try:
-      their_md5 = hashlib.md5(other.sp_model).hexdigest()
-    # If other has no sp_model attribute, we can't test for equality
-    except AttributeError:
-      return False
-    if self.sp_model is None:
-      return False
-    our_md5 = hashlib.md5(self.sp_model).hexdigest()
-    return our_md5 == their_md5
+    return self.__getstate__() == other.__getstate__()
 
   def __str__(self) -> str:
     return (
