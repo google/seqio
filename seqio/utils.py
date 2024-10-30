@@ -180,6 +180,10 @@ class LazyTfdsLoader(object):
   def name(self) -> Optional[str]:
     return self._name
 
+  def set_decoders(self, decoders) -> None:
+    """Override the decoders for this dataset."""
+    self._decoders = decoders
+
   @property
   def tfds_splits(self) -> Optional[Mapping[str, TfdsSplit]]:
     return self._split_map if self._is_custom_split_map else None

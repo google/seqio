@@ -162,6 +162,33 @@ class LazyTfdsLoaderTest(absltest.TestCase):
         decoders=None,
     )
 
+  @mock.patch("tensorflow_datasets.builder")
+  def test_get_dataset_decoders(self, mock_tfds_builder):
+    mock_builder = mock.create_autospec(tfds.core.DatasetBuilder)
+    mock_tfds_builder.return_value = mock_builder
+    init_decoders = mock.MagicMock()
+    get_dataset_decoders = mock.MagicMock()
+    loader = utils.LazyTfdsLoader(
+        "ds/cfg:1.2.3", data_dir="/data", read_only=True, decoders=init_decoders
+    )
+    _ = loader.load(split="train", shuffle_files=False)
+    mock_builder.as_dataset.assert_called_once_with(
+        split="train",
+        shuffle_files=False,
+        read_config=AnyArg(),
+        decoders=init_decoders,
+    )
+
+    mock_builder.reset_mock()
+    loader.set_decoders(get_dataset_decoders)
+    _ = loader.load(split="train", shuffle_files=False)
+    mock_builder.as_dataset.assert_called_once_with(
+        split="train",
+        shuffle_files=False,
+        read_config=AnyArg(),
+        decoders=get_dataset_decoders,
+    )
+
   @mock.patch("tensorflow_datasets.load")
   def test_split_map(self, mock_tfds_load):
     seed = 0
