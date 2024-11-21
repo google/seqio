@@ -490,7 +490,7 @@ class SentencePieceVocabulary(Vocabulary):
     return tf_text.SentencepieceTokenizer(model=self.sp_model)
 
   @property
-  def vocab_size(self):
+  def vocab_size(self) -> int:
     return self._base_vocab_size
 
   @property
@@ -513,7 +513,7 @@ class SentencePieceVocabulary(Vocabulary):
     """
     return self.tokenizer.EncodeAsIds(s)
 
-  def _decode(self, ids):
+  def _decode(self, ids) -> str:
     """Decode a list of integers to a python string.
 
     Args:
@@ -1031,7 +1031,7 @@ class BertWordPieceVocabulary(Vocabulary):
     return self._unk_id
 
   @property
-  def pad_id(self) -> Optional[int]:
+  def pad_id(self) -> int:
     return self._pad_id
 
   @property
@@ -1050,7 +1050,7 @@ class BertWordPieceVocabulary(Vocabulary):
     return self._tokenizer
 
   @property
-  def vocab_size(self):
+  def vocab_size(self) -> int:
     return self._base_vocab_size
 
   def _encode(self, s):
