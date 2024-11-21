@@ -461,6 +461,10 @@ class SentencePieceVocabulary(Vocabulary):
     return self.tokenizer.bos_id()
 
   @property
+  def bos_id(self) -> Optional[int]:
+    return self.tokenizer.bos_id()
+
+  @property
   def eos_id(self) -> Optional[int]:
     return self.tokenizer.eos_id()
 
