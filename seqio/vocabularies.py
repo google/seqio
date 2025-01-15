@@ -274,6 +274,10 @@ class UnigramVocabulary(Vocabulary):
     return len(self._unigram_by_id)
 
   @property
+  def bos_id(self):
+    return None
+
+  @property
   def eos_id(self):
     return None
 
