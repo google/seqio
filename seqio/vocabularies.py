@@ -235,7 +235,7 @@ class UnigramVocabulary(Vocabulary):
     initializer = tf.lookup.KeyValueTensorInitializer(
         keys=tf.constant(["PAD"] + unigrams_as_list),
         # One extra value because the leading 0 corresponds to PAD
-        values=tf.constant(range(len(unigrams) + 1), dtype=tf.int64),
+        values=tf.constant(list(range(len(unigrams) + 1)), dtype=tf.int64),
     )
     self._id_by_unigram_tf = tf.lookup.StaticVocabularyTable(
         initializer, num_oov_buckets=1
