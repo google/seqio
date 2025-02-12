@@ -799,6 +799,7 @@ class TFExampleDataSource(FileDataSource):
       file_shuffle_buffer_size: Optional[int] = None,
       cycle_length: int = 16,
       block_length: int = 16,
+      performs_internal_shuffling: bool = False,
   ):
     """TFExampleDataSource constructor.
 
@@ -821,6 +822,9 @@ class TFExampleDataSource(FileDataSource):
         replicate earlier behavior.
       cycle_length: The cycle_length to pass to tf.data.Dataset.interleave.
       block_length: The block_length to pass to tf.data.Dataset.interleave.
+      performs_internal_shuffling: Allow enclosing task to call get_dataset with
+        shuffle_buffer_size=None. In this case, only filename shuffling will be
+        performed when shuffle==True.
     """
 
     def parse_fn(*args):
@@ -843,6 +847,7 @@ class TFExampleDataSource(FileDataSource):
         file_shuffle_buffer_size=file_shuffle_buffer_size,
         cycle_length=cycle_length,
         block_length=block_length,
+        performs_internal_shuffling=performs_internal_shuffling,
     )
 
   def __str__(self):
