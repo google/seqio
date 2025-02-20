@@ -134,7 +134,7 @@ def _cache_and_measure_examples(
         if isinstance(ex[k], tf.RaggedTensor):
           sequence_length = tf.reduce_max(
               ex[k].row_lengths(axis=sequence_dim)
-          ).numpy()
+          ).numpy().item()
         else:
           sequence_length = ex[k].shape[sequence_dim]
         max_sequence_length[k] = max(max_sequence_length[k], sequence_length)
