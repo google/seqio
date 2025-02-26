@@ -1472,7 +1472,7 @@ class _GrainRandomMapFn(_RandomMapTransform):
       random_ds_seeds = tuple(tuple(s) for s in random_ds_seeds)
       _NEXT_MAP_SEED += 2 * self.num_seeds
     seed_datasets = tf.nest.map_structure(
-        tf.data.experimental.RandomDataset, random_ds_seeds
+        tf.data.Dataset.random, random_ds_seeds
     )
 
     def map_fn(element, seeds):
