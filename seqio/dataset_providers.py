@@ -30,6 +30,7 @@ import numbers
 import operator
 import os
 import re
+import threading
 from typing import Any, Callable, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple, Type, Union
 
 from absl import logging
@@ -114,6 +115,37 @@ class SourceInfo:
   def has_meaningful_info(self) -> bool:
     return bool(self.file_path)
 
+
+# Locks and _list_shards_internal are intended for use by list_shards() below.
+_LIST_SHARD_LOCKS: dict[Union[str, Tuple[str]], threading.Lock] = (
+    collections.defaultdict(threading.Lock)
+)
+
+
+@functools.lru_cache(maxsize=1024)
+def _list_shards_internal(
+    filepattern: Union[str, Iterable[str]],
+) -> Sequence[str]:
+  """List files for a given filepattern."""
+  if isinstance(filepattern, str):
+    return _list_files(pattern=filepattern)
+
+  filepattern = list(filepattern)
+
+  if not any(glob.has_magic(f) for f in filepattern):
+    return filepattern
+  else:
+    assert isinstance(filepattern, Iterable)
+    ret = []
+    for f in filepattern:
+      ret.extend(_list_files(pattern=f))
+    return ret
+
+
+def _list_files(pattern: str) -> Sequence[str]:
+  # Ensure that all machines observe the list of files in the same order and
+  # unique.
+  return sorted(set(tf.io.gfile.glob(pattern)))
 
 
 class DatasetProviderBase(metaclass=abc.ABCMeta):
@@ -592,12 +624,6 @@ class TfdsDataSource(DataSource):
 
 
 
-def _list_files(pattern: str) -> Sequence[str]:
-  # Ensure that all machines observe the list of files in the same order and
-  # unique.
-  return sorted(set(tf.io.gfile.glob(pattern)))
-
-
 class FileDataSource(DataSource):
   """A `DataSource` that reads a file to provide the input dataset."""
 
@@ -714,22 +740,18 @@ class FileDataSource(DataSource):
         num_parallel_calls=tf.data.experimental.AUTOTUNE,
     )
 
-  @functools.lru_cache(maxsize=1024)
   def list_shards(self, split: str) -> Sequence[str]:
+    # We use a lock to ensure that a given filepattern is only globbed once.
+    # This is necessary because the lru_cache on _list_shards_internal() isn't
+    # smart about concurrent access.  If a dozen threads all invoke
+    # list_shards_internal with the same args before the first call completes,
+    # they'll all end up calling gfile.Glob in parallel.
     filepattern = self._split_to_filepattern[split]
-    if isinstance(filepattern, str):
-      return _list_files(pattern=filepattern)
-
-    filepattern = list(filepattern)
-
-    if not any(glob.has_magic(f) for f in filepattern):
-      return filepattern
-    else:
-      assert isinstance(filepattern, Iterable)
-      ret = []
-      for f in filepattern:
-        ret.extend(_list_files(pattern=f))
-      return ret
+    locks_key = (
+        filepattern if isinstance(filepattern, str) else tuple(filepattern)
+    )
+    with _LIST_SHARD_LOCKS[locks_key]:
+      return _list_shards_internal(filepattern)
 
 
 

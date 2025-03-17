@@ -956,6 +956,36 @@ class TasksTest(test_utils.FakeTaskTest):
     )
 
 
+  @mock.patch.object(
+      dataset_providers, "_list_files", wraps=dataset_providers._list_files
+  )
+  def test_list_shards_cache(self, list_files_mock):
+    def _get_formatted_shards_list(task_name, split):
+      shards = dataset_providers.get_mixture_or_task(
+          task_name
+      ).source.list_shards(  # pytype: disable=attribute-error
+          split
+      )  # always-use-return-annotations
+      shards = [s.split("/")[-1] for s in shards]
+      return sorted(shards)
+    self.assertListEqual(
+        _get_formatted_shards_list("tf_example_task", "train"),
+        ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"],
+    )
+    self.assertListEqual(
+        _get_formatted_shards_list("tf_example_task", "train"),
+        ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"],
+    )
+    self.assertListEqual(
+        _get_formatted_shards_list("tf_example_task", "train"),
+        ["train.tfrecord-00000-of-00002", "train.tfrecord-00001-of-00002"],
+    )
+    # _list_files is only called the first time -- the other times we reuse
+    # the cached result.
+    # Some of the other tests in this file may have caused _list_files to be
+    # called already, so we allow for zero or one calls.
+    self.assertBetween(list_files_mock.call_count, 0, 1)
+
   def test_list_shards(self):
     def _get_formatted_shards_list(task_name, split):
       shards = dataset_providers.get_mixture_or_task(
