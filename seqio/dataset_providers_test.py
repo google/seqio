@@ -2121,12 +2121,12 @@ class FileDataSourceTest(test_utils.FakeTaskTest):
         " block_length=16)",
     )
 
-  @mock.patch.object(dataset_providers, "_list_files")
+  @mock.patch.object(utils, "_list_files_for_glob")
   def test_file_data_source_shuffle_buffer_low(self, mock_list_files):
     mock_list_files.return_value = [f"{i}" for i in range(20)]
     fds = dataset_providers.FileDataSource(
         read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
-        split_to_filepattern={"train": "filepattern"},
+        split_to_filepattern={"train": "filepattern*"},
         file_shuffle_buffer_size=2,
     )
     for _ in range(10):
@@ -2162,12 +2162,12 @@ class FileDataSourceTest(test_utils.FakeTaskTest):
           ],
       )
 
-  @mock.patch.object(dataset_providers, "_list_files")
+  @mock.patch.object(utils, "_list_files_for_glob")
   def test_file_data_source_shuffle_buffer_full(self, mock_list_files):
     mock_list_files.return_value = [f"{i}" for i in range(20)]
     fds = dataset_providers.FileDataSource(
         read_file_fn=lambda x: tf.data.Dataset.from_tensor_slices([x]),
-        split_to_filepattern={"train": "filepattern"},
+        split_to_filepattern={"train": "filepattern*"},
         file_shuffle_buffer_size=None,
     )
     for _ in range(10):

@@ -18,9 +18,11 @@ import collections
 import contextlib
 import dataclasses
 import functools
+import glob
 import inspect
 import os
 import re
+import threading
 import types
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Type, Union
 
@@ -1595,5 +1597,47 @@ def function_name(function) -> str:
     pass
   # Function name could not be determined.
   return ""
+
+
+# Lock to prevent multiple threads from calling tf.io.gfile.glob on the same
+# file pattern at the same time.
+_LIST_SHARD_LOCKS: dict[str, threading.Lock] = collections.defaultdict(
+    threading.Lock
+)
+
+
+def list_files(file_patterns: Union[str, Iterable[str]]) -> list[str]:
+  """Returns a sorted list of file for the given file pattern.
+
+  Note that shard patterns like `foo@2` are not expanded. Only glob patterns
+  are expanded, e.g., `foo*`.
+
+  Args:
+    file_patterns: A string or an iterable of strings, each of which is a file
+      pattern to expand.
+  """
+  if isinstance(file_patterns, str):
+    file_patterns = [file_patterns]
+
+  result = []
+  for file_pattern in file_patterns:
+    if not glob.has_magic(file_pattern):
+      result.append(file_pattern)
+      continue
+    # Make sure only one thread is calling tf.io.gfile.glob on the same file
+    # pattern at the same time. The other threads will wait for the lock to be
+    # released, and then use the cached result.
+    with _LIST_SHARD_LOCKS[file_pattern]:
+      result.extend(_list_files_for_glob(file_pattern))
+  return result
+
+
+
+
+@functools.lru_cache(maxsize=1024)
+def _list_files_for_glob(file_pattern: str) -> list[str]:
+  """Returns a sorted list of files for the given glob file pattern."""
+  file_names = set(tf.io.gfile.glob(file_pattern))
+  return sorted(file_names)
 
 

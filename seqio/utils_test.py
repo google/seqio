@@ -1160,6 +1160,16 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertAllEqual(actual, expected)
     self.assertEqual(actual.dtype, np.int32)
 
+  @mock.patch.object(tf.io.gfile, "glob", autospec=True)
+  def test_list_files(self, mock_tf_glob):
+    mock_tf_glob.return_value = ["/bar1", "/bar2"]
+    result = utils.list_files(["/foo@2", "/bar*"])
+    self.assertEqual(result, ["/foo@2", "/bar1", "/bar2"])
+    _ = utils.list_files(["/bar*"])
+    _ = utils.list_files(["/foo@2"])
+    mock_tf_glob.assert_called_once_with("/bar*")
+
+
 
 class MixtureRateTest(test_utils.FakeTaskTest):
 

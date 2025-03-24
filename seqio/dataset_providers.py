@@ -23,7 +23,6 @@ import abc
 import collections
 import dataclasses
 import functools
-import glob
 import inspect
 import json
 import numbers
@@ -59,8 +58,6 @@ SHUFFLE_BUFFER_SIZE = 1000
 DatasetReaderType = Callable[[Union[str, Iterable[str]]], tf.data.Dataset]
 DecodeFnType = Callable[..., Mapping[str, tf.train.Feature]]
 Feature = utils.Feature
-
-
 
 
 @dataclasses.dataclass(frozen=True)
@@ -592,12 +589,6 @@ class TfdsDataSource(DataSource):
 
 
 
-def _list_files(pattern: str) -> Sequence[str]:
-  # Ensure that all machines observe the list of files in the same order and
-  # unique.
-  return sorted(set(tf.io.gfile.glob(pattern)))
-
-
 class FileDataSource(DataSource):
   """A `DataSource` that reads a file to provide the input dataset."""
 
@@ -714,22 +705,9 @@ class FileDataSource(DataSource):
         num_parallel_calls=tf.data.experimental.AUTOTUNE,
     )
 
-  @functools.lru_cache(maxsize=1024)
   def list_shards(self, split: str) -> Sequence[str]:
     filepattern = self._split_to_filepattern[split]
-    if isinstance(filepattern, str):
-      return _list_files(pattern=filepattern)
-
-    filepattern = list(filepattern)
-
-    if not any(glob.has_magic(f) for f in filepattern):
-      return filepattern
-    else:
-      assert isinstance(filepattern, Iterable)
-      ret = []
-      for f in filepattern:
-        ret.extend(_list_files(pattern=f))
-      return ret
+    return utils.list_files(filepattern)
 
 
 
