@@ -2287,7 +2287,9 @@ class MixtureRegistry(DatasetProviderRegistry):
   def add(
       cls,
       name,
-      tasks,
+      tasks: Union[
+          Sequence[SubtaskOrName], Sequence[Tuple[SubtaskOrName, MixtureRate]]
+      ],
       default_rate=None,
       mixture_cls: Type[Mixture] = Mixture,
       source_info: Optional[SourceInfo] = None,
