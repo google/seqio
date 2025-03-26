@@ -2306,7 +2306,7 @@ class MixtureRegistry(DatasetProviderRegistry):
     )
 
   @classmethod
-  def get(cls, name) -> Mixture:
+  def get(cls, name):
     return super().get(name)
 
   # pylint: enable=arguments-renamed
