@@ -33,7 +33,7 @@ from seqio import loggers as loggers_lib
 from seqio import metrics as metrics_lib
 from seqio import utils
 import tensorflow.compat.v2 as tf
-import tensorflow_datasets as tfds
+import tensorflow_datasets.public_api as tfds
 import typing_extensions
 
 Task = dataset_providers.Task
