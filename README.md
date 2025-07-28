@@ -162,7 +162,7 @@ preprocessors.
 The [tasks used in T5](TODO) all produce "inputs" and "targets" features to be
 consumed by the text-to-text model. For a decoder-only language model, only a
 single feature (e.g., "targets") would be necessary. Nevertheless, SeqIO is
-flexible enough to generate arbitrary output features what will be converted
+flexible enough to generate arbitrary output features that will be converted
 into model features by the [`FeatureConverter`](#featureconverter) later in the
 pipeline.
 
