@@ -790,6 +790,24 @@ class TasksTest(test_utils.FakeTaskTest):
     ).skip(3)
     test_utils.assert_datasets_neq(epoch1_ds, epoch2_ds)
 
+  def test_num_epochs_negative(self):
+    epoch1_ds = self.random_task.get_dataset(
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0,
+    )
+    epoch2_ds = self.random_task.get_dataset(
+        self._sequence_length,
+        split="train",
+        use_cached=False,
+        shuffle=True,
+        seed=0,
+        num_epochs=-1,
+    )
+    test_utils.assert_datasets_eq(epoch1_ds, epoch2_ds)
+
   def test_same_seeds_cached_match(self):
     dataset1 = self.cached_task.get_dataset(
         self._sequence_length,
