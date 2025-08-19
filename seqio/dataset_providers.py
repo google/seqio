@@ -1387,6 +1387,7 @@ class Task(DatasetProviderBase):
       a validated tf.data.Dataset.
     """
     actual_specs = dataset.element_spec
+    print(actual_specs)
     for feat, feat_spec in self.output_features.items():
       if feat not in actual_specs:
         if feat_spec.required:
