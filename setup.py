@@ -54,9 +54,7 @@ setuptools.setup(
         'pyglove',
         'sentencepiece >= 0.2',
         'tensorflow-text',
-        # Ping to a specific version to avoid endless backtracking during
-        # pip dependency resolution.
-        'tfds-nightly==4.9.2.dev202308090034',
+        'tensorflow-datasets',
     ],
     requires_python='>=3.9',
     extras_require={
