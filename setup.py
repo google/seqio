@@ -1,4 +1,4 @@
-# Copyright 2024 The SeqIO Authors.
+# Copyright 2025 The SeqIO Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,9 +54,7 @@ setuptools.setup(
         'pyglove',
         'sentencepiece >= 0.2',
         'tensorflow-text',
-        # Ping to a specific version to avoid endless backtracking during
-        # pip dependency resolution.
-        'tfds-nightly==4.9.2.dev202308090034',
+        'tensorflow-datasets',
     ],
     requires_python='>=3.9',
     extras_require={
