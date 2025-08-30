@@ -23,7 +23,6 @@ from typing import Any, ClassVar, Dict, Iterable, Optional, Sequence, Union
 
 from absl import logging
 import tensorflow.compat.v2 as tf
-import tensorflow_text as tf_text
 
 from sentencepiece import sentencepiece_model_pb2
 import sentencepiece as sentencepiece_processor
@@ -489,6 +488,7 @@ class SentencePieceVocabulary(Vocabulary):
   @property
   def tf_tokenizer(self):
     """Instantiate and return a TF tokenizer."""
+    import tensorflow_text as tf_text  # pylint: disable=g-import-not-at-top
     if self._use_fast_tokenizer:
       return tf_text.FastSentencepieceTokenizer(model=self.sp_model)
     return tf_text.SentencepieceTokenizer(model=self.sp_model)
@@ -988,6 +988,7 @@ class BertWordPieceVocabulary(Vocabulary):
       start_of_sequence_id: ID for the `[CLS]` token.
       end_of_sequence_id: ID for the `[SEP]` token.
     """
+    import tensorflow_text as tf_text  # pylint: disable=g-import-not-at-top
     self._vocab_lookup_table = vocab_lookup_table
     self._suffix_indicator = suffix_indicator
     self._max_bytes_per_word = max_bytes_per_word
