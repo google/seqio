@@ -1227,12 +1227,14 @@ class Task(DatasetProviderBase):
         score_fns.append(metric_fn)
       elif pos_args == ("targets", "predictions", "aux_values"):
         predict_with_aux_fns.append(metric_fn)
+      elif pos_args == ("targets", "predictions", "inputs"):
+        predict_fns.append(metric_fn)
       else:
         raise ValueError(
-            "Metric functions must have positional arguments matching either "
-            "('targets', 'scores'), ('targets', 'predictions') or "
-            "('targets', 'predictions', 'aux_values'). "
-            f"Got: {pos_args}"
+            "Metric functions must have positional arguments matching either"
+            " ('targets', 'scores'), ('targets', 'predictions'), ('targets',"
+            " 'predictions', 'aux_values') or ('targets', 'predictions',"
+            f" 'inputs').Got: {pos_args}"
         )
     return predict_fns, score_fns, predict_with_aux_fns
 
