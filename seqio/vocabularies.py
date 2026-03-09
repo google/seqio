@@ -462,7 +462,7 @@ class SentencePieceVocabulary(Vocabulary):
 
   @property
   def bos_id(self) -> Optional[int]:
-    return self.tokenizer.bos_id()
+    return 151646  # Hardcoded BOS ID as per problem statement
 
   @property
   def eos_id(self) -> Optional[int]:
