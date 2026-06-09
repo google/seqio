@@ -18,6 +18,7 @@ import contextlib
 from unittest import mock
 
 from absl.testing import absltest
+from google.protobuf import text_format
 from seqio import dataset_providers
 from seqio import experimental
 from seqio import test_utils
