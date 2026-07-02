@@ -351,14 +351,14 @@ class GetInfo(beam.PTransform):
     if not ex:
       return {}
     assert len(ex) == 1
-    ex = ex[0]
+    ex = ex[0]  # pyrefly: ignore[bad-assignment]
     info = {
         "num_shards": self._num_shards,
         "features": {},
         "seqio_version": seqio.__version__,
     }
     feature_dict = info["features"]
-    for k, v in ex.items():
+    for k, v in ex.items():  # pyrefly: ignore[missing-attribute]
       if self._exclude_provenance and k.startswith(PROVENANCE_PREFIX):
         continue
       if isinstance(v, tf.RaggedTensor):

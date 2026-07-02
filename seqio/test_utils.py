@@ -577,7 +577,7 @@ def get_fake_dataset(
 
   # Keep only defined features.
   examples = list(
-      map(lambda ex: {k: ex[k] for k in output_signature}, _FAKE_DATASET[split])
+      map(lambda ex: {k: ex[k] for k in output_signature}, _FAKE_DATASET[split])  # pyrefly: ignore[unsupported-operation]
   )
 
   ds = tf.data.Dataset.from_generator(
@@ -679,7 +679,7 @@ def assert_dataset(
   """
 
   if not isinstance(expected, list):
-    expected = [expected]
+    expected = [expected]  # pyrefly: ignore[bad-assignment]
   actual = list(tfds.as_numpy(dataset))
   _pyunit_proxy.assertEqual(len(actual), len(expected))
 
@@ -769,7 +769,7 @@ def _assert_compare_to_fake_dataset(
       dataset if not ragged_features else "token_preprocessed_ragged_features"
   )
   _make_fake_datasets()
-  fake_examples = copy.deepcopy(_FAKE_DATASETS[dataset][split])
+  fake_examples = copy.deepcopy(_FAKE_DATASETS[dataset][split])  # pyrefly: ignore[unsupported-operation]
 
   for key, feat in features.items():
     for n, ex in enumerate(fake_examples):
@@ -862,7 +862,7 @@ def create_default_dataset(
   if output_types is None:
     output_types = {feature_name: tf.int32 for feature_name in feature_names}
   if output_shapes is None:
-    output_shapes = {feature_name: [None] for feature_name in feature_names}
+    output_shapes = {feature_name: [None] for feature_name in feature_names}  # pyrefly: ignore[bad-assignment]
 
   ds = tf.data.Dataset.from_generator(
       lambda: x, output_types=output_types, output_shapes=output_shapes
@@ -934,7 +934,7 @@ def random_token_preprocessor(ex, seed, sequence_length):
         [], maxval=n_tokens, dtype=tf.int32, seed=seed
     )
     res[feat] = tf.roll(tokens, shift=random_shift, axis=0)
-  return res
+  return res  # pyrefly: ignore[unbound-name]
 
 
 def token_preprocessor_no_sequence_length(dataset, output_features):
@@ -1218,7 +1218,7 @@ def test_postprocessing(
     return evaluator.evaluate(
         compute_metrics=True,
         predict_fn=PredictCallable(),
-        score_fn=ScoreCallable(),
+        score_fn=ScoreCallable(),  # pyrefly: ignore[bad-argument-type]
     )[0].result()[task_name]
 
 
@@ -1229,7 +1229,7 @@ class MockVocabulary(vocabularies.Vocabulary):
     self._encode_dict = encode_dict
     self._vocab_size = vocab_size
 
-  def unk_id(self) -> Optional[int]:
+  def unk_id(self) -> Optional[int]:  # pyrefly: ignore[bad-override]
     raise NotImplementedError
 
   def encode(self, s):
@@ -1256,7 +1256,7 @@ class MockVocabulary(vocabularies.Vocabulary):
   def _decode_tf(self, ids: tf.Tensor) -> tf.Tensor:
     raise NotImplementedError
 
-  def _base_vocab_size(self) -> int:
+  def _base_vocab_size(self) -> int:  # pyrefly: ignore[bad-override]
     raise NotImplementedError
 
   @property
@@ -1465,7 +1465,7 @@ class FakeTaskTest(absltest.TestCase):
     # Prepare TextLineSource.
     _dump_fake_dataset(
         os.path.join(self.test_data_dir, "train.tsv"),
-        _FAKE_DATASET["train"],
+        _FAKE_DATASET["train"],  # pyrefly: ignore[unsupported-operation]
         [2, 1],
         _dump_examples_to_tsv,
     )
@@ -1484,7 +1484,7 @@ class FakeTaskTest(absltest.TestCase):
     # Prepare TFExampleSource.
     _dump_fake_dataset(
         os.path.join(self.test_data_dir, "train.tfrecord"),
-        _FAKE_DATASET["train"],
+        _FAKE_DATASET["train"],  # pyrefly: ignore[unsupported-operation]
         [2, 1],
         _dump_examples_to_tfrecord,
     )
@@ -1564,13 +1564,13 @@ class FakeTaskTest(absltest.TestCase):
     self.cached_task_dir = os.path.join(self.test_data_dir, "cached_task")
     _dump_fake_dataset(
         os.path.join(self.cached_task_dir, "train.tfrecord"),
-        _FAKE_TOKENIZED_DATASET["train"],
+        _FAKE_TOKENIZED_DATASET["train"],  # pyrefly: ignore[unsupported-operation]
         [2, 1],
         _dump_examples_to_tfrecord,
     )
     _dump_fake_dataset(
         os.path.join(self.cached_task_dir, "validation.tfrecord"),
-        _FAKE_TOKENIZED_DATASET["validation"],
+        _FAKE_TOKENIZED_DATASET["validation"],  # pyrefly: ignore[unsupported-operation]
         [2],
         _dump_examples_to_tfrecord,
     )
@@ -1581,7 +1581,7 @@ class FakeTaskTest(absltest.TestCase):
         os.path.join(
             self.test_data_dir, "cached_plaintext_task", "train.tfrecord"
         ),
-        _FAKE_PLAINTEXT_TOKENIZED_DATASET["train"],
+        _FAKE_PLAINTEXT_TOKENIZED_DATASET["train"],  # pyrefly: ignore[unsupported-operation]
         [2, 1],
         _dump_examples_to_tfrecord,
     )

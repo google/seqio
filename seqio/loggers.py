@@ -145,7 +145,7 @@ class TensorBoardLogger(Logger):
     """Log a metric value to tensorboard, dispatched on value type."""
     if isinstance(value, metrics_lib.Scalar):
       value: metrics_lib.Scalar = value
-      value = float(np.array(value.value))
+      value = float(np.array(value.value))  # pyrefly: ignore[bad-assignment]
       with writer.as_default():
         tf.summary.scalar(name=tag, data=value, step=step)
     elif isinstance(value, metrics_lib.Image):

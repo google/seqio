@@ -93,7 +93,7 @@ class Vocabulary(metaclass=abc.ABCMeta):
 
   def encode(self, s: Union[Sequence[int], str]) -> Sequence[int]:
     """Tokenizes string to an int sequence, without adding EOS."""
-    return self._encode(s)
+    return self._encode(s)  # pyrefly: ignore[bad-argument-type]
 
   @abc.abstractmethod
   def _decode(self, ids):
@@ -292,7 +292,7 @@ class _ModelContext:
   sp_model: bytes
 
 
-_load_model_lock: ClassVar[threading.Lock] = threading.Lock()
+_load_model_lock: ClassVar[threading.Lock] = threading.Lock()  # pyrefly: ignore[invalid-annotation]
 
 
 def _load_model(
@@ -563,6 +563,7 @@ class SentencePieceVocabulary(Vocabulary):
 
   def __str__(self) -> str:
     return (
+        # pyrefly: ignore[bad-argument-type]
         f"SentencePieceVocabulary(file={self.sentencepiece_model_file}, "
         f"extra_ids={self._extra_ids}, "
         f"spm_md5={hashlib.md5(self.sp_model).hexdigest()})"
@@ -1035,7 +1036,7 @@ class BertWordPieceVocabulary(Vocabulary):
     return self._unk_id
 
   @property
-  def pad_id(self) -> Optional[int]:
+  def pad_id(self) -> Optional[int]:  # pyrefly: ignore[bad-override]
     return self._pad_id
 
   @property

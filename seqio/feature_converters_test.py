@@ -271,7 +271,7 @@ class FeatureConvertersTest(tf.test.TestCase):
     ):
       expected_msg = "Packing is incompatible with pass-through features."
       with self.assertRaisesRegex(ValueError, expected_msg):
-        feature_converters.FeatureConverter(
+        feature_converters.FeatureConverter(  # pyrefly: ignore[bad-instantiation]
             pack=True,
             passthrough_features={
                 "pass_through": feature_converters.FeatureConverter.FeatureSpec(
@@ -284,7 +284,7 @@ class FeatureConvertersTest(tf.test.TestCase):
     with mock.patch.object(
         feature_converters.FeatureConverter, "__abstractmethods__", set()
     ):
-      converter = feature_converters.FeatureConverter(
+      converter = feature_converters.FeatureConverter(  # pyrefly: ignore[bad-instantiation]
           pack=False,
           passthrough_features={
               "pass_through": feature_converters.FeatureConverter.FeatureSpec(
@@ -527,11 +527,11 @@ class EncDecFeatureConverterTest(tf.test.TestCase):
 
   def tearDown(self):
     if "passthrough" in feature_converters.EncDecFeatureConverter.TASK_FEATURES:
-      del feature_converters.EncDecFeatureConverter.TASK_FEATURES["passthrough"]
-      del feature_converters.EncDecFeatureConverter.MODEL_FEATURES[
+      del feature_converters.EncDecFeatureConverter.TASK_FEATURES["passthrough"]  # pyrefly: ignore[unsupported-operation]
+      del feature_converters.EncDecFeatureConverter.MODEL_FEATURES[  # pyrefly: ignore[unsupported-operation]
           "passthrough"
       ]
-      del feature_converters.EncDecFeatureConverter.PACKING_FEATURE_DTYPES[
+      del feature_converters.EncDecFeatureConverter.PACKING_FEATURE_DTYPES[  # pyrefly: ignore[unsupported-operation]
           "passthrough"
       ]
     super().tearDown()
@@ -827,13 +827,13 @@ class PrefixLMFeatureConverter(tf.test.TestCase):
         "passthrough"
         in feature_converters.PrefixLMFeatureConverter.TASK_FEATURES
     ):
-      del feature_converters.PrefixLMFeatureConverter.TASK_FEATURES[
+      del feature_converters.PrefixLMFeatureConverter.TASK_FEATURES[  # pyrefly: ignore[unsupported-operation]
           "passthrough"
       ]
-      del feature_converters.PrefixLMFeatureConverter.MODEL_FEATURES[
+      del feature_converters.PrefixLMFeatureConverter.MODEL_FEATURES[  # pyrefly: ignore[unsupported-operation]
           "passthrough"
       ]
-      del feature_converters.PrefixLMFeatureConverter.PACKING_FEATURE_DTYPES[
+      del feature_converters.PrefixLMFeatureConverter.PACKING_FEATURE_DTYPES[  # pyrefly: ignore[unsupported-operation]
           "passthrough"
       ]
     super().tearDown()

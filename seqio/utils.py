@@ -158,7 +158,7 @@ class LazyTfdsLoader(object):
         `tfds.builder()`.
       read_only: whether `get_dataset` can trigger the generation of a dataset.
     """
-    _validate_tfds_name(name)
+    _validate_tfds_name(name)  # pyrefly: ignore[bad-argument-type]
     self._name = name
     self._data_dir = data_dir
     self._data_dir_override = None
@@ -188,7 +188,7 @@ class LazyTfdsLoader(object):
 
   @property
   def tfds_splits(self) -> Optional[Mapping[str, TfdsSplit]]:
-    return self._split_map if self._is_custom_split_map else None
+    return self._split_map if self._is_custom_split_map else None  # pyrefly: ignore[bad-return]
 
   def resolved_tfds_name(self, split: Optional[str] = None) -> Optional[str]:
     """Returns the resolved TFDS dataset name.
@@ -232,7 +232,7 @@ class LazyTfdsLoader(object):
   ) -> Tuple[Optional[str], Optional[str]]:
     """Returns a tuple of (dataset, data_dir) for the given canonical split."""
     if self._is_custom_split_map:
-      if mapped_split := self._split_map.get(split):
+      if mapped_split := self._split_map.get(split):  # pyrefly: ignore[missing-attribute]
         dataset = mapped_split.dataset
         data_dir = mapped_split.data_dir
       else:
@@ -337,7 +337,7 @@ class LazyTfdsLoader(object):
               "`builder_kwargs` should be empty when `dataset` value is not"
               " present."
           )
-        builder = tfds.builder_from_directory(data_dir)
+        builder = tfds.builder_from_directory(data_dir)  # pyrefly: ignore[bad-argument-type]
       LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key] = builder
     return LazyTfdsLoader._MEMOIZED_BUILDERS[builder_key]
 
@@ -349,10 +349,10 @@ class LazyTfdsLoader(object):
     """Maps the given split to a dataset split."""
     if self._is_custom_split_map:
       self._split_map: Mapping[str, TfdsSplit]
-      return self._split_map[split].split
+      return self._split_map[split].split  # pyrefly: ignore[bad-return, unsupported-operation]
     elif self._split_map:
       self._split_map: Mapping[str, str]
-      return self._split_map[split]
+      return self._split_map[split]  # pyrefly: ignore[bad-return]
     else:
       return split
 
@@ -385,7 +385,7 @@ class LazyTfdsLoader(object):
       shard_info=None,
   ):
     """Returns a tf.data.Dataset for the given split."""
-    dataset_split = self._map_split(split)
+    dataset_split = self._map_split(split)  # pyrefly: ignore[bad-argument-type]
     dataset, data_dir = self.get_split_params(split)
     read_config = self.read_config
     read_config.input_context = (
@@ -441,7 +441,7 @@ class LazyTfdsLoader(object):
     dataset_size = ds_splits[dataset_split].num_examples
     # Very large datasets have num_examples = 0; default instead to np.inf
     dataset_size = dataset_size if dataset_size > 0 else np.inf
-    return dataset_size
+    return dataset_size  # pyrefly: ignore[bad-return]
 
 
 # ============================== TFExamples ====================================
@@ -1564,7 +1564,7 @@ def map_over_dataset(
   def map_with_seeds(fn):
     @functools.wraps(fn)
     def wrapped_fn(ds, *args, **kwargs):
-      return _GrainRandomMapFn(fn, num_seeds, num_parallel_calls)(
+      return _GrainRandomMapFn(fn, num_seeds, num_parallel_calls)(  # pyrefly: ignore[bad-argument-type]
           ds, *args, **kwargs
       )
 

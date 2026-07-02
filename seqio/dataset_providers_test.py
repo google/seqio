@@ -199,7 +199,7 @@ class TasksTest(test_utils.FakeTaskTest):
 
     valid_task_with_types = TaskRegistry.add(
         "valid_metrics_with_types",
-        source=self.function_source,
+        source=self.function_source,  # pyrefly: ignore[bad-argument-type]
         output_features={
             "inputs": dataset_providers.Feature(
                 test_utils.sentencepiece_vocab()
@@ -666,7 +666,7 @@ class TasksTest(test_utils.FakeTaskTest):
       _ = dataset_providers.Task(
           "multiple_cache_placeholders",
           source=dataset_providers.FunctionDataSource(
-              dataset_fn=dataset_fn, splits=["train", "validation"]
+              dataset_fn=dataset_fn, splits=["train", "validation"]  # pyrefly: ignore[bad-argument-type]
           ),
           preprocessors=[
               test_utils.test_text_preprocessor,
@@ -691,7 +691,7 @@ class TasksTest(test_utils.FakeTaskTest):
       task = dataset_providers.Task(
           "sequence_length_pre_cache",
           dataset_providers.FunctionDataSource(
-              dataset_fn=dataset_fn,
+              dataset_fn=dataset_fn,  # pyrefly: ignore[bad-argument-type]
               splits=["train"],
           ),
           preprocessors=[
@@ -1739,8 +1739,8 @@ class GetDatasetTest(parameterized.TestCase, tf.test.TestCase):
     dataset_fn = lambda split, shuffle_files: ds
     dataset_providers.TaskRegistry.add(
         task_name,
-        source=dataset_providers.FunctionDataSource(
-            dataset_fn=dataset_fn, splits=["train", "validation"]
+        source=dataset_providers.FunctionDataSource(  # pyrefly: ignore[bad-argument-type]
+            dataset_fn=dataset_fn, splits=["train", "validation"]  # pyrefly: ignore[bad-argument-type]
         ),
         preprocessors=[
             dataset_providers.CacheDatasetPlaceholder(),
@@ -1953,8 +1953,8 @@ def register_dummy_task(
   """Register a dummy task for GetDatasetTest."""
   dataset_providers.TaskRegistry.add(
       task_name,
-      source=dataset_providers.FunctionDataSource(
-          dataset_fn=dataset_fn, splits=["train", "validation"]
+      source=dataset_providers.FunctionDataSource(  # pyrefly: ignore[bad-argument-type]
+          dataset_fn=dataset_fn, splits=["train", "validation"]  # pyrefly: ignore[bad-argument-type]
       ),
       preprocessors=[
           dataset_providers.CacheDatasetPlaceholder(),
@@ -2022,13 +2022,13 @@ class FunctionDataSourceTest(test_utils.FakeTaskTest):
       del split
       del shuffle_files
 
-    dataset_providers.FunctionDataSource(good_fn, splits=("train",))
+    dataset_providers.FunctionDataSource(good_fn, splits=("train",))  # pyrefly: ignore[bad-argument-type]
 
     def default_good_fn(split, shuffle_files=False):
       del split
       del shuffle_files
 
-    dataset_providers.FunctionDataSource(default_good_fn, splits=("train",))
+    dataset_providers.FunctionDataSource(default_good_fn, splits=("train",))  # pyrefly: ignore[bad-argument-type]
 
     def seed_fn(split, shuffle_files=True, seed=0):
       del split
@@ -2041,7 +2041,7 @@ class FunctionDataSourceTest(test_utils.FakeTaskTest):
       del split
       del shuffle_files
 
-    dataset_providers.FunctionDataSource(extra_kwarg_good_fn, splits=("train",))
+    dataset_providers.FunctionDataSource(extra_kwarg_good_fn, splits=("train",))  # pyrefly: ignore[bad-argument-type]
 
     class GoodProtocol(dataset_providers.DatasetFnCallable):
 
@@ -2062,7 +2062,7 @@ class FunctionDataSourceTest(test_utils.FakeTaskTest):
       def missing_shuff(split):
         del split
 
-      dataset_providers.FunctionDataSource(missing_shuff, splits=("train",))
+      dataset_providers.FunctionDataSource(missing_shuff, splits=("train",))  # pyrefly: ignore[bad-argument-type]
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
@@ -2075,7 +2075,7 @@ class FunctionDataSourceTest(test_utils.FakeTaskTest):
       def missing_split(shuffle_files):
         del shuffle_files
 
-      dataset_providers.FunctionDataSource(missing_split, splits=("train",))
+      dataset_providers.FunctionDataSource(missing_split, splits=("train",))  # pyrefly: ignore[bad-argument-type]
 
     with self.assertRaisesWithLiteralMatch(
         ValueError,
@@ -2089,7 +2089,7 @@ class FunctionDataSourceTest(test_utils.FakeTaskTest):
         del split
         del shuffle_files
 
-      dataset_providers.FunctionDataSource(extra_pos_arg, splits=("train",))
+      dataset_providers.FunctionDataSource(extra_pos_arg, splits=("train",))  # pyrefly: ignore[bad-argument-type]
 
 
 

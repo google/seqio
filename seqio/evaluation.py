@@ -515,7 +515,7 @@ class Evaluator:
     self._cached_task_datasets = cached_task_datasets
     self._model_feature_shapes = {
         k: tuple(spec.shape)
-        for k, spec in eval_ds.element_spec.items()
+        for k, spec in eval_ds.element_spec.items()  # pyrefly: ignore[unbound-name]
         if spec.shape.rank > 0
     }
 
@@ -810,7 +810,7 @@ class Evaluator:
 
   @property
   def loggers(self) -> Tuple[loggers_lib.Logger]:
-    return tuple(self._loggers)
+    return tuple(self._loggers)  # pyrefly: ignore[bad-return]
 
 
 class MetricManager:

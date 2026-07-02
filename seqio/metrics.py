@@ -173,17 +173,17 @@ class CollectingMetric(clu.metrics.CollectingMetric):
     )
 
     if mask is None:
-      mask = jnp.ones((num_examples,), jnp.int32)
+      mask = jnp.ones((num_examples,), jnp.int32)  # pyrefly: ignore[bad-assignment]
 
     if indices_2d is None:
-      indices_2d = jnp.transpose(
+      indices_2d = jnp.transpose(  # pyrefly: ignore[bad-assignment]
           jnp.stack([
               jnp.zeros((num_examples,), jnp.int32),
               jnp.arange(num_examples, dtype=jnp.int32),
           ])
       )
     return cls(
-        values={
+        values={  # pyrefly: ignore[bad-argument-type]
             "model_output": model_output,
             "indices_2d": indices_2d,
             "mask": mask,
@@ -227,7 +227,7 @@ class LegacyMetric(Metric):
   targets_and_inferences: Dict[str, Any]
 
   @classmethod
-  def empty(cls, metric_fn, postprocess_fn) -> "LegacyMetric":
+  def empty(cls, metric_fn, postprocess_fn) -> "LegacyMetric":  # pyrefly: ignore[bad-override]
     pos_args = tuple(
         key
         for key, param in inspect.signature(metric_fn).parameters.items()
@@ -264,7 +264,7 @@ class LegacyMetric(Metric):
       return self._postprocess_fn(targets_or_predictions, **postprocess_kwargs)
     return targets_or_predictions
 
-  def from_model_output(  # pylint:disable=arguments-renamed
+  def from_model_output(  # pylint:disable=arguments-renamed  # pyrefly: ignore[bad-override]
       self,
       inputs: Sequence[Mapping[str, Any]],
       model_output: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
@@ -321,7 +321,7 @@ class LegacyMetric(Metric):
       # Postprocesses the predictions here.
       postprocessed_predictions = [
           self.postprocess_fn(p, example=ex, is_target=False)
-          for ex, p in zip(inputs, predictions)
+          for ex, p in zip(inputs, predictions)  # pyrefly: ignore[unbound-name]
       ]
 
       self.metric_fn_kwargs["predictions"] = postprocessed_predictions
@@ -430,7 +430,7 @@ class PassthroughLegacyMetric(CollectingMetric):
       return model_output_type
 
     @flax.struct.dataclass
-    class FromMetricFun(cls):
+    class FromMetricFun(cls):  # pyrefly: ignore[invalid-inheritance]
       """Wrapper PassthroughLegacyMetric class that runs metric_fn."""
 
       model_output_type: ModelOutputType = _get_model_output_type()
@@ -535,7 +535,7 @@ class PassthroughLegacyMetric(CollectingMetric):
               # If neither 2d or 3d, assume that model_output is already
               # decoded.
               predictions = model_output
-          targets_and_inferences["output"] = predictions
+          targets_and_inferences["output"] = predictions  # pyrefly: ignore[unbound-name]
 
           # Postprocesses the predictions here.
           postprocessed_predictions = [

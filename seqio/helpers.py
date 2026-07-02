@@ -133,7 +133,7 @@ def mixture_or_task_with_new_vocab(
     new_task = dp.Task(
         new_mixture_or_task_name,
         source=mixture_or_task.source,
-        output_features=new_output_features,
+        output_features=new_output_features,  # pyrefly: ignore[bad-argument-type]
         preprocessors=preprocessors,
         postprocess_fn=mixture_or_task.postprocessor,
         metric_fns=mixture_or_task.metric_fns,
@@ -212,7 +212,7 @@ class TruncatedDatasetProvider(dp.DataSource):
 
   def get_dataset(
       self,
-      split: str = tfds.Split.TRAIN,
+      split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[dp.ShardInfo] = None,

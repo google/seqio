@@ -130,7 +130,7 @@ class DatasetProviderBase(metaclass=abc.ABCMeta):
   def get_dataset(
       self,
       sequence_length: Optional[Mapping[str, int]] = None,
-      split: str = tfds.Split.TRAIN,
+      split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       use_cached: bool = False,
       shuffle: bool = True,
       seed: Optional[int] = None,
@@ -334,9 +334,9 @@ class DataSource(DatasetProviderBase):
     raise NotImplementedError
 
   @abc.abstractmethod
-  def get_dataset(
+  def get_dataset(  # pyrefly: ignore[bad-override]
       self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
-      split: str = tfds.Split.TRAIN,
+      split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
@@ -443,7 +443,7 @@ class FunctionDataSource(DataSource):
 
   def get_dataset(
       self,
-      split: str = tfds.Split.TRAIN,
+      split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
@@ -569,7 +569,7 @@ class TfdsDataSource(DataSource):
       num_epochs: Optional[int] = 1,  # Unused
   ) -> tf.data.Dataset:
     if split is None:
-      split = tfds.Split.TRAIN
+      split = tfds.Split.TRAIN  # pyrefly: ignore[missing-attribute]
     return self.tfds_dataset.load(
         split, shuffle_files=shuffle, seed=seed, shard_info=shard_info
     )
@@ -657,7 +657,7 @@ class FileDataSource(DataSource):
 
   def get_dataset(
       self,
-      split: str = tfds.Split.TRAIN,
+      split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
@@ -1455,8 +1455,8 @@ class Task(DatasetProviderBase):
     if self.supports_caching:
       # Skip a sufficient number of seeds to avoid duplicating any from
       # pre-cache preprocessing.
-      seed = None if seed is None else seed + 42 * self._cache_step_idx
-      start_idx = self._cache_step_idx + 1
+      seed = None if seed is None else seed + 42 * self._cache_step_idx  # pyrefly: ignore[unsupported-operation]
+      start_idx = self._cache_step_idx + 1  # pyrefly: ignore[unsupported-operation]
     with utils.map_seed_manager(seed):
       dataset = self._preprocess_dataset(
           dataset,
@@ -1530,7 +1530,7 @@ class Task(DatasetProviderBase):
     ), f"'{self.name}' does not exist in any of the task cache directories."
 
   def get_cached_stats(
-      self, split: str = tfds.Split.TRAIN
+      self, split: str = tfds.Split.TRAIN  # pyrefly: ignore[missing-attribute]
   ) -> Mapping[str, Union[int, float]]:
     """Returns basic statistics for cached dataset."""
     self.assert_cached()
@@ -1547,7 +1547,7 @@ class Task(DatasetProviderBase):
   def get_dataset(
       self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
       sequence_length: Optional[Mapping[str, int]] = None,
-      split: str = tfds.Split.TRAIN,
+      split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       use_cached: bool = False,
       shuffle: bool = True,
       shuffle_buffer_size: Optional[int] = None,  # Unique to Task
@@ -1632,7 +1632,7 @@ class Task(DatasetProviderBase):
       )
     else:
       ds = source.get_dataset(split=split, shuffle=shuffle, seed=seed)
-      ds = ds.shard(shard_info.num_shards, shard_info.index)
+      ds = ds.shard(shard_info.num_shards, shard_info.index)  # pyrefly: ignore[missing-attribute]
 
     num_shards = shard_info.num_shards if shard_info else 1
     if try_in_mem_cache and (
@@ -1643,7 +1643,7 @@ class Task(DatasetProviderBase):
         )
         or (
             source.num_input_examples(split)
-            and source.num_input_examples(split)
+            and source.num_input_examples(split)  # pyrefly: ignore[unsupported-operation]
             < _MAX_EXAMPLES_TO_MEM_CACHE * num_shards
         )
     ):
@@ -1692,10 +1692,10 @@ class Task(DatasetProviderBase):
     self.assert_cached()
     file_shuffle_buffer_size = (
         file_shuffle_buffer_size
-        or self._cache_dataset_placerholder.file_shuffle_buffer_size
+        or self._cache_dataset_placerholder.file_shuffle_buffer_size  # pyrefly: ignore[missing-attribute]
     )
     return _CachedDataSource(
-        cache_dir=self.cache_dir,
+        cache_dir=self.cache_dir,  # pyrefly: ignore[bad-argument-type]
         split=split,
         file_shuffle_buffer_size=file_shuffle_buffer_size,
     )
@@ -1720,7 +1720,7 @@ class TaskRegistry(DatasetProviderRegistry):
 
   # pylint: disable=arguments-renamed
   @classmethod
-  def add(
+  def add(  # pyrefly: ignore[bad-override]
       cls,
       name: str,
       source: DataSourceInterface,
@@ -1910,7 +1910,7 @@ class Mixture(DatasetProviderBase):
     return float(rate)
 
   def num_input_examples(self, split: str) -> int:
-    return sum(
+    return sum(  # pyrefly: ignore[no-matching-overload]
         t.num_input_examples(split) for t in self.tasks if split in t.splits
     )
 
@@ -1953,7 +1953,7 @@ class Mixture(DatasetProviderBase):
       task: Task,
       output_feature_keys: Set[str],
       sequence_length: Optional[Mapping[str, int]] = None,
-      split: str = tfds.Split.TRAIN,
+      split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       use_cached: bool = False,
       shuffle: bool = True,
       seed: Optional[int] = None,
@@ -1985,7 +1985,7 @@ class Mixture(DatasetProviderBase):
   def get_dataset(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
       self,
       sequence_length: Optional[Mapping[str, int]] = None,
-      split: str = tfds.Split.TRAIN,
+      split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       use_cached: bool = False,
       shuffle: bool = True,
       seed: Optional[int] = None,
@@ -2284,7 +2284,7 @@ class MixtureRegistry(DatasetProviderRegistry):
 
   # pylint: disable=arguments-renamed
   @classmethod
-  def add(
+  def add(  # pyrefly: ignore[bad-override]
       cls,
       name,
       tasks,

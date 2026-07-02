@@ -249,7 +249,7 @@ class PreprocessorsTest(tf.test.TestCase):
     )
 
     # Trim to sequence lengths (but with targets=None).
-    sequence_length['targets'] = None
+    sequence_length['targets'] = None  # pyrefly: ignore[bad-assignment]
     assert_dataset(
         preprocessors.append_eos_after_trim(
             og_dataset,

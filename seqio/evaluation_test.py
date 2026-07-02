@@ -95,8 +95,8 @@ def register_dummy_task(
   """Register a dummy task for GetDatasetTest."""
   return dataset_providers.TaskRegistry.add(
       task_name,
-      source=dataset_providers.FunctionDataSource(
-          dataset_fn=dataset_fn, splits=["train", "validation"]
+      source=dataset_providers.FunctionDataSource(  # pyrefly: ignore[bad-argument-type]
+          dataset_fn=dataset_fn, splits=["train", "validation"]  # pyrefly: ignore[bad-argument-type]
       ),
       preprocessors=[preprocessor],
       postprocess_fn=postprocess_fn,
@@ -143,7 +143,7 @@ def _task_from_tensor_slices(name, tensor_slices, label_classes):
   return dataset_providers.Task(
       name,
       dataset_providers.FunctionDataSource(
-          lambda split, shuffle_files: tf.data.Dataset.from_tensor_slices(
+          lambda split, shuffle_files: tf.data.Dataset.from_tensor_slices(  # pyrefly: ignore[bad-argument-type]
               tensor_slices
           ),
           splits="validation",
@@ -334,7 +334,7 @@ class EvaluationTest(tf.test.TestCase):
       return dataset_providers.Task(
           name,
           dataset_providers.FunctionDataSource(
-              lambda split, shuffle_files: tf.data.Dataset.from_tensor_slices(
+              lambda split, shuffle_files: tf.data.Dataset.from_tensor_slices(  # pyrefly: ignore[bad-argument-type]
                   tensor_slices
               ),
               splits="validation",
@@ -496,9 +496,9 @@ class EvaluationTest(tf.test.TestCase):
 
       all_metrics, _ = evaluator.evaluate(
           compute_metrics=True,
-          predict_fn=predict_fn,
-          score_fn=score_fn,
-          predict_with_aux_fn=predict_with_aux_fn,
+          predict_fn=predict_fn,  # pyrefly: ignore[bad-argument-type]
+          score_fn=score_fn,  # pyrefly: ignore[bad-argument-type]
+          predict_with_aux_fn=predict_with_aux_fn,  # pyrefly: ignore[bad-argument-type]
           step=42,
       )
       return all_metrics.result(), evaluator
@@ -595,7 +595,7 @@ class EvaluationTest(tf.test.TestCase):
           compute_metrics=True,
           predict_fn=self.uncalled_fn,
           score_fn=self.uncalled_fn,
-          predict_with_aux_fn=predict_with_aux_fn,
+          predict_with_aux_fn=predict_with_aux_fn,  # pyrefly: ignore[bad-argument-type]
           step=42,
       )
 
@@ -732,7 +732,7 @@ class EvaluationTest(tf.test.TestCase):
         return [(0, [5, 6]), (1, [6, 8])]
 
       all_metrics, _ = evaluator.evaluate(
-          compute_metrics=True, predict_fn=predict_fn, score_fn=self.uncalled_fn
+          compute_metrics=True, predict_fn=predict_fn, score_fn=self.uncalled_fn  # pyrefly: ignore[bad-argument-type]
       )
       # expected = {"accuracy": 2.0 / 3 * 100}
       expected = {"sequence_accuracy": 50}
@@ -777,7 +777,7 @@ class EvaluationTest(tf.test.TestCase):
         return [(0, [5]), (1, [6]), (2, [7])]
 
       all_metrics, _ = evaluator.evaluate(
-          compute_metrics=True, predict_fn=predict_fn, score_fn=self.uncalled_fn
+          compute_metrics=True, predict_fn=predict_fn, score_fn=self.uncalled_fn  # pyrefly: ignore[bad-argument-type]
       )
       expected = {"accuracy": 100}
       self.assertDictClose(expected, all_metrics.result()[task.name])
@@ -846,7 +846,7 @@ class EvaluationTest(tf.test.TestCase):
 
       evaluator = Evaluator()  # pytype: disable=missing-parameter
       all_metrics, _ = evaluator.evaluate(
-          compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn
+          compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn  # pyrefly: ignore[bad-argument-type]
       )
       expected = {
           task1.name: {"sequence_accuracy": 50.0, "total_score": 651},
@@ -1160,7 +1160,7 @@ class EvaluationTest(tf.test.TestCase):
 
       all_metrics, all_outputs = evaluator.evaluate(
           compute_metrics=True,
-          predict_fn=mixing_order_predict_fn,
+          predict_fn=mixing_order_predict_fn,  # pyrefly: ignore[bad-argument-type]
           score_fn=self.uncalled_fn,
       )
       expected_metric = {"sequence_accuracy": 100}
@@ -1286,7 +1286,7 @@ class EvaluationTest(tf.test.TestCase):
           compute_metrics=True,
           predict_fn=self.uncalled_fn,
           predict_with_aux_fn=self.uncalled_fn,
-          score_fn=score_fn_with_intermediates,
+          score_fn=score_fn_with_intermediates,  # pyrefly: ignore[bad-argument-type]
           step=42,
       )
       results = all_metrics.result()

@@ -172,7 +172,7 @@ def add_fully_cached_task(
 
   return TaskRegistry.add(
       new_name,
-      source=task.source,
+      source=task.source,  # pyrefly: ignore[bad-argument-type]
       preprocessors=new_preprocessors,
       output_features=task.output_features,
       metric_fns=task.metric_fns,
@@ -298,7 +298,7 @@ class FewshotDataSource(dataset_providers.DataSource):
 
   def get_dataset(
       self,
-      split: str = tfds.Split.TRAIN,
+      split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       shuffle: bool = True,
       seed: Optional[int] = None,
       shard_info: Optional[ShardInfo] = None,
@@ -372,7 +372,7 @@ class FewshotDataSource(dataset_providers.DataSource):
       train_ds = _get_maybe_sharded_dataset(
           split_=self._train_split,
           shuffle_=True,
-          seed_=train_seed if shuffle else 0,
+          seed_=train_seed if shuffle else 0,  # pyrefly: ignore[bad-argument-type]
       )
       train_ds = _apply_preprocessors(train_ds, self._train_preprocessors)
       train_ds = train_ds.map(
@@ -385,12 +385,12 @@ class FewshotDataSource(dataset_providers.DataSource):
       datasets['train'] = train_ds
 
     eval_ds = _get_maybe_sharded_dataset(
-        split_=split, shuffle_=shuffle, seed_=eval_seed
+        split_=split, shuffle_=shuffle, seed_=eval_seed  # pyrefly: ignore[bad-argument-type]
     )
     eval_ds = _apply_preprocessors(eval_ds, self._eval_preprocessors)
     datasets['eval'] = eval_ds
 
-    return tf.data.Dataset.zip(datasets)
+    return tf.data.Dataset.zip(datasets)  # pyrefly: ignore[bad-argument-type]
 
 
 
@@ -587,10 +587,10 @@ def add_task_with_sentinels(task_name: str, num_sentinels: Optional[int] = 1):
     @utils.map_over_dataset
     def _my_fn(x):
       sentinels_input = [
-          _sentinel_id(input_vocab, idx) for idx in range(num_sentinels)
+          _sentinel_id(input_vocab, idx) for idx in range(num_sentinels)  # pyrefly: ignore[bad-argument-type]
       ]
       sentinels_output = [
-          _sentinel_id(target_vocab, idx) for idx in range(num_sentinels)
+          _sentinel_id(target_vocab, idx) for idx in range(num_sentinels)  # pyrefly: ignore[bad-argument-type]
       ]
       x['inputs'] = tf.concat([x['inputs'], sentinels_input], 0)
       x['targets'] = tf.concat([sentinels_output, x['targets']], 0)
@@ -604,7 +604,7 @@ def add_task_with_sentinels(task_name: str, num_sentinels: Optional[int] = 1):
     del kwargs
     vocab = task.output_features['targets'].vocabulary
     sentinel_str = vocab.decode(
-        [_sentinel_id(vocab, idx) for idx in range(num_sentinels)]
+        [_sentinel_id(vocab, idx) for idx in range(num_sentinels)]  # pyrefly: ignore[bad-argument-type]
     )
     if string_label.startswith(sentinel_str):
       string_label = string_label[len(sentinel_str) :].strip()
@@ -647,7 +647,7 @@ def add_task_with_sentinels(task_name: str, num_sentinels: Optional[int] = 1):
 
   TaskRegistry.add(
       sentinel_task_name,
-      source=task.source,
+      source=task.source,  # pyrefly: ignore[bad-argument-type]
       preprocessors=new_preprocessors,
       output_features=task.output_features,
       postprocess_fn=new_postprocess_fn,

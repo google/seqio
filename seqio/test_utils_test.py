@@ -118,12 +118,12 @@ class TasksTest(FakeTaskTest):
       return ds
 
     source = dataset_providers.FunctionDataSource(
-        dataset_fn=ds_fn, splits=['train']
+        dataset_fn=ds_fn, splits=['train']  # pyrefly: ignore[bad-argument-type]
     )
 
     dataset_providers.TaskRegistry.add(
         'test_data_injection_task',
-        source=source,
+        source=source,  # pyrefly: ignore[bad-argument-type]
         preprocessors=[],
         output_features={},
         metric_fns=[],

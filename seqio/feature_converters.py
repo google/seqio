@@ -192,18 +192,18 @@ def _check_exact_match(
     actual_feature_source: str,
 ) -> None:
   """Check whether expected and actual features match one-to-one."""
-  expected_features = set(expected_features)
-  actual_features = set(actual_features)
+  expected_features = set(expected_features)  # pyrefly: ignore[bad-assignment]
+  actual_features = set(actual_features)  # pyrefly: ignore[bad-assignment]
 
   if expected_features != actual_features:
-    if actual_features - expected_features:
-      extra_features = actual_features - expected_features
+    if actual_features - expected_features:  # pyrefly: ignore[unsupported-operation]
+      extra_features = actual_features - expected_features  # pyrefly: ignore[unsupported-operation]
       raise ValueError(
           f"The {actual_feature_source} contains extra features not specified "
           f"in the {expected_feature_source}: {extra_features}"
       )
     else:
-      missing_features = expected_features - actual_features
+      missing_features = expected_features - actual_features  # pyrefly: ignore[unsupported-operation]
       raise ValueError(
           f"The {actual_feature_source} is missing features specified "
           f"in the {expected_feature_source}: {missing_features}"

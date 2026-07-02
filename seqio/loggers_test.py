@@ -372,7 +372,7 @@ class JSONLoggerTest(tf.test.TestCase):
         step=42,
         metrics={"accuracy": metrics_lib.Scalar(100)},
         dataset=task_dataset,
-        inferences=inferences,
+        inferences=inferences,  # pyrefly: ignore[bad-argument-type]
         targets=targets,
     )
 
