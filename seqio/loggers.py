@@ -27,7 +27,7 @@ from absl import logging
 import numpy as np
 from seqio import metrics as metrics_lib
 import tensorflow as tf
-import tensorflow_datasets as tfds
+import tensorflow_datasets.public_api as tfds
 
 
 
