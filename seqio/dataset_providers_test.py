@@ -133,9 +133,10 @@ class TasksTest(test_utils.FakeTaskTest):
       return {}
 
     expected_error_message_prefix = (
-        "Metric functions must have positional arguments matching either "
-        "('targets', 'scores'), ('targets', 'predictions') or ('targets', "
-        "'predictions', 'aux_values'). Got: "
+        "Metric functions must have positional arguments matching either"
+        " ('targets', 'scores'), ('targets', 'predictions'), ('targets',"
+        " 'predictions', 'aux_values') or ('targets', 'predictions', 'inputs')."
+        " Got: "
     )
 
     with self.assertRaisesWithLiteralMatch(
