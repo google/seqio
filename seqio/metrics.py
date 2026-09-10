@@ -184,9 +184,9 @@ class CollectingMetric(clu.metrics.CollectingMetric):
       )
     return cls(
         values={  # pyrefly: ignore[bad-argument-type]
-            "model_output": model_output,
-            "indices_2d": indices_2d,
-            "mask": mask,
+            "model_output": model_output,  # pyrefly: ignore[bad-assignment]
+            "indices_2d": indices_2d,  # pyrefly: ignore[bad-assignment]
+            "mask": mask,  # pyrefly: ignore[bad-assignment]
         }
     )
 
