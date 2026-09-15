@@ -23,6 +23,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 
 from absl.testing import absltest
 from absl.testing import parameterized
+from google.protobuf import text_format
 import numpy as np
 import pyglove as pg
 from seqio import dataset_providers
