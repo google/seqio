@@ -1809,6 +1809,8 @@ class Mixture(DatasetProviderBase):
         multiple datasets into a single dataset.
       source_info: optional metadata about where this `Mixture` was defined.
     """
+    if not tasks:
+      raise ValueError("tasks must not be empty when creating a mixture.")
     self._task_to_rate = {}
     self._task_map = {}
     self._tasks = []
