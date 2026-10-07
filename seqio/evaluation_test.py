@@ -147,7 +147,7 @@ def _task_from_tensor_slices(name, tensor_slices, label_classes):
               tensor_slices
           ),
           splits="validation",
-      ),  # pytype: disable=wrong-arg-types
+      ),
       preprocessors=[
           utils.map_over_dataset(
               lambda ex: {
@@ -338,7 +338,7 @@ class EvaluationTest(tf.test.TestCase):
                   tensor_slices
               ),
               splits="validation",
-          ),  # pytype: disable=wrong-arg-types
+          ),
           preprocessors=[
               utils.map_over_dataset(
                   lambda ex: {
@@ -446,7 +446,7 @@ class EvaluationTest(tf.test.TestCase):
       self._target_field_name = target_field_name
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      evaluator = Evaluator()  # pyrefly: ignore[missing-argument]
 
       # A dummy score function that always returns the same output.
       def predict_fn(
@@ -575,7 +575,7 @@ class EvaluationTest(tf.test.TestCase):
       self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      evaluator = Evaluator()  # pyrefly: ignore[missing-argument]
 
       def predict_with_aux_fn(
           ds: tf.data.Dataset,
@@ -720,7 +720,7 @@ class EvaluationTest(tf.test.TestCase):
       self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      evaluator = Evaluator()  # pyrefly: ignore[missing-argument]
 
       # A dummy prediction function that always returns the same output.
       # The first example is correct but the second is not.
@@ -765,7 +765,7 @@ class EvaluationTest(tf.test.TestCase):
       self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      evaluator = Evaluator()  # pyrefly: ignore[missing-argument]
 
       # The output tokens will be docoded to ["e5", "e6", "e7"] and
       # postprocessed to [0, 1, 2].
@@ -844,7 +844,7 @@ class EvaluationTest(tf.test.TestCase):
         self.assertEqual(ds, mock_ds1)
         return [(0, 1), (1, 2)]
 
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      evaluator = Evaluator()  # pyrefly: ignore[missing-argument]
       all_metrics, _ = evaluator.evaluate(
           compute_metrics=True, predict_fn=predict_fn, score_fn=score_fn  # pyrefly: ignore[bad-argument-type]
       )
@@ -1112,7 +1112,7 @@ class EvaluationTest(tf.test.TestCase):
       self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      evaluator = Evaluator()  # pyrefly: ignore[missing-argument]
       predict_fn = mock.Mock(return_value=[(0, 1)])
       evaluator.evaluate(
           compute_metrics=False,
@@ -1147,7 +1147,7 @@ class EvaluationTest(tf.test.TestCase):
       self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      evaluator = Evaluator()  # pyrefly: ignore[missing-argument]
 
       # Dummy predict_fn where only the order is mixed.
       def mixing_order_predict_fn(
@@ -1280,7 +1280,7 @@ class EvaluationTest(tf.test.TestCase):
       self._target_field_name = "targets"
 
     with mock.patch.object(Evaluator, "__init__", new=mock_init):
-      evaluator = Evaluator()  # pytype: disable=missing-parameter
+      evaluator = Evaluator()  # pyrefly: ignore[missing-argument]
 
       all_metrics, _ = evaluator.evaluate(
           compute_metrics=True,

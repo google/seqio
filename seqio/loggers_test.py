@@ -108,7 +108,7 @@ class TensorBoardLoggerTest(tf.test.TestCase):
   def test_log_scalar(self):
     task_metrics = {
         "rouge1": metrics_lib.Scalar(50),
-        "rouge2": metrics_lib.Scalar(np.float32(100)),  # pytype: disable=wrong-arg-types  # numpy-scalars
+        "rouge2": metrics_lib.Scalar(np.float32(100)),  # pyrefly: ignore[bad-argument-type]
     }
     logged_metrics, plugins = self._log_and_read(task_metrics)
     self.assertDictEqual(
@@ -421,7 +421,7 @@ class JSONLoggerTest(tf.test.TestCase):
     logger(
         task_name="test",
         step=42,
-        metrics={"accuracy": metrics_lib.Scalar(np.float32(100))},  # pytype: disable=wrong-arg-types  # numpy-scalars
+        metrics={"accuracy": metrics_lib.Scalar(np.float32(100))},  # pyrefly: ignore[bad-argument-type]
         dataset=task_dataset,
         inferences=inferences,
         targets=targets,

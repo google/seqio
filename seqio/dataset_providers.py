@@ -185,7 +185,7 @@ class DatasetProviderRegistry(object):
           "Expecting instance of %s, got %s"
           % (cls._PROVIDER_TYPE, provider_cls)
       )
-    provider = provider_cls(**provider_kwargs)  # pytype: disable=wrong-arg-types  # dynamic-method-lookup
+    provider = provider_cls(**provider_kwargs)
     cls.add_provider(name, provider)
     return provider
 
@@ -335,7 +335,7 @@ class DataSource(DatasetProviderBase):
 
   @abc.abstractmethod
   def get_dataset(  # pyrefly: ignore[bad-override]
-      self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
+      self,
       split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       shuffle: bool = True,
       seed: Optional[int] = None,
@@ -358,7 +358,7 @@ class DataSource(DatasetProviderBase):
     """
     raise NotImplementedError
 
-  def num_input_examples(self, split: str) -> Optional[int]:  # pytype: disable=signature-mismatch  # overriding-return-type-checks
+  def num_input_examples(self, split: str) -> Optional[int]:
     if self._num_input_examples is None:
       return None
     return self._num_input_examples[split]
@@ -1240,7 +1240,7 @@ class Task(DatasetProviderBase):
   def metric_fns(self) -> Sequence[MetricFnCallable]:
     """List of all metric functions."""
     predict_fns, score_fns, predict_with_aux_fns = self._all_metric_fns
-    return predict_fns + score_fns + predict_with_aux_fns  # pytype: disable=unsupported-operands
+    return predict_fns + score_fns + predict_with_aux_fns
 
   @property
   def predict_metric_fns(self) -> Sequence[MetricFnCallable]:
@@ -1356,7 +1356,7 @@ class Task(DatasetProviderBase):
         task_kwargs[key] = getattr(self, key)
     return Task(**task_kwargs)
 
-  def num_input_examples(self, split: str) -> Optional[int]:  # pytype: disable=signature-mismatch  # overriding-return-type-checks
+  def num_input_examples(self, split: str) -> Optional[int]:
     return self.source.num_input_examples(split)
 
   def _preprocess_dataset(
@@ -1545,7 +1545,7 @@ class Task(DatasetProviderBase):
     return self._stats[split]
 
   def get_dataset(
-      self,  # pytype: disable=signature-mismatch  # overriding-default-value-checks
+      self,
       sequence_length: Optional[Mapping[str, int]] = None,
       split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]
       use_cached: bool = False,
@@ -1982,7 +1982,7 @@ class Mixture(DatasetProviderBase):
   def _get_all_mixing_rates(self, tasks):
     return [self.get_rate(task) for task in tasks]
 
-  def get_dataset(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
+  def get_dataset(
       self,
       sequence_length: Optional[Mapping[str, int]] = None,
       split: str = tfds.Split.TRAIN,  # pyrefly: ignore[missing-attribute]

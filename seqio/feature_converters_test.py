@@ -278,7 +278,7 @@ class FeatureConvertersTest(tf.test.TestCase):
                     dtype=tf.int32
                 ),
             },
-        )  # pytype: disable=not-instantiable
+        )
 
   def test_pass_through(self):
     with mock.patch.object(
@@ -291,7 +291,7 @@ class FeatureConvertersTest(tf.test.TestCase):
                   dtype=tf.int32
               ),
           },
-      )  # pytype: disable=not-instantiable
+      )
       self.assertDictEqual(
           converter._passthrough_features,
           {
@@ -309,7 +309,7 @@ class FeatureConvertersTest(tf.test.TestCase):
     with mock.patch.object(
         feature_converters.FeatureConverter, "__abstractmethods__", set()
     ):
-      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
+      converter = feature_converters.FeatureConverter()  # pyrefly: ignore[bad-instantiation]
       expected_msg = (
           "Dataset is missing an expected feature during "
           "initial validation: 'inputs'"
@@ -342,7 +342,7 @@ class FeatureConvertersTest(tf.test.TestCase):
       feature_converters.FeatureConverter.TASK_FEATURES = {
           k: FeatureSpec(v) for k, v in task_feature_dtypes.items()
       }
-      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
+      converter = feature_converters.FeatureConverter()  # pyrefly: ignore[bad-instantiation]
       expected_msg = (
           "Dataset has incorrect type for feature 'inputs' during "
           "initial validation: Got int32, expected int64"
@@ -371,7 +371,7 @@ class FeatureConvertersTest(tf.test.TestCase):
     with mock.patch.object(
         feature_converters.FeatureConverter, "__abstractmethods__", set()
     ):
-      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
+      converter = feature_converters.FeatureConverter()  # pyrefly: ignore[bad-instantiation]
       expected_msg = (
           "Dataset has incorrect rank for feature 'inputs' during "
           "initial validation: Got 2, expected 1"
@@ -415,7 +415,7 @@ class FeatureConvertersTest(tf.test.TestCase):
           "inputs": FeatureSpec(dtype=tf.int64, rank=0, sequence_dim=0),
           "targets": FeatureSpec(dtype=tf.int64),
       }
-      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
+      converter = feature_converters.FeatureConverter()  # pyrefly: ignore[bad-instantiation]
       converter._pack = False
       converter(ds, task_feature_lengths)
 
@@ -431,7 +431,7 @@ class FeatureConvertersTest(tf.test.TestCase):
     with mock.patch.object(
         feature_converters.FeatureConverter, "__abstractmethods__", set()
     ):
-      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
+      converter = feature_converters.FeatureConverter()  # pyrefly: ignore[bad-instantiation]
       converter._validate_dataset(
           ds,
           expected_features={
@@ -459,7 +459,7 @@ class FeatureConvertersTest(tf.test.TestCase):
         "_convert_features",
         return_value=ds,
     ):
-      converter = feature_converters.FeatureConverter(pack=True)  # pytype: disable=not-instantiable
+      converter = feature_converters.FeatureConverter(pack=True)  # pyrefly: ignore[bad-instantiation]
       feature_converters.FeatureConverter.TASK_FEATURES = {
           "inputs": FeatureSpec(tf.int64, rank=2),
           "targets": FeatureSpec(tf.int64),
@@ -488,7 +488,7 @@ class FeatureConvertersTest(tf.test.TestCase):
     with mock.patch.object(
         feature_converters.FeatureConverter, "__abstractmethods__", set()
     ):
-      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
+      converter = feature_converters.FeatureConverter()  # pyrefly: ignore[bad-instantiation]
       feature_converters.FeatureConverter.TASK_FEATURES = {
           "inputs": FeatureSpec(tf.int64),
           "targets": FeatureSpec(tf.int64),
@@ -512,7 +512,7 @@ class FeatureConvertersTest(tf.test.TestCase):
     with mock.patch.object(
         feature_converters.FeatureConverter, "__abstractmethods__", set()
     ):
-      converter = feature_converters.FeatureConverter()  # pytype: disable=not-instantiable
+      converter = feature_converters.FeatureConverter()  # pyrefly: ignore[bad-instantiation]
       # _validate_dataset works even if ds has targets and targets_pretokenized
       ds = converter._validate_dataset(
           ds,

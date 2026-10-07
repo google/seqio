@@ -204,7 +204,7 @@ def _extract_model_output(cached_model_dataset, model_fn):
   def _permute(x, sorted_order):
     return [x[sorted_order[i]] for i in range(len(sorted_order))]
 
-  model_fn_result = model_fn(cached_model_dataset)  # pytype: disable=missing-parameter  # always-use-return-annotations
+  model_fn_result = model_fn(cached_model_dataset)
   if isinstance(model_fn_result, tuple):
     # Some of model functions return a tuple of two outputs per example.
     # e.g., ModelOutputType.PREDICTION_WITH_AUX,
@@ -528,7 +528,7 @@ class Evaluator:
       logging.warning(
           "'logger_cls' is empty so seqio.Evaluator will not log its results."
       )
-    self._loggers = tuple(cls(output_dir=log_dir) for cls in logger_cls)  # pytype:disable=not-instantiable
+    self._loggers = tuple(cls(output_dir=log_dir) for cls in logger_cls)
 
   def __del__(self):
     """Wait for metrics to be written before deletion."""
@@ -768,7 +768,7 @@ class Evaluator:
 
     result: TaskMetricsType = {}
     # TODO(b/309107492): Fix that attribute-error instead of silencing it.
-    for k, v in itertools.chain(*[m.items() for m in task_metrics]):  # pytype: disable=attribute-error
+    for k, v in itertools.chain(*[m.items() for m in task_metrics]):
       if k in result:
         raise ValueError(f"Duplicate metric key '{k}' in Task '{task.name}'.")
       result[k] = v

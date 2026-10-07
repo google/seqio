@@ -390,7 +390,7 @@ class FewshotDataSource(dataset_providers.DataSource):
     eval_ds = _apply_preprocessors(eval_ds, self._eval_preprocessors)
     datasets['eval'] = eval_ds
 
-    return tf.data.Dataset.zip(datasets)  # pyrefly: ignore[bad-argument-type]
+    return tf.data.Dataset.zip(datasets)
 
 
 

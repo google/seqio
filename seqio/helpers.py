@@ -354,10 +354,10 @@ def mixture_with_missing_task_splits_removed(
   Returns:
     The new `Mixture` object.
   """
-  og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_name)  # pytype: disable=annotation-type-mismatch  # always-use-return-annotations
+  og_mix: dp.Mixture = dp.get_mixture_or_task(mixture_name)
   new_tasks_and_rates = []
   for task_name, rate in og_mix._task_to_rate.items():
-    subtask: dp.Task = dp.get_mixture_or_task(task_name)  # pytype: disable=annotation-type-mismatch  # always-use-return-annotations
+    subtask: dp.Task = dp.get_mixture_or_task(task_name)
     if split in subtask.splits:
       new_tasks_and_rates.append((subtask.name, rate))
   new_mix = dp.Mixture(

@@ -245,7 +245,7 @@ class TasksTest(test_utils.FakeTaskTest):
   def _mock_and_assert_cached_source(self, task_name):
     cached_task = dataset_providers.get_mixture_or_task(task_name)
     cached_task._get_cached_source = mock.MagicMock(
-        side_effect=cached_task._get_cached_source  # pytype: disable=attribute-error  # always-use-return-annotations
+        side_effect=cached_task._get_cached_source
     )
     _ = cached_task.get_dataset(None, "train", use_cached=True)
     cached_task._get_cached_source.assert_called_once_with("train")
@@ -961,7 +961,7 @@ class TasksTest(test_utils.FakeTaskTest):
     def _get_formatted_shards_list(task_name, split):
       shards = dataset_providers.get_mixture_or_task(
           task_name
-      ).source.list_shards(  # pytype: disable=attribute-error
+      ).source.list_shards(
           split
       )  # always-use-return-annotations
       shards = [s.split("/")[-1] for s in shards]

@@ -254,7 +254,7 @@ class TensorBoardLoggerV1(Logger):
         )
     return self._summary_writers[task_name]
 
-  def __call__(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
+  def __call__(
       self,
       task_name: str,
       step: Optional[int],

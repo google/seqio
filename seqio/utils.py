@@ -425,13 +425,11 @@ class LazyTfdsLoader(object):
       seed: Optional[int] = None,
   ):
     """Returns a dataset for a single shard of the TFDS TFRecord files."""
-    # pytype:disable=attribute-error
     ds = self.builder._tfrecords_reader.read_files(  # pylint:disable=protected-access
         [file_instruction],
         read_config=tfds.ReadConfig(shuffle_seed=seed),
         shuffle_files=shuffle_files,
     )
-    # pytype:enable=attribute-error
     return ds
 
   def size(self, split: str) -> Optional[int]:
