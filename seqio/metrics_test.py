@@ -83,6 +83,71 @@ class MetricsComputeTest(parameterized.TestCase):
     )
     self.assertEqual(metric_value["accuracy"], 1.0)
 
+  @parameterized.named_parameters(
+      dict(
+          testcase_name="prediction_fewer_outputs",
+          metric_fn=lambda targets, predictions: {},
+          model_output=np.array([[1, 2], [2, 3]]),
+          expected_message=r"model outputs \(2\).*input examples \(3\)",
+      ),
+      dict(
+          testcase_name="prediction_more_outputs",
+          metric_fn=lambda targets, predictions: {},
+          model_output=np.array([[1, 2], [2, 3], [3, 4], [4, 5]]),
+          expected_message=r"model outputs \(4\).*input examples \(3\)",
+      ),
+      dict(
+          testcase_name="prediction_top_k_fewer_outputs",
+          metric_fn=lambda targets, predictions: {},
+          model_output=np.array([[[1, 2], [1, 3]], [[2, 3], [2, 4]]]),
+          expected_message=r"model outputs \(2\).*input examples \(3\)",
+      ),
+      dict(
+          testcase_name="prediction_with_aux_fewer_outputs",
+          metric_fn=lambda targets, predictions, aux_values: {},
+          model_output=(
+              np.array([[1, 2], [2, 3]]),
+              {"scores": np.array([0.1, 0.2])},
+          ),
+          expected_message=r"model outputs \(2\).*input examples \(3\)",
+      ),
+  )
+  def test_legacy_metric_model_output_length_mismatch(
+      self, metric_fn, model_output, expected_message
+  ):
+    metric_obj = metrics.LegacyMetric.empty(metric_fn, None)
+    inputs = [
+        {"targets": [1, 2]},
+        {"targets": [2, 3]},
+        {"targets": [3, 4]},
+    ]
+    features = {
+        "targets": dataset_providers.Feature(
+            vocabularies.PassThroughVocabulary(size=8)
+        )
+    }
+    with self.assertRaisesRegex(ValueError, expected_message):
+      metric_obj.from_model_output(inputs, model_output, features)
+
+  def test_legacy_metric_model_output_length_matches(self):
+    metric_obj = metrics.LegacyMetric.empty(
+        lambda targets, predictions: {"num_predictions": len(predictions)},
+        None,
+    )
+    inputs = [
+        {"targets": [1, 2]},
+        {"targets": [2, 3]},
+    ]
+    features = {
+        "targets": dataset_providers.Feature(
+            vocabularies.PassThroughVocabulary(size=8)
+        )
+    }
+    metric_instance = metric_obj.from_model_output(
+        inputs, np.array([[1, 2], [2, 3]]), features
+    )
+    self.assertEqual(metric_instance.compute(), {"num_predictions": 2})
+
 
 if __name__ == "__main__":
   absltest.main()

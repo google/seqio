@@ -318,11 +318,28 @@ class LegacyMetric(Metric):
             predictions.append(predictions_for_one_example)
         self.targets_and_inferences["output"] = predictions
 
-      # Postprocesses the predictions here.
-      postprocessed_predictions = [
-          self.postprocess_fn(p, example=ex, is_target=False)
-          for ex, p in zip(inputs, predictions)  # pyrefly: ignore[unbound-name]
-      ]
+      # Postprocesses the predictions here. `inputs` may be an iterable without
+      # a known length (e.g. a tf.data dataset), so the examples are counted
+      # while iterating. A plain `zip()` would silently truncate to the shorter
+      # of the two when the number of model outputs doesn't match.
+      num_predictions = len(predictions)  # pyrefly: ignore[unbound-name]
+      num_inputs = 0
+      postprocessed_predictions = []
+      for ex in inputs:
+        if num_inputs < num_predictions:
+          postprocessed_predictions.append(
+              self.postprocess_fn(
+                  predictions[num_inputs],  # pyrefly: ignore[unbound-name]
+                  example=ex,
+                  is_target=False,
+              )
+          )
+        num_inputs += 1
+      if num_inputs != num_predictions:
+        raise ValueError(
+            f"Number of model outputs ({num_predictions}) does not match the "
+            f"number of input examples ({num_inputs})."
+        )
 
       self.metric_fn_kwargs["predictions"] = postprocessed_predictions
       self.targets_and_inferences["prediction"] = postprocessed_predictions
