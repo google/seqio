@@ -24,7 +24,7 @@ from seqio import test_utils
 from seqio import utils
 from seqio import vocabularies
 import tensorflow.compat.v2 as tf
-import tensorflow_datasets as tfds
+import tensorflow_datasets.public_api as tfds
 
 
 assert_dataset = test_utils.assert_dataset
