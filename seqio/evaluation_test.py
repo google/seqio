@@ -1301,9 +1301,7 @@ class EvaluationTest(tf.test.TestCase):
         predict_metric_fns=[_sequence_accuracy_metric],
         score_metric_fns=[_sum_scores_metric],
     )
-    task.postprocess_fn = (
-        lambda x, example, is_target: x if is_target else x.replace("e6", "e7")
-    )
+    task.postprocess_fn = lambda x, example, is_target: x
     task.metric_objs = [
         metrics_lib.LegacyMetric.empty(mf, task.postprocess_fn)
         for mf in task.metric_fns
@@ -1338,7 +1336,8 @@ class EvaluationTest(tf.test.TestCase):
             vocabulary=vocabularies.PassThroughVocabulary(size=4)
         )
     }
-    dummy_outputs = np.array([])
+    # One model output per input example.
+    dummy_outputs = np.array([[0]])
 
     for inputs in model_inputs:
       for metric_obj in task.metric_objs:
