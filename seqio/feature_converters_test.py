@@ -250,6 +250,12 @@ class HelperFunctionsTest(tf.test.TestCase):
           actual_feature_source="input_dataset",
       )
 
+  def test_unnest(self):
+    unnested = feature_converters.unnest(
+        {"a": 1, "b": {"c": 2, "d": 3, "e": {"f": 5}}})
+    self.assertDictEqual(unnested, {
+        "a": 1, "b/c": 2, "b/d": 3, "b/e/f": 5})
+
 
 class FeatureConvertersTest(tf.test.TestCase):
 
