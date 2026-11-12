@@ -22,6 +22,7 @@ import itertools
 import json
 import os
 from typing import Optional
+from unittest import mock
 
 import numpy as np
 from seqio import loggers
@@ -217,10 +218,10 @@ class TensorBoardLoggerTest(tf.test.TestCase):
 
 class JSONLoggerTest(tf.test.TestCase):
 
-  def _get_task_dataset_for_write_to_file_tests(self):
+  def _get_task_dataset_for_write_to_file_tests(self, num_examples: int = 2):
     x = [
-        {"inputs_pretokenized": "i0", "targets_pretokenized": "t0"},
-        {"inputs_pretokenized": "i1", "targets_pretokenized": "t1"},
+        {"inputs_pretokenized": f"i{i}", "targets_pretokenized": f"t{i}"}
+        for i in range(num_examples)
     ]
     output_types = {
         "inputs_pretokenized": tf.string,
@@ -738,6 +739,57 @@ class JSONLoggerTest(tf.test.TestCase):
     # Verify inferences not written.
     self.assertFalse(
         tf.io.gfile.exists(os.path.join(tmp_dir, "test-000042.jsonl"))
+    )
+
+  def test_no_crash_when_write_time_is_zero(self):
+    inferences = {"prediction": ["pred0", "pred1"], "score": [0.2, 0.3]}
+    targets = ["target0", "target1"]
+    tmp_dir = self.create_tempdir().full_path
+    task_dataset = self._get_task_dataset_for_write_to_file_tests()
+
+    logger = loggers.JSONLogger(tmp_dir)
+    with mock.patch("seqio.loggers.time.time", return_value=100.0):
+      logger(
+          task_name="test",
+          step=42,
+          metrics={"accuracy": metrics_lib.Scalar(100)},
+          dataset=task_dataset,
+          inferences=inferences,
+          targets=targets,
+      )
+
+    # The inference file is still written without a ZeroDivisionError when the
+    # write duration rounds to zero.
+    self.assertTrue(
+        tf.io.gfile.exists(os.path.join(tmp_dir, "test-000042.jsonl"))
+    )
+
+  def test_logs_examples_per_second(self):
+    inferences = {
+        "prediction": ["pred0", "pred1", "pred2"],
+        "score": [0.2, 0.3, 0.4],
+    }
+    targets = ["target0", "target1", "target2"]
+    tmp_dir = self.create_tempdir().full_path
+    task_dataset = self._get_task_dataset_for_write_to_file_tests(3)
+
+    logger = loggers.JSONLogger(tmp_dir)
+    with mock.patch(
+        "seqio.loggers.time.time", side_effect=[100.0, 101.0]
+    ), self.assertLogs(level="INFO") as log:
+      logger(
+          task_name="test",
+          step=42,
+          metrics={"accuracy": metrics_lib.Scalar(100)},
+          dataset=task_dataset,
+          inferences=inferences,
+          targets=targets,
+      )
+
+    # The rate is computed from the number of examples written (3), not the
+    # number of inference types (2).
+    self.assertTrue(
+        any("3.00 examples/sec" in line for line in log.output)
     )
 
 

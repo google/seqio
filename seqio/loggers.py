@@ -480,9 +480,11 @@ class JSONLogger(Logger):
         )
       field_names = ["target"] + inference_types
 
+      num_examples = 0
       for example_index, (inp, *results) in enumerate(examples_with_results):
         if inp is None:
           continue
+        num_examples += 1
         # tfds.as_numpy does not convert ragged tensors
         for k in inp:
           if isinstance(inp[k], tf.RaggedTensor):
@@ -504,10 +506,14 @@ class JSONLogger(Logger):
         json_str = json.dumps(json_dict, cls=self._json_encoder_cls)
         f.write(json_str + "\n")
     write_time = time.time() - write_tick
+    if write_time > 0:
+      examples_per_sec = num_examples / write_time
+    else:
+      examples_per_sec = float("inf")
     logging.info(
-        "Writing completed in %02f seconds (%02f examples/sec).",
+        "Writing completed in %.2f seconds (%.2f examples/sec).",
         write_time,
-        len(inferences) / write_time,
+        examples_per_sec,
     )
 
 
